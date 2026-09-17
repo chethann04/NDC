@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "src/models/**/*",
+    "src/utils/checkClearances.ts",
+    "src/utils/checkDemoUsers.ts",
+    "src/utils/syncDepartments.ts",
+    "src/utils/updateHods.ts"
+  ]
+}

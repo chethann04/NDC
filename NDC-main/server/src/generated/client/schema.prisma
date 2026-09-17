@@ -1,0 +1,327 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  DEPARTMENT_OFFICER
+  HOD
+  STUDENT
+}
+
+enum NdcRequestStatus {
+  PENDING
+  IN_PROGRESS
+  BLOCKED
+  APPROVED
+  CANCELLED
+  REJECTED
+}
+
+enum DepartmentClearanceStatus {
+  PENDING
+  CLEARED
+  DUE
+  ON_HOLD
+  NOT_APPLICABLE
+}
+
+enum CertificateStatus {
+  VALID
+  REVOKED
+  REPLACED
+}
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String
+  role                UserRole
+  name                String
+  associatedStudentId String?   @unique
+  associatedOfficerId String?   @unique
+  departmentId        String?
+  isActive            Boolean   @default(true)
+  mustChangePassword  Boolean   @default(false)
+  lastLogin           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  associatedStudent Student?             @relation("StudentUser", fields: [associatedStudentId], references: [id], onDelete: Cascade)
+  associatedOfficer ClearanceOfficer?    @relation("OfficerUser", fields: [associatedOfficerId], references: [id], onDelete: Cascade)
+  department        ClearanceDepartment? @relation("DepartmentUsers", fields: [departmentId], references: [id])
+
+  issuedCertificates    NdcCertificate[] @relation("IssuedCertificates")
+  revokedCertificates   NdcCertificate[] @relation("RevokedCertificates")
+  submittedCertificates NdcCertificate[] @relation("SubmittedCertificates")
+  reviewedClearances    NdcClearance[]   @relation("ReviewedClearances")
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+
+  @@index([departmentId])
+  @@index([role])
+  @@map("users")
+}
+
+model ClearanceDepartment {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  code              String   @unique
+  description       String   @default("")
+  requiresClearance Boolean  @default(true)
+  isAcademicBranch  Boolean  @default(false)
+  displayOrder      Int      @default(0)
+  isActive          Boolean  @default(true)
+  hodName           String   @default("")
+  hodDesignation    String   @default("Head of the Department")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  students        Student[]
+  users           User[]                       @relation("DepartmentUsers")
+  officerMappings ClearanceOfficerDepartment[]
+  clearances      NdcClearance[]
+
+  @@map("clearance_departments")
+}
+
+model ClearanceOfficer {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  employeeId String   @unique
+  name       String
+  email      String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user               User?                        @relation("OfficerUser")
+  departmentMappings ClearanceOfficerDepartment[]
+  assignedClearances NdcClearance[]
+
+  @@map("clearance_officers")
+}
+
+model ClearanceOfficerDepartment {
+  officerId    String
+  departmentId String
+  assignedAt   DateTime @default(now())
+
+  officer    ClearanceOfficer    @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  department ClearanceDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([officerId, departmentId])
+  @@map("clearance_officer_departments")
+}
+
+model Student {
+  id             String    @id @default(uuid())
+  studentId      String    @unique
+  usn            String    @unique
+  fullName       String
+  email          String
+  phone          String    @default("")
+  departmentId   String
+  departmentName String?
+  section        String    @default("A")
+  batch          String    @default("2022-2026")
+  academicYear   String    @default("2025-2026")
+  semester       String    @default("8th Semester")
+  year           String    @default("4th Year")
+  admissionYear  Int       @default(2022)
+  graduationYear Int       @default(2026)
+  dateOfBirth    DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  department    ClearanceDepartment @relation(fields: [departmentId], references: [id])
+  user          User?               @relation("StudentUser")
+  ndcRequests   NdcRequest[]
+  ndcClearances NdcClearance[]
+  certificates  NdcCertificate[]
+
+  @@index([email])
+  @@index([departmentId])
+  @@index([batch])
+  @@index([academicYear])
+  @@index([createdAt])
+  @@index([departmentId, isActive])
+  @@map("students")
+}
+
+model NdcRequest {
+  id            String           @id @default(uuid())
+  requestNumber String           @unique
+  studentId     String
+  status        NdcRequestStatus @default(PENDING)
+  submittedAt   DateTime         @default(now())
+  completedAt   DateTime?
+  certificateId String?          @unique
+  remarks       String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  student     Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  certificate NdcCertificate? @relation("RequestCertificate", fields: [certificateId], references: [id])
+  clearances  NdcClearance[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("ndc_requests")
+}
+
+model NdcClearance {
+  id           String                    @id @default(uuid())
+  ndcRequestId String
+  studentId    String
+  departmentId String
+  officerId    String?
+  status       DepartmentClearanceStatus @default(PENDING)
+  remarks      String?
+  dueAmount    Float                     @default(0)
+  dueDetails   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  ndcRequest NdcRequest          @relation(fields: [ndcRequestId], references: [id], onDelete: Cascade)
+  student    Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  department ClearanceDepartment @relation(fields: [departmentId], references: [id])
+  officer    ClearanceOfficer?   @relation(fields: [officerId], references: [id])
+  reviewedBy User?               @relation("ReviewedClearances", fields: [reviewedById], references: [id])
+
+  @@unique([ndcRequestId, departmentId])
+  @@index([studentId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([departmentId, status])
+  @@index([departmentId, status, createdAt])
+  @@index([officerId])
+  @@map("ndc_clearances")
+}
+
+model NdcCertificate {
+  id                       String            @id @default(uuid())
+  certificateNumber        String            @unique
+  ndcRequestId             String
+  studentId                String
+  studentName              String?
+  studentUsn               String?
+  departmentName           String?
+  issuedAt                 DateTime          @default(now())
+  issuedById               String?
+  pdfPath                  String?
+  status                   CertificateStatus @default(VALID)
+  revokedAt                DateTime?
+  revokedById              String?
+  revocationReason         String?
+  isReplaced               Boolean           @default(false)
+  replacementCertificateId String?
+  isSubmitted              Boolean           @default(false)
+  submittedAt              DateTime?
+  submittedById            String?
+  submissionRemarks        String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  request     NdcRequest? @relation("RequestCertificate")
+  student     Student     @relation(fields: [studentId], references: [id])
+  issuedBy    User?       @relation("IssuedCertificates", fields: [issuedById], references: [id])
+  revokedBy   User?       @relation("RevokedCertificates", fields: [revokedById], references: [id])
+  submittedBy User?       @relation("SubmittedCertificates", fields: [submittedById], references: [id])
+
+  @@index([studentId])
+  @@index([studentUsn])
+  @@index([ndcRequestId])
+  @@index([status])
+  @@index([issuedAt])
+  @@index([isSubmitted])
+  @@map("ndc_certificates")
+}
+
+model CertificateSequence {
+  id            String   @id @default(uuid())
+  key           String   @default("NDC")
+  year          Int
+  prefix        String   @default("NDC/MCE/")
+  currentNumber Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([key, year])
+  @@map("certificate_sequences")
+}
+
+model Setting {
+  id                   String   @id @default(uuid())
+  collegeName          String   @default("MALNAD COLLEGE OF ENGINEERING")
+  collegeAddress       String   @default("Autonomous Institution Affiliated to VTU, Belagavi | Hassan, Karnataka - 573202")
+  collegeLogoUrl       String?  @default("")
+  certificateTitle     String   @default("NO DUE CERTIFICATE")
+  certificateStatement String   @default("has cleared all outstanding financial dues, library books, laboratory equipment, hostel fees, and departmental obligations with the institution.")
+  certificatePrefix    String   @default("NDC/MCE/")
+  academicYear         String?  @default("2025-2026")
+  signatoryName        String   @default("Dr. K. S. Ananth")
+  signatoryDesignation String   @default("Dean & Administrative Officer")
+  footerText           String   @default("This certificate is generated by the Autonomous No Due Clearance System.")
+  eligibleBatches      String[] @default(["2022-2026", "2023-2027", "2024-2028", "2021-2025"])
+  eligibleYears        String[] @default(["4th Year", "Final Year", "3rd Year"])
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  userName    String   @default("SYSTEM")
+  role        String   @default("SYSTEM")
+  action      String
+  entityType  String
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  description String
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([action, timestamp])
+  @@index([entityType])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  recipientUserId String
+  title           String
+  message         String
+  type            String   @default("INFO")
+  isRead          Boolean  @default(false)
+  relatedEntityId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  recipientUser User @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@index([recipientUserId, isRead])
+  @@map("notifications")
+}
