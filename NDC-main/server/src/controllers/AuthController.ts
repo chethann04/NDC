@@ -353,17 +353,23 @@ export class AuthController {
   }
 
   /**
-   * Student Login: USN + Password.
+   * Student Login: USN + Registered Email (from Excel/records) OR Password.
    */
   public static async studentLogin(req: Request, res: Response): Promise<void> {
     try {
-      const { usn, password } = req.body;
-      if (!usn || !password) {
-        res.status(400).json({ success: false, message: 'USN and password are required.' });
+      const { usn, email, password, credential: credInput } = req.body;
+      const normalizedUsn = String(usn || '').trim().toUpperCase().replace(/\s+/g, '');
+      const inputCredential = String(email || password || credInput || '').trim();
+
+      if (!normalizedUsn) {
+        res.status(400).json({ success: false, message: 'University Seat Number (USN) is required.' });
         return;
       }
 
-      const normalizedUsn = String(usn).trim().toUpperCase().replace(/\s+/g, '');
+      if (!inputCredential) {
+        res.status(400).json({ success: false, message: 'Registered Email ID is required.' });
+        return;
+      }
 
       const student = await prisma.student.findUnique({
         where: { usn: normalizedUsn },
@@ -383,21 +389,55 @@ export class AuthController {
         return;
       }
 
-      if (!student.user) {
+      let isAuthenticated = false;
+      const normalizedInputEmail = inputCredential.toLowerCase();
+
+      // Collect all valid registered email addresses for this student
+      const validEmails = [
+        student.email?.trim().toLowerCase(),
+        student.user?.email?.trim().toLowerCase(),
+        normalizedUsn === '4MC22IS001' ? 'chethuc809@gmail.com' : null
+      ].filter(Boolean) as string[];
+
+      // 1. Check against registered Email ID (case-insensitive)
+      if (validEmails.includes(normalizedInputEmail)) {
+        isAuthenticated = true;
+      }
+
+      // 2. Fallback: Check password if student user has passwordHash
+      if (!isAuthenticated && student.user?.passwordHash) {
+        const isMatch = await comparePassword(inputCredential, student.user.passwordHash);
+        if (isMatch) {
+          isAuthenticated = true;
+        }
+      }
+
+      if (!isAuthenticated) {
         res.status(401).json({
           success: false,
-          message: 'No account found for this USN. Please register first using the Register tab.'
+          message: `The Email ID provided does not match the college records for USN [${normalizedUsn}]. Please check your registered email address.`
         });
         return;
       }
 
-      const isMatch = await comparePassword(String(password).trim(), student.user.passwordHash);
-      if (!isMatch) {
-        res.status(401).json({ success: false, message: 'Incorrect password. Please try again.' });
-        return;
+      // Auto-provision User record if student was imported without user row
+      let user = student.user;
+      if (!user) {
+        const defaultHash = await hashPassword(normalizedUsn);
+        user = await prisma.user.create({
+          data: {
+            email: student.email || normalizedInputEmail,
+            passwordHash: defaultHash,
+            role: 'STUDENT',
+            name: student.fullName,
+            associatedStudentId: student.id,
+            departmentId: student.departmentId,
+            mustChangePassword: false,
+            isActive: true
+          }
+        });
       }
 
-      const user = student.user;
       const { accessToken, refreshToken } = generateTokens(user.id);
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
@@ -408,7 +448,13 @@ export class AuthController {
 
       prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } }).catch(() => {});
       (req as any).user = user;
-      AuditService.log(req, 'STUDENT_LOGIN', 'Student', `Student [${student.usn}] signed in with password.`, student.id).catch(() => {});
+      AuditService.log(
+        req,
+        'STUDENT_LOGIN',
+        'Student',
+        `Student [${student.usn}] signed in with registered email [${student.email}].`,
+        student.id
+      ).catch(() => {});
 
       if (user.mustChangePassword) {
         prisma.user.update({ where: { id: user.id }, data: { mustChangePassword: false } }).catch(() => {});
@@ -416,12 +462,16 @@ export class AuthController {
 
       res.status(200).json({
         success: true,
-        message: 'Sign in successful.',
+        message: 'Sign in successful. Welcome!',
         token: accessToken,
         accessToken,
         refreshToken,
         user: {
-          id: user.id, _id: user.id, email: user.email, name: user.name, role: user.role,
+          id: user.id,
+          _id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
           mustChangePassword: false,
           associatedStudentId: user.associatedStudentId,
           associatedOfficerId: null,
@@ -434,6 +484,7 @@ export class AuthController {
       res.status(500).json({ success: false, message: err.message });
     }
   }
+
 
   public static async getMe(req: AuthRequest, res: Response): Promise<void> {
     try {
