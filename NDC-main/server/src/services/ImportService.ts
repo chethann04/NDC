@@ -336,6 +336,8 @@ export class ImportService {
                 isActive: true
               }
             });
+            const { DepartmentController } = await import('../controllers/DepartmentController');
+            await DepartmentController.provisionDepartmentDefaults(newDept, reqObj);
             deptMapByCode.set(dCode, newDept.id);
             deptMapByName.set(dName, newDept.id);
             row.departmentId = newDept.id;

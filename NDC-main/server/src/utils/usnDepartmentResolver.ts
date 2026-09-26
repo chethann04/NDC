@@ -95,6 +95,12 @@ export const getOrCreateDepartmentByUsn = async (usn: string): Promise<UsnDepart
         isActive: true
       }
     });
+    try {
+      const { DepartmentController } = await import('../controllers/DepartmentController');
+      await DepartmentController.provisionDepartmentDefaults(dept);
+    } catch (provisionErr) {
+      console.error('[usnDepartmentResolver] Error auto-provisioning department defaults:', provisionErr);
+    }
     departmentCache.invalidate();
   }
 

@@ -15,7 +15,11 @@ import {
   CheckCircle2,
   XCircle,
   FolderMinus,
-  Sparkles
+  Sparkles,
+  Key,
+  Copy,
+  Check,
+  UserCheck
 } from 'lucide-react';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { showErrorModal } from '../../store/useErrorModalStore';
@@ -56,6 +60,26 @@ export const DepartmentManagement: React.FC = () => {
   const [deleteWarningInfo, setDeleteWarningInfo] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<any>(null);
+
+  // Auto-Provisioned Credentials Modal State
+  const [provisionedInfo, setProvisionedInfo] = useState<{
+    deptName: string;
+    deptCode: string;
+    isAcademicBranch: boolean;
+    labCode?: string;
+    hodLoginId?: string;
+    hodEmail?: string;
+    officerLoginId?: string;
+    officerEmail?: string;
+    defaultPassword?: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   useEffect(() => {
     fetchDepartments();
@@ -116,7 +140,15 @@ export const DepartmentManagement: React.FC = () => {
       if (editingDepartment) {
         await api.put(`/departments/${editingDepartment._id}`, formData);
       } else {
-        await api.post('/departments', formData);
+        const res = await api.post('/departments', formData);
+        if (res.data?.provisioned) {
+          setProvisionedInfo({
+            deptName: res.data.data?.name || formData.name,
+            deptCode: res.data.data?.code || formData.code,
+            isAcademicBranch: Boolean(formData.isAcademicBranch),
+            ...res.data.provisioned
+          });
+        }
       }
 
       setIsModalOpen(false);
@@ -722,6 +754,159 @@ export const DepartmentManagement: React.FC = () => {
                     <span>{forceDelete ? 'Force Delete' : 'Delete Department'}</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Provisioned Credentials Success Modal */}
+      {provisionedInfo && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-emerald-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Department & Accounts Created!</h3>
+                <p className="text-xs text-slate-500">
+                  Faculty section and default officer accounts auto-provisioned
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+              <p className="text-emerald-900 font-bold">
+                {provisionedInfo.deptName} ({provisionedInfo.deptCode})
+              </p>
+              <p className="text-emerald-800 text-[11px]">
+                {provisionedInfo.isAcademicBranch
+                  ? 'Academic Branch Department, unified lab, and default staff credentials were automatically generated.'
+                  : 'Clearance desk and default officer credentials were automatically generated.'}
+              </p>
+              {provisionedInfo.labCode && (
+                <div className="pt-1 text-[11px] text-emerald-950 font-semibold">
+                  <span>Provisioned Lab Section: </span>
+                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-300">
+                    {provisionedInfo.labCode}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Account Credentials Cards */}
+            <div className="space-y-3">
+              {/* HOD Account (if applicable) */}
+              {provisionedInfo.hodLoginId && (
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5 text-blue-700">
+                      <GraduationCap className="w-4 h-4" /> Head of Department (HOD)
+                    </span>
+                    <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                      Auto-Provisioned
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Login ID</div>
+                        <div className="font-mono font-semibold text-slate-800">{provisionedInfo.hodLoginId}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(provisionedInfo.hodLoginId!, 'hodLogin')}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+                        title="Copy Login ID"
+                      >
+                        {copiedField === 'hodLogin' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Password</div>
+                        <div className="font-mono font-semibold text-slate-800">{provisionedInfo.defaultPassword}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(provisionedInfo.defaultPassword!, 'hodPass')}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+                        title="Copy Password"
+                      >
+                        {copiedField === 'hodPass' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Email: <span className="font-mono text-slate-700">{provisionedInfo.hodEmail}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Faculty Section / Clearance Officer Account */}
+              {provisionedInfo.officerLoginId && (
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5 text-indigo-700">
+                      <UserCheck className="w-4 h-4" />
+                      {provisionedInfo.isAcademicBranch ? 'Department Faculty Section Officer' : 'Default Clearance Officer'}
+                    </span>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
+                      Auto-Provisioned
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Login ID</div>
+                        <div className="font-mono font-semibold text-slate-800">{provisionedInfo.officerLoginId}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(provisionedInfo.officerLoginId!, 'offLogin')}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+                        title="Copy Login ID"
+                      >
+                        {copiedField === 'offLogin' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold">Password</div>
+                        <div className="font-mono font-semibold text-slate-800">{provisionedInfo.defaultPassword}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(provisionedInfo.defaultPassword!, 'offPass')}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+                        title="Copy Password"
+                      >
+                        {copiedField === 'offPass' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    Email: <span className="font-mono text-slate-700">{provisionedInfo.officerEmail}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-800 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                Workflow clearance requirements have been synced automatically across all active student NDC requests.
+              </span>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setProvisionedInfo(null)}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-md transition-colors"
+              >
+                Close & View Department
               </button>
             </div>
           </div>

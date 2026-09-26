@@ -6,6 +6,8 @@ import { withId, withIds } from '../utils/formatters';
 import { departmentCache } from '../utils/departmentCache';
 import { NdcWorkflowService } from '../services/NdcWorkflowService';
 import { invalidateStudentStatusCache, invalidateOfficerStatsCache } from './NdcController';
+import { UserRole } from '../constants/roles';
+import { hashPassword } from '../utils/passwordUtils';
 
 export class DepartmentController {
   private static cachedDepartments: any[] | null = null;
@@ -56,6 +58,243 @@ export class DepartmentController {
     }
   }
 
+  /**
+   * Automatically provisions all required companion entities when a new department is created:
+   * - Academic Branch: creates Department Lab, default HOD account, default Faculty section account, and links officer.
+   * - Central / Non-Academic: creates default Clearance Officer account and officer department mapping.
+   * - Clearance requirements: synchronizes student workflow queues so students immediately see the requirement.
+   */
+  public static async provisionDepartmentDefaults(department: any, req?: any): Promise<{
+    lab?: any;
+    hodUser?: any;
+    officerUser?: any;
+    officer?: any;
+  }> {
+    const result: any = {};
+    const defaultPassword = 'Officer@123';
+    const passwordHash = await hashPassword(defaultPassword);
+    const cleanCode = department.code.toUpperCase().trim();
+    const cleanLowerCode = cleanCode.toLowerCase();
+
+    if (department.isAcademicBranch) {
+      // 1. Ensure Department Lab exists
+      let lab = await prisma.departmentLab.findFirst({
+        where: { departmentId: department.id }
+      });
+      if (!lab) {
+        lab = await prisma.departmentLab.create({
+          data: {
+            departmentId: department.id,
+            code: `${cleanCode}-LAB`,
+            name: `${department.name} Lab`,
+            isActive: true,
+            displayOrder: 1
+          }
+        });
+      }
+      result.lab = lab;
+
+      // 2. Provision HOD Account if not exists
+      const hodEmail = `hod.${cleanLowerCode}@mce.ac.in`;
+      const hodLoginId = `HOD-${cleanCode}`;
+      let existingHod = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: hodEmail, mode: 'insensitive' } },
+            { loginId: hodLoginId }
+          ]
+        }
+      });
+
+      if (!existingHod) {
+        const hodName = department.hodName?.trim() || `Head of Department (${cleanCode})`;
+        existingHod = await prisma.user.create({
+          data: {
+            name: hodName,
+            email: hodEmail,
+            loginId: hodLoginId,
+            role: UserRole.HOD,
+            departmentId: department.id,
+            passwordHash,
+            isActive: true,
+            mustChangePassword: false
+          }
+        });
+        if (!department.hodName) {
+          await prisma.clearanceDepartment.update({
+            where: { id: department.id },
+            data: { hodName }
+          });
+        }
+      }
+      result.hodUser = existingHod;
+
+      // 3. Provision Department Faculty / Lab Officer Account if not exists
+      const facultyEmail = `faculty.${cleanLowerCode}@mce.ac.in`;
+      const facultyLoginId = `${cleanCode}001`;
+      const facultyEmpId = `EMP-${cleanCode}-FAC`;
+
+      const existingFaculty = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: facultyEmail, mode: 'insensitive' } },
+            { loginId: facultyLoginId }
+          ]
+        },
+        include: { associatedOfficer: true }
+      });
+
+      if (!existingFaculty) {
+        const facultyName = `Department Faculty (${cleanCode})`;
+        const newFaculty = await prisma.user.create({
+          data: {
+            name: facultyName,
+            email: facultyEmail,
+            loginId: facultyLoginId,
+            role: UserRole.DEPARTMENT_OFFICER,
+            departmentId: department.id,
+            passwordHash,
+            isActive: true,
+            mustChangePassword: false
+          }
+        });
+
+        // Create ClearanceOfficer record
+        let officer = await prisma.clearanceOfficer.findFirst({
+          where: {
+            OR: [
+              { userId: newFaculty.id },
+              { employeeId: facultyEmpId },
+              { email: facultyEmail }
+            ]
+          }
+        });
+
+        if (!officer) {
+          officer = await prisma.clearanceOfficer.create({
+            data: {
+              userId: newFaculty.id,
+              employeeId: facultyEmpId,
+              name: facultyName,
+              email: facultyEmail,
+              isActive: true
+            }
+          });
+        }
+
+        await prisma.user.update({
+          where: { id: newFaculty.id },
+          data: { associatedOfficerId: officer.id }
+        });
+
+        await prisma.clearanceOfficerDepartment.upsert({
+          where: {
+            officerId_departmentId: {
+              officerId: officer.id,
+              departmentId: department.id
+            }
+          },
+          update: {},
+          create: {
+            officerId: officer.id,
+            departmentId: department.id
+          }
+        });
+
+        result.officerUser = newFaculty;
+        result.officer = officer;
+      } else {
+        result.officerUser = existingFaculty;
+        result.officer = existingFaculty.associatedOfficer;
+      }
+    } else {
+      // Non-academic clearance desk / section (e.g. Central Library, Sports, or a new section like Medical Center)
+      const officerEmail = `${cleanLowerCode}.officer@mce.ac.in`;
+      const officerLoginId = `${cleanCode}001`;
+      const officerEmpId = `EMP-${cleanCode}-01`;
+      const officerName = `${department.name} Officer`;
+
+      const existingOfficerUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: officerEmail, mode: 'insensitive' } },
+            { loginId: officerLoginId }
+          ]
+        },
+        include: { associatedOfficer: true }
+      });
+
+      if (!existingOfficerUser) {
+        const newOfficerUser = await prisma.user.create({
+          data: {
+            name: officerName,
+            email: officerEmail,
+            loginId: officerLoginId,
+            role: UserRole.DEPARTMENT_OFFICER,
+            departmentId: department.id,
+            passwordHash,
+            isActive: true,
+            mustChangePassword: false
+          }
+        });
+
+        let officer = await prisma.clearanceOfficer.findFirst({
+          where: {
+            OR: [
+              { userId: newOfficerUser.id },
+              { employeeId: officerEmpId },
+              { email: officerEmail }
+            ]
+          }
+        });
+
+        if (!officer) {
+          officer = await prisma.clearanceOfficer.create({
+            data: {
+              userId: newOfficerUser.id,
+              employeeId: officerEmpId,
+              name: officerName,
+              email: officerEmail,
+              isActive: true
+            }
+          });
+        }
+
+        await prisma.user.update({
+          where: { id: newOfficerUser.id },
+          data: { associatedOfficerId: officer.id }
+        });
+
+        await prisma.clearanceOfficerDepartment.upsert({
+          where: {
+            officerId_departmentId: {
+              officerId: officer.id,
+              departmentId: department.id
+            }
+          },
+          update: {},
+          create: {
+            officerId: officer.id,
+            departmentId: department.id
+          }
+        });
+
+        result.officerUser = newOfficerUser;
+        result.officer = officer;
+      } else {
+        result.officerUser = existingOfficerUser;
+        result.officer = existingOfficerUser.associatedOfficer;
+      }
+    }
+
+    // 4. Synchronize workflow clearance requirements if department is active and requires clearance
+    if (department.requiresClearance && department.isActive) {
+      await NdcWorkflowService.syncDepartmentClearanceRequirement(department.id, true, req);
+    }
+
+    return result;
+  }
+
   public static async createDepartment(req: AuthRequest, res: Response): Promise<void> {
     try {
       const {
@@ -100,32 +339,36 @@ export class DepartmentController {
         }
       });
 
-      // Auto-provision branch department lab if academic branch
-      if (department.isAcademicBranch) {
-        await prisma.departmentLab.create({
-          data: {
-            departmentId: department.id,
-            code: `${department.code}-LAB`,
-            name: `${department.name} Lab`,
-            isActive: true,
-            displayOrder: 1
-          }
-        });
-      }
+      // Automatically provision companion entities (Department Lab, HOD, Faculty/Officer, and Clearances)
+      const provisionDetails = await DepartmentController.provisionDepartmentDefaults(department, req);
 
-      await AuditService.log(req, 'DEPARTMENT_CREATED', 'ClearanceDepartment', `Created department [${department.code}] - ${department.name}.`, department.id);
+      await AuditService.log(
+        req,
+        'DEPARTMENT_CREATED',
+        'ClearanceDepartment',
+        `Created department [${department.code}] - ${department.name} with auto-provisioned staff accounts.`,
+        department.id,
+        null,
+        provisionDetails
+      );
+
       DepartmentController.invalidateCache();
 
-      if (department.requiresClearance && department.isActive) {
-        await NdcWorkflowService.syncDepartmentClearanceRequirement(
-          department.id,
-          true,
-          req
-        );
-      }
-
-      res.status(201).json({ success: true, message: 'Department created successfully.', data: withId(department) });
+      res.status(201).json({
+        success: true,
+        message: `Department [${department.code}] created successfully with related faculty section and default officer accounts.`,
+        data: withId(department),
+        provisioned: {
+          labCode: provisionDetails.lab?.code,
+          hodLoginId: provisionDetails.hodUser?.loginId,
+          hodEmail: provisionDetails.hodUser?.email,
+          officerLoginId: provisionDetails.officerUser?.loginId,
+          officerEmail: provisionDetails.officerUser?.email,
+          defaultPassword: 'Officer@123'
+        }
+      });
     } catch (err: any) {
+      console.error('[createDepartment Error]:', err);
       res.status(500).json({ success: false, message: err.message });
     }
   }

@@ -545,46 +545,33 @@ export class SectionLoginController {
         }
       });
 
-      // If Academic Branch, also ensure exactly 1 Department Lab exists for it
-      if (isAcademic) {
-        await prisma.departmentLab.upsert({
-          where: { departmentId: department.id },
-          update: {
-            name: 'Department Lab',
-            code: `${formattedCode}-LAB`,
-            displayOrder: 1,
-            isActive: true
-          },
-          create: {
-            name: 'Department Lab',
-            code: `${formattedCode}-LAB`,
-            departmentId: department.id,
-            displayOrder: 1,
-            isActive: true
-          }
-        });
-      }
+      // Automatically provision companion entities (Department Lab, HOD, Faculty/Officer, and Clearances)
+      const provisionDetails = await DepartmentController.provisionDepartmentDefaults(department, req);
 
       DepartmentController.invalidateCache();
-
-      if (department.requiresClearance && department.isActive) {
-        await NdcWorkflowService.syncDepartmentClearanceRequirement(department.id, true, req);
-      }
 
       await AuditService.log(
         req,
         'CREATE_DEPARTMENT_SECTION',
         'ClearanceDepartment',
-        `Super Admin created new ${selectedCategory} section: [${formattedCode}] - ${formattedName}`,
+        `Super Admin created new ${selectedCategory} section: [${formattedCode}] - ${formattedName} with auto-provisioned staff accounts.`,
         department.id,
         undefined,
-        department
+        { department, provisionDetails }
       );
 
       res.status(201).json({
         success: true,
-        message: `Department "${department.name}" (${department.code}) created successfully.`,
-        data: withId(department)
+        message: `Department "${department.name}" (${department.code}) created successfully with related faculty section and default officer accounts.`,
+        data: withId(department),
+        provisioned: {
+          labCode: provisionDetails.lab?.code,
+          hodLoginId: provisionDetails.hodUser?.loginId,
+          hodEmail: provisionDetails.hodUser?.email,
+          officerLoginId: provisionDetails.officerUser?.loginId,
+          officerEmail: provisionDetails.officerUser?.email,
+          defaultPassword: 'Officer@123'
+        }
       });
     } catch (err: any) {
       console.error('[createDepartment Error]:', err);
