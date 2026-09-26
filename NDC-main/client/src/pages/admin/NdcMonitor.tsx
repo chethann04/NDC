@@ -16,17 +16,22 @@ import {
   FileText
 } from 'lucide-react';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
+import { ErrorAlert } from '../../components/ErrorAlert';
+import { clientCache } from '../../utils/clientCache';
+import { showErrorModal } from '../../store/useErrorModalStore';
 
 export const NdcMonitor: React.FC = () => {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedMonitor = clientCache.get<any>('ndc_monitor_requests');
+  const [requests, setRequests] = useState<any[]>(() => cachedMonitor?.data || []);
+  const [loading, setLoading] = useState(!cachedMonitor);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [section, setSection] = useState<'ALL'>('ALL');
-  const [counts, setCounts] = useState({ total: 0, active: 0, approved: 0 });
+  const [counts, setCounts] = useState(() => cachedMonitor?.counts || { total: 0, active: 0, approved: 0 });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
-  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState(() => cachedMonitor?.pagination || { total: 0, totalPages: 1 });
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [previewCert, setPreviewCert] = useState<any>(null);
   const [clearances, setClearances] = useState<any[]>([]);
@@ -37,21 +42,36 @@ export const NdcMonitor: React.FC = () => {
   const [overrideStatus, setOverrideStatus] = useState<'CLEARED' | 'DUE' | 'NOT_APPLICABLE'>('CLEARED');
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideSubmitting, setOverrideSubmitting] = useState(false);
-  const [overrideError, setOverrideError] = useState('');
+  const [overrideError, setOverrideError] = useState<any>(null);
 
   const currentUser = useAuthStore((state) => state.user);
 
+  // Debounce search input by 300ms to avoid flooding backend on keystrokes
   useEffect(() => {
-    fetchRequests();
-  }, [search, statusFilter, page, limit]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const fetchRequests = async () => {
+  useEffect(() => {
+    fetchRequests(!cachedMonitor);
+  }, [debouncedSearch, statusFilter, page, limit]);
+
+  const fetchRequests = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const res = await api.get('/ndc/requests', {
-        params: { search, status: statusFilter || undefined, page, limit }
+        params: { search: debouncedSearch, status: statusFilter || undefined, page, limit }
       });
       setRequests(res.data.data || []);
+      if (!debouncedSearch && !statusFilter && page === 1) {
+        clientCache.set('ndc_monitor_requests', {
+          data: res.data.data,
+          counts: res.data.counts,
+          pagination: res.data.pagination
+        });
+      }
       if (res.data.counts) {
         setCounts(res.data.counts);
       } else {
@@ -117,10 +137,13 @@ export const NdcMonitor: React.FC = () => {
 
   const handleExecuteOverride = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOverrideError('');
+    setOverrideError(null);
 
     if (!overrideReason || overrideReason.trim() === '') {
-      setOverrideError('Super Admin override reason is mandatory.');
+      setOverrideError({
+        title: 'Override reason required',
+        message: 'Please provide an explanatory audit reason before overriding this clearance status.'
+      });
       return;
     }
 
@@ -137,7 +160,7 @@ export const NdcMonitor: React.FC = () => {
       }
       await fetchRequests();
     } catch (err: any) {
-      setOverrideError(err.response?.data?.message || 'Override failed.');
+      setOverrideError(err);
     } finally {
       setOverrideSubmitting(false);
     }
@@ -148,7 +171,7 @@ export const NdcMonitor: React.FC = () => {
       const res = await api.post(`/certificates/student/${studentId}/regenerate`);
       alert(res.data.message || 'Certificate regenerated successfully.');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to regenerate certificate.');
+      showErrorModal(err, { title: 'Certificate Regeneration Failed' });
     }
   };
 
@@ -164,7 +187,7 @@ export const NdcMonitor: React.FC = () => {
       setSelectedRequest(null);
       await fetchRequests();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Approval failed.');
+      showErrorModal(err, { title: 'Administrative Approval Failed' });
     } finally {
       setActionSubmitting(false);
     }
@@ -439,7 +462,7 @@ export const NdcMonitor: React.FC = () => {
                 {clearances.map((c) => (
                   <div key={c._id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-900">{c.departmentId?.name}</h4>
+                      <h4 className="text-xs font-bold text-slate-900">{c.departmentId?.name || c.department?.name || 'Clearance Section'}</h4>
                       {c.dueAmount > 0 && <p className="text-[11px] font-bold text-rose-600 mt-0.5">Due: ₹{c.dueAmount}</p>}
                     </div>
 
@@ -473,9 +496,11 @@ export const NdcMonitor: React.FC = () => {
             </div>
 
             {overrideError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-lg">
-                {overrideError}
-              </div>
+              <ErrorAlert
+                error={overrideError}
+                onDismiss={() => setOverrideError(null)}
+                title="Override Blocked"
+              />
             )}
 
             <form onSubmit={handleExecuteOverride} className="space-y-4 text-xs">

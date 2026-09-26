@@ -58,7 +58,7 @@ export class CertificateController {
 
       where.isReplaced = false;
 
-      const [total, certificates, totalCount, submittedCount, notSubmittedCount] = await Promise.all([
+      const [total, certificates, submissionGroups] = await Promise.all([
         prisma.ndcCertificate.count({ where }),
         prisma.ndcCertificate.findMany({
           where,
@@ -87,10 +87,22 @@ export class CertificateController {
           skip,
           take: limitNum
         }),
-        prisma.ndcCertificate.count({ where: { isReplaced: false, status: CertificateStatus.VALID } }),
-        prisma.ndcCertificate.count({ where: { isReplaced: false, status: CertificateStatus.VALID, isSubmitted: true } }),
-        prisma.ndcCertificate.count({ where: { isReplaced: false, status: CertificateStatus.VALID, isSubmitted: false } })
+        prisma.ndcCertificate.groupBy({
+          by: ['isSubmitted'],
+          where: { isReplaced: false, status: CertificateStatus.VALID },
+          _count: { _all: true }
+        })
       ]);
+
+      let totalCount = 0;
+      let submittedCount = 0;
+      let notSubmittedCount = 0;
+      submissionGroups.forEach((g) => {
+        const cnt = g._count._all;
+        totalCount += cnt;
+        if (g.isSubmitted) submittedCount += cnt;
+        else notSubmittedCount += cnt;
+      });
 
       const formatted = certificates.map((c) => ({
         ...c,
@@ -284,13 +296,15 @@ export class CertificateController {
         return;
       }
 
-      const clearanceItems = clearanceDocs.map((c: any) => ({
-        departmentName: c.department?.name || 'Department Desk',
-        departmentCode: c.department?.code || 'DEPT',
-        status: c.status || 'CLEARED',
-        approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
-        reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-      }));
+      const clearanceItems = clearanceDocs
+        .filter((c: any) => c.status !== 'NOT_APPLICABLE')
+        .map((c: any) => ({
+          departmentName: c.department?.name || 'Department Desk',
+          departmentCode: c.department?.code || 'DEPT',
+          status: c.status || 'CLEARED',
+          approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
+          reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
+        }));
 
       await PdfService.generateCertificatePdf(
         {
@@ -402,13 +416,15 @@ export class CertificateController {
         orderBy: { createdAt: 'asc' }
       });
 
-      const clearanceItems = clearanceDocs.map((c: any) => ({
-        departmentName: c.department?.name || 'Department Desk',
-        departmentCode: c.department?.code || 'DEPT',
-        status: c.status || 'CLEARED',
-        approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
-        reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-      }));
+      const clearanceItems = clearanceDocs
+        .filter((c: any) => c.status !== 'NOT_APPLICABLE')
+        .map((c: any) => ({
+          departmentName: c.department?.name || 'Department Desk',
+          departmentCode: c.department?.code || 'DEPT',
+          status: c.status || 'CLEARED',
+          approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
+          reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
+        }));
 
       // Force PDF re-rendering using latest template & active clearances
       await PdfService.generateCertificatePdf(

@@ -52,11 +52,13 @@ router.post('/import/confirm', authorizeRolesOrCashFee(UserRole.ADMIN, UserRole.
 
 router.get('/', StudentController.getAllStudents);
 router.get('/:id', StudentController.getStudentById);
-router.post('/', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.createStudent);
-router.put('/:id', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.updateStudent);
-router.delete('/:id', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.deleteStudent);
-router.post('/bulk-delete', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkDeleteStudents);
-router.post('/bulk-batch', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkUpdateBatch);
+router.post('/', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.createStudent);
+router.put('/:id', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.updateStudent);
+router.put('/:id/deactivate', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.deactivateStudent);
+router.put('/:id/reactivate', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.reactivateStudent);
+router.delete('/:id', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.deleteStudent);
+router.post('/bulk-delete', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkDeleteStudents);
+router.post('/bulk-batch', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkUpdateBatch);
 
 export default router;
 

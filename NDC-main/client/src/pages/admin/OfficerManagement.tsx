@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { UserCheck, UserPlus, Edit, Trash2, ShieldCheck, Mail } from 'lucide-react';
+import { ErrorAlert } from '../../components/ErrorAlert';
+import { showErrorModal } from '../../store/useErrorModalStore';
 
 export const OfficerManagement: React.FC = () => {
   const [officers, setOfficers] = useState<any[]>([]);
@@ -18,7 +20,7 @@ export const OfficerManagement: React.FC = () => {
     departmentIds: [] as string[]
   });
   const [submitting, setSubmitting] = useState(false);
-  const [modalError, setModalError] = useState('');
+  const [modalError, setModalError] = useState<any>(null);
 
   useEffect(() => {
     fetchDepartments();
@@ -85,9 +87,12 @@ export const OfficerManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setModalError('');
+    setModalError(null);
     if (formData.departmentIds.length === 0) {
-      setModalError('Please assign at least one clearance department to this officer.');
+      setModalError({
+        title: 'Department required',
+        message: 'Please assign at least one clearance department to this officer.'
+      });
       return;
     }
 
@@ -102,7 +107,7 @@ export const OfficerManagement: React.FC = () => {
       setIsModalOpen(false);
       await fetchOfficers();
     } catch (err: any) {
-      setModalError(err.response?.data?.message || 'Operation failed.');
+      setModalError(err);
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +119,7 @@ export const OfficerManagement: React.FC = () => {
       await api.delete(`/officers/${id}`);
       await fetchOfficers();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to delete officer.');
+      showErrorModal(err, { title: 'Failed to Remove Officer' });
     }
   };
 
@@ -205,9 +210,11 @@ export const OfficerManagement: React.FC = () => {
             </div>
 
             {modalError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-lg">
-                {modalError}
-              </div>
+              <ErrorAlert
+                error={modalError}
+                onDismiss={() => setModalError(null)}
+                title="Officer Assignment Error"
+              />
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">

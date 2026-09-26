@@ -37,6 +37,7 @@ export class ReportController {
         certGroup,
         departments,
         clearanceGroup,
+        labClearanceGroup,
         recentActivity
       ] = await Promise.all([
         prisma.student.count(),
@@ -52,6 +53,16 @@ export class ReportController {
         departmentCache.getAllActiveDepartments(),
         prisma.ndcClearance.groupBy({
           by: ['departmentId', 'status'],
+          _count: { _all: true }
+        }),
+        prisma.ndcClearance.groupBy({
+          by: ['status'],
+          where: {
+            OR: [
+              { department: { code: { in: ['PHY', 'CHEM'] } } },
+              { labId: { not: null } }
+            ]
+          },
           _count: { _all: true }
         }),
         prisma.auditLog.findMany({
@@ -91,8 +102,18 @@ export class ReportController {
         deptClearanceMap.get(cg.departmentId)![cg.status] = cg._count._all;
       });
 
+      // Aggregate all 3 laboratory types (Physics Lab, Chemistry Lab, and Department Labs) for Laboratory Section
+      const labCounts: Record<string, number> = {};
+      labClearanceGroup.forEach((lg) => {
+        labCounts[lg.status] = lg._count._all;
+      });
+
       const departmentStats = departments.map((dept) => {
-        const counts = deptClearanceMap.get(dept.id) || {};
+        let counts = deptClearanceMap.get(dept.id) || {};
+        if (dept.code === 'LAB' || dept.name?.toLowerCase().includes('laboratory section')) {
+          counts = labCounts;
+        }
+
         const cleared = counts['CLEARED'] || 0;
         const due = counts['DUE'] || 0;
         const onHold = counts['ON_HOLD'] || 0;
@@ -106,6 +127,8 @@ export class ReportController {
           _id: dept.id,
           name: dept.name,
           code: dept.code,
+          requiresClearance: dept.requiresClearance,
+          isAcademicBranch: dept.isAcademicBranch,
           total: totalClearances,
           cleared,
           due,

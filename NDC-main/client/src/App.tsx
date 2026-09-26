@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuthStore } from './store/useAuthStore';
 import { AuthLayout } from './layouts/AuthLayout';
 import { DashboardLayout } from './layouts/DashboardLayout';
+import { ErrorModal } from './components/ErrorModal';
 
 const PageLoadingFallback = () => (
   <div className="flex items-center justify-center p-12 min-h-[40vh]">
@@ -22,6 +23,9 @@ const ApplyNdc = React.lazy(() => import('./pages/student/ApplyNdc').then((m) =>
 const StudentCertificates = React.lazy(() => import('./pages/student/StudentCertificates').then((m) => ({ default: m.StudentCertificates })));
 const OfficerDashboard = React.lazy(() => import('./pages/officer/OfficerDashboard').then((m) => ({ default: m.OfficerDashboard })));
 const OfficerClearanceQueue = React.lazy(() => import('./pages/officer/OfficerClearanceQueue').then((m) => ({ default: m.OfficerClearanceQueue })));
+const PhysicsLabClearance = React.lazy(() => import('./pages/officer/PhysicsLabClearance').then((m) => ({ default: m.PhysicsLabClearance })));
+const ChemistryLabClearance = React.lazy(() => import('./pages/officer/ChemistryLabClearance').then((m) => ({ default: m.ChemistryLabClearance })));
+const DepartmentLabClearance = React.lazy(() => import('./pages/officer/DepartmentLabClearance').then((m) => ({ default: m.DepartmentLabClearance })));
 const OfficerHistory = React.lazy(() => import('./pages/officer/OfficerHistory').then((m) => ({ default: m.OfficerHistory })));
 const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
 const StudentManagement = React.lazy(() => import('./pages/admin/StudentManagement').then((m) => ({ default: m.StudentManagement })));
@@ -33,6 +37,7 @@ const CertificateManagement = React.lazy(() => import('./pages/admin/Certificate
 const ReportsAnalytics = React.lazy(() => import('./pages/admin/ReportsAnalytics').then((m) => ({ default: m.ReportsAnalytics })));
 const AuditLogs = React.lazy(() => import('./pages/admin/AuditLogs').then((m) => ({ default: m.AuditLogs })));
 const Settings = React.lazy(() => import('./pages/admin/Settings').then((m) => ({ default: m.Settings })));
+const SectionLoginManagement = React.lazy(() => import('./pages/admin/SectionLoginManagement').then((m) => ({ default: m.SectionLoginManagement })));
 const TeachingDepartmentView = React.lazy(() => import('./pages/teaching/TeachingDepartmentView').then((m) => ({ default: m.TeachingDepartmentView })));
 
 // Protected Route Guard
@@ -73,22 +78,14 @@ export const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/login/student" element={<Navigate to="/student-login" replace />} />
+            <Route path="/verify" element={<PublicVerify />} />
           </Route>
 
         {/* Protected Dashboard Routes */}
         <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+
           {/* Default Redirect */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-
-          {/* Certificate Verification Route (Faculty, HOD, Admin, Super Admin Only) */}
-          <Route
-            path="/verify"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD', 'DEPARTMENT_OFFICER']}>
-                <PublicVerify />
-              </ProtectedRoute>
-            }
-          />
 
           {/* Student Routes */}
           <Route
@@ -99,6 +96,7 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/student/apply" element={<Navigate to="/student/dashboard" replace />} />
           <Route path="/student/no-due" element={<Navigate to="/student/dashboard" replace />} />
           <Route
             path="/student/certificates"
@@ -121,8 +119,32 @@ export const App: React.FC = () => {
           <Route
             path="/officer/clearances"
             element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD']}>
+              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER']}>
                 <OfficerClearanceQueue />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/officer/physics-lab"
+            element={
+              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                <PhysicsLabClearance />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/officer/chemistry-lab"
+            element={
+              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                <ChemistryLabClearance />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/officer/department-lab"
+            element={
+              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                <DepartmentLabClearance />
               </ProtectedRoute>
             }
           />
@@ -131,6 +153,14 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD']}>
                 <OfficerHistory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/officer/students"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
+                <StudentManagement />
               </ProtectedRoute>
             }
           />
@@ -171,7 +201,7 @@ export const App: React.FC = () => {
           <Route
             path="/admin/students"
             element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
                 <StudentManagement />
               </ProtectedRoute>
             }
@@ -240,11 +270,20 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/section-logins"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                <SectionLoginManagement />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* Catch-all Fallback */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <ErrorModal />
       </Suspense>
     </Router>
   );

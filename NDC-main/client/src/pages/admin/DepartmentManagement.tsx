@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { Department } from '../../types';
 import { Building2, Plus, Edit, CheckCircle2, XCircle, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ErrorAlert } from '../../components/ErrorAlert';
+import { showErrorModal } from '../../store/useErrorModalStore';
+import { clientCache } from '../../utils/clientCache';
 
 export const DepartmentManagement: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -20,7 +23,7 @@ export const DepartmentManagement: React.FC = () => {
     hodDesignation: 'Head of the Department'
   });
   const [submitting, setSubmitting] = useState(false);
-  const [modalError, setModalError] = useState('');
+  const [modalError, setModalError] = useState<any>(null);
 
   useEffect(() => {
     fetchDepartments();
@@ -61,13 +64,13 @@ export const DepartmentManagement: React.FC = () => {
         hodDesignation: 'Head of the Department'
       });
     }
-    setModalError('');
+    setModalError(null);
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setModalError('');
+    setModalError(null);
     setSubmitting(true);
 
     try {
@@ -78,9 +81,10 @@ export const DepartmentManagement: React.FC = () => {
       }
 
       setIsModalOpen(false);
+      clientCache.invalidate();
       await fetchDepartments();
     } catch (err: any) {
-      setModalError(err.response?.data?.message || 'Operation failed.');
+      setModalError(err);
     } finally {
       setSubmitting(false);
     }
@@ -89,9 +93,10 @@ export const DepartmentManagement: React.FC = () => {
   const handleToggleStatus = async (id: string) => {
     try {
       await api.patch(`/departments/${id}/toggle`);
+      clientCache.invalidate();
       await fetchDepartments();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to toggle status.');
+      showErrorModal(err, { title: 'Failed to Toggle Status' });
     }
   };
 
@@ -197,9 +202,11 @@ export const DepartmentManagement: React.FC = () => {
             </div>
 
             {modalError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-lg">
-                {modalError}
-              </div>
+              <ErrorAlert
+                error={modalError}
+                onDismiss={() => setModalError(null)}
+                title="Department Save Error"
+              />
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">

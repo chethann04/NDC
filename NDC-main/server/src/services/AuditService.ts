@@ -13,8 +13,8 @@ export class AuditService {
   ): Promise<void> {
     try {
       const user = (req as any)?.user;
-      const ipAddress = req?.ip || req?.headers['x-forwarded-for']?.toString() || '127.0.0.1';
-      const userAgent = req?.headers['user-agent'] || 'API Client';
+      const ipAddress = req?.ip || req?.headers?.['x-forwarded-for']?.toString() || '127.0.0.1';
+      const userAgent = req?.headers?.['user-agent'] || 'API Client';
 
       await prisma.auditLog.create({
         data: {

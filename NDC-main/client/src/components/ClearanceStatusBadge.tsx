@@ -24,6 +24,12 @@ export const ClearanceStatusBadge: React.FC<Props> = ({ status }) => {
           variantClass: 'b-due',
           label: normalized === 'BLOCKED' ? 'Due' : 'Due'
         };
+      case 'ACTION_REQUIRED':
+      case 'ACTION REQUIRED':
+        return {
+          variantClass: 'b-due',
+          label: 'Action Required'
+        };
       case 'IN_PROGRESS':
       case 'PENDING':
         return {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { ShieldCheck, Search, CheckCircle2, XCircle, ArrowLeft, Building, Calendar, User, BookOpen, Hash, Zap } from 'lucide-react';
+import { ErrorAlert } from '../components/ErrorAlert';
 
 export const PublicVerify: React.FC = () => {
   const [searchMode, setSearchMode] = useState<'SHORT' | 'FULL'>('SHORT');
@@ -16,18 +17,21 @@ export const PublicVerify: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<any>(null);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError(null);
     setResult(null);
 
     let payload: any = {};
 
     if (searchMode === 'SHORT') {
       if (!shortCode.trim()) {
-        setError('Please enter the sequence number (e.g. 001, 002, 112).');
+        setError({
+          title: 'Sequence number required',
+          message: 'Please enter the certificate sequence number (e.g. 001, 112) to verify.'
+        });
         return;
       }
       payload = {
@@ -37,7 +41,10 @@ export const PublicVerify: React.FC = () => {
       };
     } else {
       if (!certNumber.trim()) {
-        setError('Please enter a certificate number or USN.');
+        setError({
+          title: 'Certificate or USN required',
+          message: 'Please enter a certificate number or student USN to search.'
+        });
         return;
       }
       payload = { certificateNumber: certNumber.trim() };
@@ -48,7 +55,7 @@ export const PublicVerify: React.FC = () => {
       const response = await api.post('/verify', payload);
       setResult(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Verification search failed. Please try again.');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -167,9 +174,12 @@ export const PublicVerify: React.FC = () => {
         </form>
 
         {error && (
-          <div className="mt-5 p-3.5 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-2xl text-xs font-semibold text-center animate-in fade-in">
-            {error}
-          </div>
+          <ErrorAlert
+            error={error}
+            onDismiss={() => setError(null)}
+            className="mt-5"
+            title="Verification Search Failed"
+          />
         )}
 
         {result && (

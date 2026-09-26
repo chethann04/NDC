@@ -42,6 +42,7 @@ enum CertificateStatus {
 
 model User {
   id                  String              @id @default(uuid())
+  loginId             String?             @unique
   email               String              @unique
   passwordHash        String
   role                UserRole
@@ -66,8 +67,10 @@ model User {
   notifications       Notification[]
   auditLogs           AuditLog[]
 
+  @@index([loginId])
   @@index([departmentId])
   @@index([role])
+  @@index([role, isActive])
   @@map("users")
 }
 
@@ -75,6 +78,7 @@ model ClearanceDepartment {
   id                String                       @id @default(uuid())
   name              String                       @unique
   code              String                       @unique
+  category          String                       @default("CENTRAL_DESK") // CENTRAL_DESK, COLLEGE_LAB, ACADEMIC_BRANCH
   description       String                       @default("")
   requiresClearance Boolean                      @default(true)
   isAcademicBranch  Boolean                      @default(false)
@@ -89,8 +93,29 @@ model ClearanceDepartment {
   users             User[]                       @relation("DepartmentUsers")
   officerMappings   ClearanceOfficerDepartment[]
   clearances        NdcClearance[]
+  labs              DepartmentLab[]
 
+  @@index([isActive, requiresClearance, displayOrder])
   @@map("clearance_departments")
+}
+
+model DepartmentLab {
+  id                  String              @id @default(uuid())
+  name                String
+  code                String              @unique
+  departmentId        String
+  applicableSemesters Int[]               @default([])
+  displayOrder        Int                 @default(0)
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  department          ClearanceDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  clearances          NdcClearance[]
+
+  @@unique([departmentId])
+  @@index([departmentId, isActive])
+  @@map("department_labs")
 }
 
 model ClearanceOfficer {
@@ -119,6 +144,7 @@ model ClearanceOfficerDepartment {
   department   ClearanceDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
   @@id([officerId, departmentId])
+  @@index([departmentId])
   @@map("clearance_officer_departments")
 }
 
@@ -177,6 +203,8 @@ model NdcRequest {
   @@index([studentId])
   @@index([status])
   @@index([submittedAt])
+  @@index([studentId, status])
+  @@index([status, submittedAt])
   @@map("ndc_requests")
 }
 
@@ -185,6 +213,7 @@ model NdcClearance {
   ndcRequestId String
   studentId    String
   departmentId String
+  labId        String?
   officerId    String?
   status       DepartmentClearanceStatus @default(PENDING)
   remarks      String?
@@ -198,14 +227,18 @@ model NdcClearance {
   ndcRequest   NdcRequest                @relation(fields: [ndcRequestId], references: [id], onDelete: Cascade)
   student      Student                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   department   ClearanceDepartment       @relation(fields: [departmentId], references: [id])
+  lab          DepartmentLab?            @relation(fields: [labId], references: [id], onDelete: Cascade)
   officer      ClearanceOfficer?         @relation(fields: [officerId], references: [id])
   reviewedBy   User?                     @relation("ReviewedClearances", fields: [reviewedById], references: [id])
 
-  @@unique([ndcRequestId, departmentId])
+  @@unique([ndcRequestId, departmentId, labId])
+  @@index([ndcRequestId, departmentId])
   @@index([studentId])
   @@index([departmentId])
+  @@index([labId])
   @@index([status])
   @@index([departmentId, status])
+  @@index([departmentId, labId, status])
   @@index([departmentId, status, createdAt])
   @@index([officerId])
   @@map("ndc_clearances")
@@ -215,7 +248,7 @@ model NdcCertificate {
   id                       String            @id @default(uuid())
   certificateNumber        String            @unique
   ndcRequestId             String
-  studentId                String
+  studentId                String?
   studentName              String?
   studentUsn               String?
   departmentName           String?
@@ -236,7 +269,7 @@ model NdcCertificate {
   updatedAt                DateTime          @updatedAt
 
   request                  NdcRequest?       @relation("RequestCertificate")
-  student                  Student           @relation(fields: [studentId], references: [id])
+  student                  Student?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
   issuedBy                 User?             @relation("IssuedCertificates", fields: [issuedById], references: [id])
   revokedBy                User?             @relation("RevokedCertificates", fields: [revokedById], references: [id])
   submittedBy              User?             @relation("SubmittedCertificates", fields: [submittedById], references: [id])
@@ -247,6 +280,8 @@ model NdcCertificate {
   @@index([status])
   @@index([issuedAt])
   @@index([isSubmitted])
+  @@index([isReplaced, status, isSubmitted])
+  @@index([isReplaced, status, issuedAt])
   @@map("ndc_certificates")
 }
 

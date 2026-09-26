@@ -46,8 +46,12 @@ export const Navbar: React.FC = () => {
     if (path.includes('/admin/reports')) return ['Admin', 'Reports'];
     if (path.includes('/admin/audit-logs')) return ['Admin', 'Audit Logs'];
     if (path.includes('/admin/settings')) return ['Admin', 'Settings'];
+    if (path.includes('/officer/students')) return ['Cash/Fee Section', 'Manage Students'];
     if (path.includes('/officer/import')) return ['Cash/Fee Section', 'Import Students'];
     if (path.includes('/officer/audit-logs')) return ['Cash/Fee Section', 'Audit Logs'];
+    if (path.includes('/officer/physics-lab')) return ['Physics Lab', 'Clearance Queue'];
+    if (path.includes('/officer/chemistry-lab')) return ['Chemistry Lab', 'Clearance Queue'];
+    if (path.includes('/officer/department-lab')) return ['Department Lab', 'Clearance Queue'];
     if (path.includes('/officer/dashboard')) return ['Officer', 'Overview'];
     if (path.includes('/officer/clearances')) return ['Officer', 'Clearance Queue'];
     if (path.includes('/officer/history')) return ['Officer', 'History'];

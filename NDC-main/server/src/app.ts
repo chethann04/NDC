@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -17,8 +18,9 @@ import reportRoutes from './routes/reportRoutes';
 import auditRoutes from './routes/auditRoutes';
 import settingRoutes from './routes/settingRoutes';
 import teachingDepartmentRoutes from './routes/teachingDepartmentRoutes';
+import sectionLoginRoutes from './routes/sectionLoginRoutes';
 
-dotenv.config();
+dotenv.config(); // Reloaded with high-speed direct connection pool
 
 const app: Application = express();
 
@@ -51,6 +53,9 @@ app.use(
   })
 );
 
+// Gzip/Deflate response compression for faster API transfers
+app.use(compression({ threshold: 1024 }));
+
 app.use(cookieParser());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '15mb' }));
@@ -71,10 +76,17 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/audit-logs', auditRoutes);
 app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/teaching-department', teachingDepartmentRoutes);
+app.use('/api/v1/admin/section-logins', sectionLoginRoutes);
 
-// Health check endpoint
+// Health check endpoint with diagnostic info
 app.get('/api/v1/health', (req, res) => {
-  res.status(200).json({ status: 'OK', system: 'No Due Certificate Management System', time: new Date() });
+  res.status(200).json({
+    status: 'OK',
+    system: 'No Due Certificate Management System',
+    time: new Date(),
+    smtpUser: process.env.SMTP_USER,
+    smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'your-email@gmail.com')
+  });
 });
 
 // Global Error Handler

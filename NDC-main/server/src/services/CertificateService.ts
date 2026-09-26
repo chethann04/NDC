@@ -4,7 +4,9 @@ import prisma from '../config/prisma';
 import { CertificateStatus, DepartmentClearanceStatus, NdcRequestStatus } from '../constants/statuses';
 import { PdfService } from './PdfService';
 import { AuditService } from './AuditService';
+import { LaboratoryAggregationService } from './LaboratoryAggregationService';
 import { withId } from '../utils/formatters';
+import emailService from './EmailService';
 
 export class CertificateService {
   /**
@@ -57,7 +59,10 @@ export class CertificateService {
     }
 
     const student = await prisma.student.findUnique({
-      where: { id: request.studentId }
+      where: { id: request.studentId },
+      include: {
+        user: { select: { email: true } }
+      }
     });
 
     const department = student
@@ -75,6 +80,7 @@ export class CertificateService {
       },
       include: {
         department: true,
+        lab: true,
         reviewedBy: {
           select: { id: true, name: true, role: true }
         }
@@ -82,12 +88,13 @@ export class CertificateService {
       orderBy: { createdAt: 'asc' }
     });
 
+    const labSummary = LaboratoryAggregationService.getLaboratoryClearanceSummary(clearanceDocs);
     const hasDuesOrHolds = clearanceDocs.some((c: any) =>
       c.status === DepartmentClearanceStatus.DUE ||
       c.status === DepartmentClearanceStatus.ON_HOLD ||
       c.status === DepartmentClearanceStatus.PENDING ||
       (c.dueAmount && c.dueAmount > 0)
-    );
+    ) || (labSummary.overallLaboratoryStatus === 'DUE');
 
     if (hasDuesOrHolds || clearanceDocs.length === 0) {
       throw new Error('Cannot generate or provide certificate: Student has pending departmental dues, unresolved holds, or pending evaluations.');
@@ -103,13 +110,8 @@ export class CertificateService {
         })
       : null;
 
-    const clearanceItems = clearanceDocs.map((c: any) => ({
-      departmentName: c.department?.name || 'Department Desk',
-      departmentCode: c.department?.code || 'DEPT',
-      status: c.status || 'CLEARED',
-      approvalTimestamp: c.reviewedAt || c.updatedAt || new Date(),
-      reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-    }));
+    // Use centralized LaboratoryAggregationService to aggregate all labs into ONE "Laboratory — Cleared" entry
+    const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
 
     if (existingCert) {
       let activeCert = existingCert;
@@ -235,6 +237,26 @@ export class CertificateService {
       `Issued No Due Certificate [${certificateNumber}] for student [${student.usn}] (${student.fullName}).`,
       certificate.id
     );
+
+    // Asynchronously dispatch certificate completion email to student's registered email
+    const recipientEmail = student?.user?.email || student?.email;
+    if (recipientEmail && student) {
+      (async () => {
+        try {
+          const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+          await emailService.sendCertificateIssuedEmail({
+            toEmail: recipientEmail,
+            studentName: student.fullName,
+            usn: student.usn,
+            certificateNumber: certificate.certificateNumber,
+            issuedAt: certificate.issuedAt,
+            downloadUrl: `${clientUrl}/student/dashboard`
+          });
+        } catch (e) {
+          console.warn('[CertificateService]: Failed to dispatch certificate issued email:', e);
+        }
+      })().catch(() => {});
+    }
 
     return withId(certificate);
   }

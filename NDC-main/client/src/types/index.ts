@@ -6,8 +6,41 @@ export type ClearanceStatus = 'PENDING' | 'CLEARED' | 'DUE' | 'ON_HOLD' | 'NOT_A
 
 export type CertificateStatus = 'VALID' | 'REVOKED';
 
+export interface PendingLabDetail {
+  id: string;
+  name: string;
+  code: string;
+  status: ClearanceStatus;
+  dueAmount: number;
+  dueDetails?: string;
+  remarks?: string;
+  reviewedByName?: string;
+}
+
+export interface LaboratorySummary {
+  status: ClearanceStatus;
+  totalLabs: number;
+  applicableLabsCount: number;
+  clearedLabs: number;
+  notApplicableLabsCount: number;
+  pendingCount: number;
+  dueCount: number;
+  totalDueAmount: number;
+  pendingLabs: PendingLabDetail[];
+  allLabs: {
+    id: string;
+    name: string;
+    code: string;
+    status: ClearanceStatus;
+    dueAmount: number;
+    reviewedAt?: string;
+    reviewedByName?: string;
+  }[];
+}
+
 export interface User {
   id: string;
+  loginId?: string;
   email: string;
   name: string;
   role: UserRole;

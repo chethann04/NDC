@@ -4,6 +4,22 @@ This document contains all pre-configured demo user accounts and login credentia
 
 ---
 
+## 🚀 Quick Fill Demo Accounts (Key Roles & Laboratory Architecture)
+
+| Role / Category | Unit / Department | Login ID | Email / Username | Default Password | Primary Scope & Access |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **🔬 Physics Lab** | Engineering Physics Laboratory | `PHY001` | `physics.lab@mce.ac.in` | `Officer@123` | Physics Lab apparatus, handbook clearances |
+| **🧪 Chemistry Lab** | Engineering Chemistry Laboratory | `CHEM001` | `chemistry.lab@mce.ac.in` | `Officer@123` | Chemistry Lab glassware, chemicals, manual clearances |
+| **💻 ISE Faculty / Lab** | Information Science & Engineering | `ISE001` | `ise.officer@mce.ac.in` | `Officer@123` | ISE Department Desk + Labs (`IS-DDCO`, `IS-TL1-3`) |
+| **💻 CSE Faculty / Lab** | Computer Science & Engineering | `CSE001` | `cse.officer@mce.ac.in` | `Officer@123` | CSE Department Desk + Labs (`CS-PROG`, `CS-DBMS`, `CS-NET`) |
+| **🧑‍🏫 CSE HOD** | Computer Science & Engineering | `HOD-CS` | `hod.cs@mce.ac.in` | `Officer@123` | CS Academic Dept Overview & Clearance History |
+| **🧑‍🏫 ISE HOD** | Information Science & Engineering | `HOD-IS` | `hod.is@mce.ac.in` | `Officer@123` | IS Academic Dept Overview & Clearance History |
+| **👑 Super Admin** | Central System Administration | `SUPERADMIN` | `superadmin@mce.ac.in` | `Admin@123` | Full system control, audit logs, user management |
+| **📚 Central Library** | Central Institutional Library | `LIB001` | `library@mce.ac.in` | `Officer@123` | Library books & fine clearances |
+| **🎓 Student (Demo)** | Information Science (Sem 8) | `4MC22IS001` | `chethuc809@gmail.com` | DOB: `15/05/2004` | Student NDC portal & certificate tracking |
+
+---
+
 ## 👑 1. System Administration & Management
 
 | Role | Name | Email / Username | Default Password | Permissions |
@@ -21,6 +37,8 @@ Clearance status review, verification, and status updates (No Due / Due) are str
 | Department | Officer Name | Employee ID | Login Email | Default Password | Review Permission |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Central Library** | Central Library Officer | `EMP-LIB-01` | `library@mce.ac.in` | `Officer@123` | **Yes (Authorized)** |
+| **Physics Lab** | Physics Laboratory In-charge | `EMP-PHY-01` (`PHY001`) | `physics.lab@mce.ac.in` | `Officer@123` | **Yes (Authorized)** |
+| **Chemistry Lab** | Chemistry Laboratory In-charge | `EMP-CHEM-01` (`CHEM001`) | `chemistry.lab@mce.ac.in` | `Officer@123` | **Yes (Authorized)** |
 | **Laboratory Section** | Laboratory In-charge Officer | `EMP-LAB-01` | `lab@mce.ac.in` | `Officer@123` | **Yes (Authorized)** |
 | **Hostel Section** | Hostel Warden | `EMP-HST-01` | `hostel@mce.ac.in` | `Officer@123` | **Yes (Authorized)** |
 | **Sports / PE** | Sports Officer | `EMP-SPT-01` | `sports@mce.ac.in` | `Officer@123` | **Yes (Authorized)** |

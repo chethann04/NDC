@@ -17,7 +17,12 @@ import {
   PanelLeftClose,
   PanelLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  FileCheck2,
+  Atom,
+  FlaskConical,
+  Laptop,
+  KeyRound
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -59,7 +64,34 @@ export const Sidebar: React.FC = () => {
           deptObj?.name?.toLowerCase().includes('college office') ||
           deptObj?.name?.toLowerCase().includes('administrative'))));
 
-  const deptLabel = isCashFeeOfficer
+  const deptCode = (officerDeptObj?.code || (typeof deptObj === 'object' ? deptObj?.code : undefined) || '').toUpperCase();
+  const deptName = officerDeptObj?.name || (typeof deptObj === 'object' ? deptObj?.name : '') || '';
+
+  const isPhysicsOfficer =
+    role === 'DEPARTMENT_OFFICER' &&
+    (deptCode === 'PHY' || user?.loginId === 'PHY001' || user?.email?.includes('physics') || deptName.toLowerCase().includes('physics'));
+
+  const isChemistryOfficer =
+    role === 'DEPARTMENT_OFFICER' &&
+    (deptCode === 'CHEM' || user?.loginId === 'CHEM001' || user?.email?.includes('chemistry') || deptName.toLowerCase().includes('chemistry'));
+
+  const isAcademicBranchOfficer =
+    role === 'DEPARTMENT_OFFICER' &&
+    !isPhysicsOfficer &&
+    !isChemistryOfficer &&
+    !isCollegeOffice &&
+    !isCashFeeOfficer &&
+    (officerDeptObj?.isAcademicBranch || (typeof deptObj === 'object' && deptObj?.isAcademicBranch) ||
+     officerDeptObj?.category === 'ACADEMIC_BRANCH' || (typeof deptObj === 'object' && deptObj?.category === 'ACADEMIC_BRANCH') ||
+     ['IS', 'CS', 'EC', 'ME', 'CV', 'EE', 'AIML', 'BT', 'CB', 'VL', 'ET', 'AI', 'RA', 'ST'].includes(deptCode));
+
+  const deptLabel = isPhysicsOfficer
+    ? 'Physics Lab'
+    : isChemistryOfficer
+    ? 'Chemistry Lab'
+    : isAcademicBranchOfficer
+    ? `${deptCode || 'Academic'} Department`
+    : isCashFeeOfficer
     ? 'Cash/Fee Section'
     : isCollegeOffice
     ? 'College Office (ADM)'
@@ -187,15 +219,72 @@ export const Sidebar: React.FC = () => {
                     collapsed={collapsed}
                   />
                   <NavItem
-                    to="/officer/clearances"
-                    icon={<FileCheck className="w-4 h-4" />}
-                    label="Clearance Queue"
+                    to="/officer/history"
+                    icon={<History className="w-4 h-4" />}
+                    label="Clearance History"
+                    collapsed={collapsed}
+                  />
+                </>
+              ) : isPhysicsOfficer ? (
+                <>
+                  <NavItem
+                    to="/officer/dashboard"
+                    icon={<LayoutDashboard className="w-4 h-4" />}
+                    label="Overview"
+                    collapsed={collapsed}
+                  />
+                  <NavItem
+                    to="/officer/physics-lab"
+                    icon={<Atom className="w-4 h-4 text-cyan-600" />}
+                    label="Physics Lab Clearance"
                     collapsed={collapsed}
                   />
                   <NavItem
                     to="/officer/history"
                     icon={<History className="w-4 h-4" />}
                     label="Clearance History"
+                    collapsed={collapsed}
+                  />
+                </>
+              ) : isChemistryOfficer ? (
+                <>
+                  <NavItem
+                    to="/officer/dashboard"
+                    icon={<LayoutDashboard className="w-4 h-4" />}
+                    label="Overview"
+                    collapsed={collapsed}
+                  />
+                  <NavItem
+                    to="/officer/chemistry-lab"
+                    icon={<FlaskConical className="w-4 h-4 text-emerald-600" />}
+                    label="Chemistry Lab Clearance"
+                    collapsed={collapsed}
+                  />
+                  <NavItem
+                    to="/officer/history"
+                    icon={<History className="w-4 h-4" />}
+                    label="Clearance History"
+                    collapsed={collapsed}
+                  />
+                </>
+              ) : isAcademicBranchOfficer ? (
+                <>
+                  <NavItem
+                    to="/officer/dashboard"
+                    icon={<LayoutDashboard className="w-4 h-4" />}
+                    label="Overview"
+                    collapsed={collapsed}
+                  />
+                  <NavItem
+                    to="/officer/department-lab"
+                    icon={<Laptop className="w-4 h-4 text-indigo-600" />}
+                    label="Department Lab"
+                    collapsed={collapsed}
+                  />
+                  <NavItem
+                    to="/officer/history"
+                    icon={<History className="w-4 h-4" />}
+                    label="Department History"
                     collapsed={collapsed}
                   />
                 </>
@@ -221,6 +310,12 @@ export const Sidebar: React.FC = () => {
                   />
                   {isCashFeeOfficer && (
                     <>
+                      <NavItem
+                        to="/officer/students"
+                        icon={<Users2 className="w-4 h-4" />}
+                        label="Manage Students"
+                        collapsed={collapsed}
+                      />
                       <NavItem
                         to="/officer/import"
                         icon={<UploadCloud className="w-4 h-4" />}
@@ -315,12 +410,20 @@ export const Sidebar: React.FC = () => {
                 collapsed={collapsed}
               />
               {role === 'SUPER_ADMIN' && (
-                <NavItem
-                  to="/admin/settings"
-                  icon={<Settings className="w-4 h-4" />}
-                  label="Settings"
-                  collapsed={collapsed}
-                />
+                <>
+                  <NavItem
+                    to="/admin/section-logins"
+                    icon={<KeyRound className="w-4 h-4 text-amber-500" />}
+                    label="Section Logins"
+                    collapsed={collapsed}
+                  />
+                  <NavItem
+                    to="/admin/settings"
+                    icon={<Settings className="w-4 h-4" />}
+                    label="Settings"
+                    collapsed={collapsed}
+                  />
+                </>
               )}
             </div>
           </div>

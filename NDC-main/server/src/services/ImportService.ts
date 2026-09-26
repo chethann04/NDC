@@ -35,6 +35,12 @@ export interface PreviewResult {
   invalidRecords: number;
   duplicateRecords: number;
   rows: ImportRow[];
+  departmentBreakdown?: {
+    code: string;
+    name: string;
+    count: number;
+    validCount: number;
+  }[];
 }
 
 export class ImportService {
@@ -216,12 +222,27 @@ export class ImportService {
       }
     });
 
+    const deptBreakdownMap: Record<string, { code: string; name: string; count: number; validCount: number }> = {};
+    parsedRows.forEach((row) => {
+      const code = row.detectedDepartmentCode || 'UNKNOWN';
+      const name = row.detectedDepartmentName || row.departmentCodeOrName || 'Unknown Department';
+      if (!deptBreakdownMap[code]) {
+        deptBreakdownMap[code] = { code, name, count: 0, validCount: 0 };
+      }
+      deptBreakdownMap[code].count += 1;
+      if (row.isValid) {
+        deptBreakdownMap[code].validCount += 1;
+      }
+    });
+    const departmentBreakdown = Object.values(deptBreakdownMap).sort((a, b) => a.name.localeCompare(b.name));
+
     return {
       totalRecords: parsedRows.length,
       validRecords: validCount,
       invalidRecords: invalidCount,
       duplicateRecords: duplicateCount,
-      rows: parsedRows
+      rows: parsedRows,
+      departmentBreakdown
     };
   }
 
@@ -233,7 +254,8 @@ export class ImportService {
     rows: ImportRow[],
     duplicateAction: 'SKIP' | 'UPDATE' = 'SKIP',
     adminUserId?: string,
-    reqObj?: any
+    reqObj?: any,
+    autoInitiateClearances: boolean = true
   ): Promise<{
     totalRows: number;
     imported: number;
@@ -241,12 +263,32 @@ export class ImportService {
     updated: number;
     failed: number;
     errorReport: any[];
+    departmentSummary?: {
+      code: string;
+      name: string;
+      total: number;
+      imported: number;
+      updated: number;
+      skipped: number;
+      failed: number;
+    }[];
   }> {
     let imported = 0;
     let skipped = 0;
     let updated = 0;
     let failed = 0;
     const errorReport: any[] = [];
+    const deptSummaryMap: Record<string, { code: string; name: string; total: number; imported: number; updated: number; skipped: number; failed: number }> = {};
+
+    const trackDept = (row: ImportRow, action: 'imported' | 'updated' | 'skipped' | 'failed') => {
+      const code = row.detectedDepartmentCode || 'UNKNOWN';
+      const name = row.detectedDepartmentName || row.departmentCodeOrName || 'Unknown Department';
+      if (!deptSummaryMap[code]) {
+        deptSummaryMap[code] = { code, name, total: 0, imported: 0, updated: 0, skipped: 0, failed: 0 };
+      }
+      deptSummaryMap[code].total += 1;
+      deptSummaryMap[code][action] += 1;
+    };
 
     // 1. Batch pre-resolve all departments upfront in a single DB query
     const { resolveDepartmentFromUsn } = await import('../utils/usnDepartmentResolver');
@@ -263,6 +305,7 @@ export class ImportService {
     for (const row of rows) {
       if (!row.usn || !row.fullName || !row.email) {
         failed++;
+        trackDept(row, 'failed');
         errorReport.push({
           row: row.rowNumber,
           usn: row.usn || 'N/A',
@@ -302,6 +345,7 @@ export class ImportService {
 
       if (!row.departmentId) {
         failed++;
+        trackDept(row, 'failed');
         errorReport.push({
           row: row.rowNumber,
           usn: row.usn,
@@ -315,7 +359,7 @@ export class ImportService {
     }
 
     if (validRows.length === 0) {
-      return { totalRows: rows.length, imported, skipped, updated, failed, errorReport };
+      return { totalRows: rows.length, imported, skipped, updated, failed, errorReport, departmentSummary: Object.values(deptSummaryMap) };
     }
 
     const { NdcWorkflowService } = await import('./NdcWorkflowService');
@@ -343,6 +387,7 @@ export class ImportService {
         if (existingStudent) {
           if (duplicateAction === 'SKIP') {
             skipped++;
+            trackDept(row, 'skipped');
             errorReport.push({
               row: row.rowNumber,
               usn: row.usn,
@@ -351,9 +396,11 @@ export class ImportService {
             });
           } else if (duplicateAction === 'UPDATE') {
             toUpdate.push(row);
+            trackDept(row, 'updated');
           }
         } else {
           toInsert.push(row);
+          trackDept(row, 'imported');
         }
       }
 
@@ -483,8 +530,8 @@ export class ImportService {
         }
       }
 
-      // Batch workflow creation for this chunk
-      if (affectedStudentIdsInChunk.length > 0) {
+      // Batch workflow creation for this chunk only if auto-initiation is requested
+      if (autoInitiateClearances && affectedStudentIdsInChunk.length > 0) {
         await NdcWorkflowService.ensureStudentNdcRequestsBulk(affectedStudentIdsInChunk, reqObj);
       }
     }
@@ -503,7 +550,8 @@ export class ImportService {
       skipped,
       updated,
       failed,
-      errorReport
+      errorReport,
+      departmentSummary: Object.values(deptSummaryMap).sort((a, b) => a.name.localeCompare(b.name))
     };
   }
 }

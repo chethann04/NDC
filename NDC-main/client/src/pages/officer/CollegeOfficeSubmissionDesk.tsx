@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
+import { showErrorModal } from '../../store/useErrorModalStore';
 import {
   Search,
   CheckCircle2,
@@ -99,7 +100,7 @@ export const CollegeOfficeSubmissionDesk: React.FC = () => {
       setSubmissionRemarks('');
       await fetchCertificates();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update physical submission status.');
+      showErrorModal(err, { title: 'Submission Update Failed' });
     } finally {
       setSubmittingAction(false);
     }
@@ -119,7 +120,7 @@ export const CollegeOfficeSubmissionDesk: React.FC = () => {
       });
       await fetchCertificates();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to revert submission status.');
+      showErrorModal(err, { title: 'Reversion Failed' });
     } finally {
       setSubmittingAction(false);
     }
@@ -151,7 +152,7 @@ export const CollegeOfficeSubmissionDesk: React.FC = () => {
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       console.error('Error generating submission report PDF:', err);
-      alert('Failed to generate submission report PDF.');
+      showErrorModal(err, { title: 'Report Generation Failed' });
     } finally {
       setDownloadingPdf(false);
     }

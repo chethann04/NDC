@@ -13,6 +13,15 @@ export class TeachingDepartmentController {
    * Helper to resolve the user's academic department ID.
    */
   private static async getEffectiveAcademicDepartmentId(req: AuthRequest): Promise<string | null> {
+    if (req.query.departmentId) {
+      if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
+        return String(req.query.departmentId);
+      }
+      if (req.user.departmentId === String(req.query.departmentId)) {
+        return String(req.query.departmentId);
+      }
+    }
+
     if (req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) {
       if (!req.user.departmentId) {
         throw new Error('No academic department assigned to your user account.');
@@ -21,16 +30,13 @@ export class TeachingDepartmentController {
     }
 
     // Super Admin / Admin fallback: query departmentId or first academic department
-    if (req.query.departmentId) {
-      return String(req.query.departmentId);
-    }
-
     if (req.user.departmentId) {
       return req.user.departmentId;
     }
 
     const firstAcademicDept = await prisma.clearanceDepartment.findFirst({
-      where: { isAcademicBranch: true, isActive: true }
+      where: { isAcademicBranch: true, isActive: true },
+      orderBy: { displayOrder: 'asc' }
     });
     return firstAcademicDept ? firstAcademicDept.id : null;
   }
@@ -46,31 +52,80 @@ export class TeachingDepartmentController {
         return;
       }
 
-      const department = await prisma.clearanceDepartment.findUnique({ where: { id: deptId } });
+      const department = await prisma.clearanceDepartment.findUnique({
+        where: { id: deptId },
+        include: {
+          labs: {
+            where: { isActive: true },
+            orderBy: { displayOrder: 'asc' }
+          }
+        }
+      });
       if (!department) {
         res.status(404).json({ success: false, message: 'Academic department record not found.' });
         return;
       }
 
+      let effectiveHodName = department.hodName;
+      if (!effectiveHodName) {
+        const hodUser = await prisma.user.findFirst({
+          where: {
+            departmentId: deptId,
+            role: UserRole.HOD,
+            isActive: true
+          },
+          select: { name: true, email: true }
+        });
+        if (hodUser) {
+          effectiveHodName = hodUser.name;
+        }
+      }
+
+      let allAcademicBranches: any[] = [];
+      if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
+        allAcademicBranches = await prisma.clearanceDepartment.findMany({
+          where: { isAcademicBranch: true, isActive: true },
+          select: { id: true, code: true, name: true, hodName: true, hodDesignation: true },
+          orderBy: { displayOrder: 'asc' }
+        });
+      }
+
       const departmentStudents = await prisma.student.findMany({
         where: { departmentId: deptId },
-        select: { id: true, usn: true }
+        select: { id: true, usn: true, batch: true }
       });
       const studentIds = departmentStudents.map((s) => s.id);
       const totalStudents = studentIds.length;
+
+      const batchCounts = await prisma.student.groupBy({
+        by: ['batch'],
+        where: { departmentId: deptId },
+        _count: { id: true }
+      });
+      const batchBreakdown = batchCounts
+        .filter((b) => b.batch)
+        .map((b) => ({ batch: b.batch, count: b._count.id }))
+        .sort((a, b) => (b.batch || '').localeCompare(a.batch || ''));
 
       if (totalStudents === 0) {
         res.status(200).json({
           success: true,
           data: {
-            department: withId(department),
+            department: {
+              ...withId(department),
+              hodName: effectiveHodName || department.hodName || '',
+              hodDesignation: department.hodDesignation || 'Head of the Department'
+            },
             statistics: {
               totalStudents: 0,
               approved: 0,
               pending: 0,
               due: 0,
-              certificatesAvailable: 0
-            }
+              certificatesAvailable: 0,
+              totalDueAmount: 0,
+              batchBreakdown: []
+            },
+            allBranches: allAcademicBranches
           }
         });
         return;
@@ -94,6 +149,17 @@ export class TeachingDepartmentController {
         }
       }
 
+      const duesAggregate = await prisma.ndcClearance.aggregate({
+        where: {
+          studentId: { in: studentIds },
+          status: 'DUE'
+        },
+        _sum: {
+          dueAmount: true
+        }
+      });
+      const totalDueAmount = duesAggregate._sum.dueAmount || 0;
+
       const certificatesAvailable = await prisma.ndcCertificate.count({
         where: {
           studentId: { in: studentIds },
@@ -104,14 +170,21 @@ export class TeachingDepartmentController {
       res.status(200).json({
         success: true,
         data: {
-          department: withId(department),
+          department: {
+            ...withId(department),
+            hodName: effectiveHodName || department.hodName || '',
+            hodDesignation: department.hodDesignation || 'Head of the Department'
+          },
           statistics: {
             totalStudents,
             approved,
             pending,
             due,
-            certificatesAvailable
-          }
+            certificatesAvailable,
+            totalDueAmount,
+            batchBreakdown
+          },
+          allBranches: allAcademicBranches
         }
       });
     } catch (err: any) {
@@ -167,7 +240,13 @@ export class TeachingDepartmentController {
 
       const requestIds = requests.map((r) => r.id);
       const clearances = await prisma.ndcClearance.findMany({
-        where: { ndcRequestId: { in: requestIds } },
+        where: {
+          ndcRequestId: { in: requestIds },
+          department: {
+            isActive: true,
+            requiresClearance: true
+          }
+        },
         include: { department: true }
       });
 
@@ -300,14 +379,14 @@ export class TeachingDepartmentController {
 
       const clearances = ndcRequest
         ? await prisma.ndcClearance.findMany({
-            where: { ndcRequestId: ndcRequest.id },
-            include: {
-              department: true,
-              reviewedBy: {
-                select: { id: true, name: true, email: true, role: true }
-              }
+          where: { ndcRequestId: ndcRequest.id },
+          include: {
+            department: true,
+            reviewedBy: {
+              select: { id: true, name: true, email: true, role: true }
             }
-          })
+          }
+        })
         : [];
 
       res.status(200).json({
@@ -355,7 +434,11 @@ export class TeachingDepartmentController {
       const dueClearances = await prisma.ndcClearance.findMany({
         where: {
           ndcRequestId: ndcRequest.id,
-          status: 'DUE' as any
+          status: 'DUE' as any,
+          department: {
+            isActive: true,
+            requiresClearance: true
+          }
         },
         include: {
           department: true,
@@ -443,7 +526,13 @@ export class TeachingDepartmentController {
 
       // Always verify clearance tasks & ensure ZERO dues or holds
       const clearanceDocs = await prisma.ndcClearance.findMany({
-        where: { ndcRequestId: certificate.ndcRequestId },
+        where: {
+          ndcRequestId: certificate.ndcRequestId,
+          department: {
+            isActive: true,
+            requiresClearance: true
+          }
+        },
         include: {
           department: true,
           reviewedBy: {

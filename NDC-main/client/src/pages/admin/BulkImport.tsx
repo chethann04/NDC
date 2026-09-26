@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuthStore } from '../../store/useAuthStore';
 import api from '../../services/api';
 import * as xlsx from 'xlsx';
 import {
@@ -11,8 +13,11 @@ import {
   AlertCircle,
   Database,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  UserPlus,
+  Building2
 } from 'lucide-react';
+import { ErrorAlert } from '../../components/ErrorAlert';
 
 export type ImportStage =
   | 'IDLE'
@@ -25,6 +30,7 @@ export type ImportStage =
   | 'FAILED';
 
 export const BulkImport: React.FC = () => {
+  const { user } = useAuthStore();
   const [stage, setStage] = useState<ImportStage>('IDLE');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<any>(null);
@@ -32,20 +38,20 @@ export const BulkImport: React.FC = () => {
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressStatusText, setProgressStatusText] = useState('');
   const [importResult, setImportResult] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<any>(null);
   const [showErrorTable, setShowErrorTable] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
       setFile(selected);
-      setError('');
+      setError(null);
       processFile(selected);
     }
   };
 
   const processFile = async (selectedFile: File) => {
-    setError('');
+    setError(null);
     setShowErrorTable(false);
 
     // Stage 1: Parsing
@@ -111,7 +117,7 @@ export const BulkImport: React.FC = () => {
         setStage('PREVIEW');
       }, 350);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'File parsing and validation failed.');
+      setError(err);
       setStage('FAILED');
     }
   };
@@ -119,7 +125,7 @@ export const BulkImport: React.FC = () => {
   const handleConfirmImport = async () => {
     if (!preview || !preview.rows || preview.rows.length === 0) return;
 
-    setError('');
+    setError(null);
     setStage('IMPORTING');
     setProgressPercent(0);
 
@@ -188,7 +194,7 @@ export const BulkImport: React.FC = () => {
         setStage('COMPLETED');
       }, 400);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Database synchronization failed.');
+      setError(err);
       setStage('FAILED');
     }
   };
@@ -236,16 +242,25 @@ export const BulkImport: React.FC = () => {
           <p className="caption-text mt-1">Bulk ingest and sync student rosters via Excel (.xlsx / .xls) or CSV</p>
         </div>
 
-        <a
-          href="/api/v1/students/template"
-          download="Students.xlsx"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-secondary text-xs"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Download Sample Template
-        </a>
+        <div className="flex items-center gap-2">
+          <Link
+            to={user?.role === 'DEPARTMENT_OFFICER' ? '/officer/students' : '/admin/students'}
+            className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-blue-600" />
+            Single Student Entry
+          </Link>
+          <a
+            href="/api/v1/students/template"
+            download="Students.xlsx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary text-xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download Sample Template
+          </a>
+        </div>
       </div>
 
       {/* Progress Stage Tracker */}
@@ -288,15 +303,16 @@ export const BulkImport: React.FC = () => {
 
       <div className="card card-pad max-w-2xl">
         {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-            <button onClick={handleReset} className="btn btn-secondary text-xs py-1 px-2">
-              Retry
-            </button>
-          </div>
+          <ErrorAlert
+            error={error}
+            onDismiss={() => { setError(null); handleReset(); }}
+            actionButton={{
+              label: 'Retry Upload',
+              onClick: handleReset
+            }}
+            className="mb-4"
+            title="Import Validation Error"
+          />
         )}
 
         {/* Stage: IDLE / Dropzone Upload */}
@@ -371,6 +387,39 @@ export const BulkImport: React.FC = () => {
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
                 <div className="caption-text text-rose-700">Errors</div>
                 <div className="mono-text font-bold text-base text-rose-700">{preview.invalidRecords}</div>
+              </div>
+            </div>
+
+            {/* Department Separation Breakdown */}
+            <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
+                  <Building2 className="w-4 h-4 text-blue-600" />
+                  <span>Roster Separated by Department ({preview.departmentBreakdown?.length || 0} Academic Branches)</span>
+                </div>
+                <span className="text-[10px] text-blue-700 font-bold uppercase tracking-wider bg-blue-100/70 px-2 py-0.5 rounded-full">
+                  Auto Clearance Desk Routing
+                </span>
+              </div>
+              <p className="text-[11px] text-blue-900/80 leading-relaxed">
+                When imported, these students will be automatically partitioned by their academic branch across all clearance sections (Library, Laboratory, Hostel, Sports, Fee Section, and Academic HOD desks).
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {(preview.departmentBreakdown || []).map((dept: any) => (
+                  <div key={dept.code} className="p-2.5 bg-white border border-blue-100 rounded-lg flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-blue-100 text-blue-800 shrink-0">
+                        {dept.code}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-800 truncate" title={dept.name}>
+                        {dept.name}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold mono-text text-blue-700 shrink-0 ml-2">
+                      {dept.validCount} {dept.validCount === 1 ? 'student' : 'students'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -521,6 +570,38 @@ export const BulkImport: React.FC = () => {
                 <div className="mono-text font-bold text-amber-700">{importResult.skipped}</div>
               </div>
             </div>
+
+            {/* Department Import Distribution */}
+            {importResult.departmentSummary && importResult.departmentSummary.length > 0 && (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                    <Building2 className="w-4 h-4 text-blue-600" />
+                    <span>Department Distribution Across Clearance Sections</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    Provisioned
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {importResult.departmentSummary.map((dept: any) => (
+                    <div key={dept.code} className="p-2 bg-white border border-slate-200/80 rounded-lg flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-bold rounded text-[10px] border border-blue-100">
+                          {dept.code}
+                        </span>
+                        <span className="truncate text-slate-700 font-medium text-xs" title={dept.name}>
+                          {dept.name}
+                        </span>
+                      </div>
+                      <span className="font-bold mono-text text-emerald-700 ml-2 shrink-0 text-xs">
+                        +{dept.imported} new ({dept.total} total)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {importResult.errorReport && importResult.errorReport.length > 0 && (
               <button

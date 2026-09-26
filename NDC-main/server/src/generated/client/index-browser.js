@@ -124,6 +124,7 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
 
 exports.Prisma.UserScalarFieldEnum = {
   id: 'id',
+  loginId: 'loginId',
   email: 'email',
   passwordHash: 'passwordHash',
   role: 'role',
@@ -142,6 +143,7 @@ exports.Prisma.ClearanceDepartmentScalarFieldEnum = {
   id: 'id',
   name: 'name',
   code: 'code',
+  category: 'category',
   description: 'description',
   requiresClearance: 'requiresClearance',
   isAcademicBranch: 'isAcademicBranch',
@@ -149,6 +151,18 @@ exports.Prisma.ClearanceDepartmentScalarFieldEnum = {
   isActive: 'isActive',
   hodName: 'hodName',
   hodDesignation: 'hodDesignation',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.DepartmentLabScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  code: 'code',
+  departmentId: 'departmentId',
+  applicableSemesters: 'applicableSemesters',
+  displayOrder: 'displayOrder',
+  isActive: 'isActive',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -210,6 +224,7 @@ exports.Prisma.NdcClearanceScalarFieldEnum = {
   ndcRequestId: 'ndcRequestId',
   studentId: 'studentId',
   departmentId: 'departmentId',
+  labId: 'labId',
   officerId: 'officerId',
   status: 'status',
   remarks: 'remarks',
@@ -361,6 +376,7 @@ exports.CertificateStatus = exports.$Enums.CertificateStatus = {
 exports.Prisma.ModelName = {
   User: 'User',
   ClearanceDepartment: 'ClearanceDepartment',
+  DepartmentLab: 'DepartmentLab',
   ClearanceOfficer: 'ClearanceOfficer',
   ClearanceOfficerDepartment: 'ClearanceOfficerDepartment',
   Student: 'Student',

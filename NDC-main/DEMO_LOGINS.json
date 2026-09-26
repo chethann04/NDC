@@ -34,6 +34,46 @@
       "password": "Officer@123"
     },
     {
+      "department": "Physics Lab",
+      "code": "PHY",
+      "loginId": "PHY001",
+      "employeeId": "EMP-PHY-01",
+      "name": "Physics Laboratory In-charge",
+      "email": "physics.lab@mce.ac.in",
+      "password": "Officer@123",
+      "canReviewClearance": true
+    },
+    {
+      "department": "Chemistry Lab",
+      "code": "CHEM",
+      "loginId": "CHEM001",
+      "employeeId": "EMP-CHEM-01",
+      "name": "Chemistry Laboratory In-charge",
+      "email": "chemistry.lab@mce.ac.in",
+      "password": "Officer@123",
+      "canReviewClearance": true
+    },
+    {
+      "department": "Information Science & Engineering",
+      "code": "IS",
+      "loginId": "ISE001",
+      "employeeId": "EMP-ISE-01",
+      "name": "Information Science Department Officer",
+      "email": "ise.officer@mce.ac.in",
+      "password": "Officer@123",
+      "canReviewClearance": true
+    },
+    {
+      "department": "Computer Science & Engineering",
+      "code": "CS",
+      "loginId": "CSE001",
+      "employeeId": "EMP-CSE-01",
+      "name": "Computer Science Department Officer",
+      "email": "cse.officer@mce.ac.in",
+      "password": "Officer@123",
+      "canReviewClearance": true
+    },
+    {
       "department": "Laboratory Section",
       "code": "LAB",
       "employeeId": "EMP-LAB-01",

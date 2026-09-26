@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.post('/apply', NdcController.applyForNdc);
+router.post('/apply', authorizeRoles(UserRole.STUDENT), NdcController.applyForNdc);
 router.get('/student-status', NdcController.getStudentNdcStatus);
 router.get('/student-status/:studentId', NdcController.getStudentNdcStatus);
 
@@ -19,6 +19,9 @@ router.get('/officer/stats', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN
 router.get('/officer/cleared-report/pdf', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.exportClearedReportPdf);
 
 router.put('/clearance/:clearanceId', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.processClearance);
+router.post('/clearances/bulk-clear', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.bulkClearClearances);
+router.post('/officer/bulk-clear', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.bulkClearClearances);
+router.post('/officer/batch-clear', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.batchClearDepartment);
 router.put('/clearance/:clearanceId/override', authorizeRoles(UserRole.SUPER_ADMIN), NdcController.adminOverride);
 router.put('/requests/:requestId/approve-all', authorizeRoles(UserRole.SUPER_ADMIN), NdcController.approveAllAndIssueCertificate);
 

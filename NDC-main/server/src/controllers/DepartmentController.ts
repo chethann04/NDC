@@ -3,6 +3,9 @@ import prisma from '../config/prisma';
 import { AuditService } from '../services/AuditService';
 import { AuthRequest } from '../middleware/auth';
 import { withId, withIds } from '../utils/formatters';
+import { departmentCache } from '../utils/departmentCache';
+import { NdcWorkflowService } from '../services/NdcWorkflowService';
+import { invalidateStudentStatusCache, invalidateOfficerStatsCache } from './NdcController';
 
 export class DepartmentController {
   private static cachedDepartments: any[] | null = null;
@@ -12,6 +15,9 @@ export class DepartmentController {
   public static invalidateCache(): void {
     DepartmentController.cachedDepartments = null;
     DepartmentController.cacheExpiry = 0;
+    departmentCache.invalidate();
+    invalidateStudentStatusCache();
+    invalidateOfficerStatsCache();
   }
 
   public static async getAllDepartments(req: Request, res: Response): Promise<void> {
@@ -80,6 +86,14 @@ export class DepartmentController {
       await AuditService.log(req, 'DEPARTMENT_CREATED', 'ClearanceDepartment', `Created department [${department.code}] - ${department.name}.`, department.id);
       DepartmentController.invalidateCache();
 
+      if (department.requiresClearance && department.isActive) {
+        await NdcWorkflowService.syncDepartmentClearanceRequirement(
+          department.id,
+          true,
+          req
+        );
+      }
+
       res.status(201).json({ success: true, message: 'Department created successfully.', data: withId(department) });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
@@ -96,6 +110,9 @@ export class DepartmentController {
         res.status(404).json({ success: false, message: 'Department not found.' });
         return;
       }
+
+      const requiresClearanceChanged = requiresClearance !== undefined && requiresClearance !== department.requiresClearance;
+      const isActiveChanged = isActive !== undefined && isActive !== department.isActive;
 
       const updateData: any = {};
       if (name) updateData.name = name.trim();
@@ -114,6 +131,15 @@ export class DepartmentController {
 
       await AuditService.log(req, 'DEPARTMENT_UPDATED', 'ClearanceDepartment', `Updated department [${updated.code}].`, updated.id, department, updated);
       DepartmentController.invalidateCache();
+
+      // Immediately sync all student clearance records and recalculate NDC workflow if mandatory status or active state changed
+      if (requiresClearanceChanged || isActiveChanged) {
+        await NdcWorkflowService.syncDepartmentClearanceRequirement(
+          updated.id,
+          updated.requiresClearance && updated.isActive,
+          req
+        );
+      }
 
       res.status(200).json({ success: true, message: 'Department updated successfully.', data: withId(updated) });
     } catch (err: any) {
@@ -138,6 +164,13 @@ export class DepartmentController {
 
       await AuditService.log(req, 'DEPARTMENT_STATUS_TOGGLED', 'ClearanceDepartment', `Toggled department [${updated.code}] active state to ${updated.isActive}.`, updated.id);
       DepartmentController.invalidateCache();
+
+      // Immediately sync workflow requirement when department is enabled/disabled
+      await NdcWorkflowService.syncDepartmentClearanceRequirement(
+        updated.id,
+        updated.requiresClearance && updated.isActive,
+        req
+      );
 
       res.status(200).json({ success: true, message: `Department status updated to ${updated.isActive ? 'Active' : 'Inactive'}.`, data: withId(updated) });
     } catch (err: any) {

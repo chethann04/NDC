@@ -19,3 +19,9 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+LOGIN_CREDENTIALS.md
+
+# Temporary and binary files
+*.tmp*
+*.node.tmp*

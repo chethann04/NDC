@@ -1,20 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
+import { useAuthStore } from '../../store/useAuthStore';
 import { clientCache } from '../../utils/clientCache';
-import { extractDepartmentFromUsn } from '../../constants/usnDepartmentMap';
-import { Search, UserPlus, Edit, Trash2, BookOpen, Mail, Phone, Building, Eye, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { extractDepartmentFromUsn, getDepartmentCodeFromUsn } from '../../constants/usnDepartmentMap';
+import { Search, UserPlus, Edit, Trash2, BookOpen, Mail, Phone, Building, Eye, X, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Archive, RotateCcw } from 'lucide-react';
+import { ErrorAlert } from '../../components/ErrorAlert';
+import { showErrorModal } from '../../store/useErrorModalStore';
 
 export const StudentManagement: React.FC = () => {
-  const [students, setStudents] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuthStore();
+  const cachedStudents = clientCache.get<any>('admin_students_list');
+  const [students, setStudents] = useState<any[]>(() => cachedStudents?.data || []);
+  const [departments, setDepartments] = useState<any[]>(() => clientCache.get<any[]>('departments_list') || []);
+  const [loading, setLoading] = useState(!cachedStudents);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
+
+  const officerDeptObj = user?.officerProfile?.departmentIds?.[0] as any;
+  const deptObj = user?.departmentId as any;
+  const isCashFeeOfficer =
+    user?.role === 'DEPARTMENT_OFFICER' &&
+    (user?.email?.startsWith('cashfee') ||
+      user?.email === 'accounts@mce.ac.in' ||
+      officerDeptObj?.code === 'ACC' ||
+      officerDeptObj?.name === 'Cash/Fee Section' ||
+      deptObj?.code === 'ACC' ||
+      deptObj?.name === 'Cash/Fee Section' ||
+      officerDeptObj?.name?.includes('Fee') ||
+      officerDeptObj?.name?.includes('Cash') ||
+      (typeof deptObj === 'object' && (deptObj?.name?.includes('Fee') || deptObj?.name?.includes('Cash'))));
 
   // Pagination State
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
-  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState(() => cachedStudents?.pagination || { total: 0, totalPages: 1 });
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,16 +51,24 @@ export const StudentManagement: React.FC = () => {
     semester: '8th Semester',
     year: '4th Year',
     admissionYear: '2022',
-    graduationYear: '2026'
+    graduationYear: '2026',
+    remarks: ''
   });
   const [submitting, setSubmitting] = useState(false);
-  const [modalError, setModalError] = useState('');
+  const [modalError, setModalError] = useState<any>(null);
 
   // Batch Update Modal State
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [newBatchYear, setNewBatchYear] = useState('2024-2028');
   const [batchUpdateAll, setBatchUpdateAll] = useState(false);
   const [batchUpdating, setBatchUpdating] = useState(false);
+
+  // Single Student Delete Modal State
+  const [studentToDelete, setStudentToDelete] = useState<any>(null);
+  const [singleDeleteRemarks, setSingleDeleteRemarks] = useState('');
+  const [singleDeleting, setSingleDeleting] = useState(false);
+  const [deleteCertError, setDeleteCertError] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   // Drawer State
   const [drawerStudent, setDrawerStudent] = useState<any>(null);
@@ -49,15 +77,24 @@ export const StudentManagement: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isDeleteAllMode, setIsDeleteAllMode] = useState(false);
+  const [bulkDeleteRemarks, setBulkDeleteRemarks] = useState('');
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     fetchDepartments();
   }, []);
 
+  // Debounce search input by 300ms to avoid flooding backend on keystrokes
   useEffect(() => {
-    fetchStudents();
-  }, [search, deptFilter, page, limit]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    fetchStudents(!cachedStudents);
+  }, [debouncedSearch, deptFilter, page, limit]);
 
   const fetchDepartments = async () => {
     try {
@@ -75,13 +112,19 @@ export const StudentManagement: React.FC = () => {
     }
   };
 
-  const fetchStudents = async () => {
-    setLoading(true);
+  const fetchStudents = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await api.get('/students', {
-        params: { search, departmentId: deptFilter, page, limit }
+        params: { search: debouncedSearch, departmentId: deptFilter, page, limit }
       });
       setStudents(res.data.data);
+      if (!debouncedSearch && !deptFilter && page === 1) {
+        clientCache.set('admin_students_list', {
+          data: res.data.data,
+          pagination: res.data.pagination
+        });
+      }
       if (res.data.pagination) {
         setPagination({
           total: res.data.pagination.total,
@@ -114,19 +157,31 @@ export const StudentManagement: React.FC = () => {
     }
   };
 
-  const handleExecuteBulkDelete = async () => {
+  const handleExecuteBulkDelete = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!bulkDeleteRemarks.trim()) {
+      showErrorModal({
+        title: 'Remarks required',
+        message: 'Please provide an explanatory remark before deleting these student records.'
+      });
+      return;
+    }
+
     setBulkDeleting(true);
     try {
+      const payload: any = { remarks: bulkDeleteRemarks.trim() };
       if (isDeleteAllMode) {
-        await api.post('/students/bulk-delete', { deleteAll: true });
+        payload.deleteAll = true;
       } else {
-        await api.post('/students/bulk-delete', { studentIds: selectedIds });
+        payload.studentIds = selectedIds;
       }
+      await api.post('/students/bulk-delete', payload);
       setIsBulkDeleteModalOpen(false);
+      setBulkDeleteRemarks('');
       setSelectedIds([]);
       await fetchStudents();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Bulk deletion failed.');
+      showErrorModal(err, { title: 'Bulk Deletion Failed' });
     } finally {
       setBulkDeleting(false);
     }
@@ -135,7 +190,10 @@ export const StudentManagement: React.FC = () => {
   const handleExecuteBatchUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBatchYear.trim()) {
-      alert('Please enter a valid Batch Year (e.g. 2024-2028).');
+      showErrorModal({
+        title: 'Invalid batch year',
+        message: 'Please enter a valid four-year batch range such as 2024-2028.'
+      });
       return;
     }
 
@@ -150,28 +208,32 @@ export const StudentManagement: React.FC = () => {
       setSelectedIds([]);
       await fetchStudents();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Batch update failed.');
+      showErrorModal(err, { title: 'Batch Update Failed' });
     } finally {
       setBatchUpdating(false);
     }
   };
 
   const handleOpenModal = (student: any = null) => {
+    const academicDepts = departments.filter((d) => d.isAcademicBranch);
+    const defaultDept = academicDepts[0] || departments[0];
+
     if (student) {
       setEditingStudent(student);
       setFormData({
         usn: student.usn,
         fullName: student.fullName,
-        email: student.email,
-        phone: student.phone,
-        departmentId: student.departmentId?._id || student.departmentId,
+        email: student.email || '',
+        phone: student.phone || '',
+        departmentId: student.departmentId?._id || student.departmentId?.id || student.departmentId || defaultDept?._id || defaultDept?.id || '',
         section: student.section || 'A',
         batch: student.batch || '2022-2026',
         academicYear: student.academicYear || '2025-2026',
         semester: student.semester || '8th Semester',
         year: student.year || '4th Year',
         admissionYear: String(student.admissionYear || '2022'),
-        graduationYear: String(student.graduationYear || '2026')
+        graduationYear: String(student.graduationYear || '2026'),
+        remarks: student.remarks || ''
       });
     } else {
       setEditingStudent(null);
@@ -180,14 +242,15 @@ export const StudentManagement: React.FC = () => {
         fullName: '',
         email: '',
         phone: '',
-        departmentId: departments[0]?._id || '',
+        departmentId: defaultDept?._id || defaultDept?.id || '',
         section: 'A',
         batch: '2024-2028',
         academicYear: '2025-2026',
         semester: '8th Semester',
         year: '4th Year',
         admissionYear: '2024',
-        graduationYear: '2028'
+        graduationYear: '2028',
+        remarks: ''
       });
     }
     setModalError('');
@@ -197,6 +260,12 @@ export const StudentManagement: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setModalError('');
+
+    if (!editingStudent && !formData.remarks.trim()) {
+      setModalError('Remarks are compulsory when adding a student.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -210,19 +279,78 @@ export const StudentManagement: React.FC = () => {
       setIsModalOpen(false);
       await fetchStudents();
     } catch (err: any) {
-      setModalError(err.response?.data?.message || 'Operation failed.');
+      setModalError(err);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this student profile?')) return;
+  const handleOpenDeleteModal = (student: any) => {
+    setStudentToDelete(student);
+    setSingleDeleteRemarks('');
+    setDeleteCertError(null);
+  };
+
+  const handleArchiveStudent = async (student: any) => {
+    const targetStudent = student || studentToDelete;
+    if (!targetStudent?._id) return;
+    setArchiving(true);
     try {
-      await api.delete(`/students/${id}`);
+      await api.put(`/students/${targetStudent._id}/deactivate`);
+      clientCache.invalidate('admin_dashboard');
+      setStudentToDelete(null);
+      setDeleteCertError(null);
       await fetchStudents();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to delete student.');
+      showErrorModal(err, { title: 'Student Archival Failed' });
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleReactivateStudent = async (student: any) => {
+    if (!student?._id) return;
+    try {
+      await api.put(`/students/${student._id}/reactivate`);
+      clientCache.invalidate('admin_dashboard');
+      await fetchStudents();
+    } catch (err: any) {
+      showErrorModal(err, { title: 'Student Reactivation Failed' });
+    }
+  };
+
+  const handleExecuteSingleDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!singleDeleteRemarks.trim()) {
+      showErrorModal({
+        title: 'Remarks required',
+        message: 'Please provide an explanatory remark before deleting this student profile.'
+      });
+      return;
+    }
+
+    setSingleDeleting(true);
+    setDeleteCertError(null);
+    try {
+      await api.delete(`/students/${studentToDelete._id}`, {
+        data: { remarks: singleDeleteRemarks.trim() },
+        params: { remarks: singleDeleteRemarks.trim() }
+      });
+      clientCache.invalidate('admin_dashboard');
+      setStudentToDelete(null);
+      setSingleDeleteRemarks('');
+      await fetchStudents();
+    } catch (err: any) {
+      if (err.response?.data?.code === 'CERTIFICATE_EXISTS') {
+        setDeleteCertError(
+          err.response.data.message ||
+          'Student cannot be deleted because an NDC certificate is associated with this student. Deactivate or archive the student instead.'
+        );
+      } else {
+        showErrorModal(err, { title: 'Student Deletion Failed' });
+      }
+    } finally {
+      setSingleDeleting(false);
     }
   };
 
@@ -268,8 +396,19 @@ export const StudentManagement: React.FC = () => {
       {/* Section Header */}
       <div className="section-head">
         <div>
-          <h1 className="page-title">Students</h1>
-          <p className="caption-text mt-1">Manage student master profiles, batch assignments, and department accounts</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="page-title">Students</h1>
+            {isCashFeeOfficer && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
+                Cash/Fee Section
+              </span>
+            )}
+          </div>
+          <p className="caption-text mt-1">
+            {isCashFeeOfficer
+              ? 'Manage fee clearance registrations, add single student entries, and remove records with compulsory audit remarks'
+              : 'Manage student master profiles, batch assignments, and department accounts'}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -288,6 +427,7 @@ export const StudentManagement: React.FC = () => {
               <button
                 onClick={() => {
                   setIsDeleteAllMode(true);
+                  setBulkDeleteRemarks('');
                   setIsBulkDeleteModalOpen(true);
                 }}
                 className="btn btn-secondary text-rose-600 border-rose-200 hover:bg-rose-50"
@@ -325,6 +465,7 @@ export const StudentManagement: React.FC = () => {
             <button
               onClick={() => {
                 setIsDeleteAllMode(false);
+                setBulkDeleteRemarks('');
                 setIsBulkDeleteModalOpen(true);
               }}
               className="btn btn-danger btn-compact"
@@ -413,8 +554,19 @@ export const StudentManagement: React.FC = () => {
                         </td>
                         <td>
                           <div className="name-cell">
-                            <div className="avatar-sm">{nameInitials}</div>
-                            <span className="cell-primary">{student.fullName}</span>
+                            <div className={`avatar-sm ${!student.isActive ? 'opacity-60' : ''}`}>{nameInitials}</div>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`cell-primary ${!student.isActive ? 'text-slate-500 line-through' : ''}`}>
+                                  {student.fullName}
+                                </span>
+                                {!student.isActive && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 rounded border border-amber-300">
+                                    Archived
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="mono-text font-bold text-blue-700">{student.usn}</td>
@@ -444,8 +596,25 @@ export const StudentManagement: React.FC = () => {
                             >
                               <Edit className="w-4 h-4" />
                             </button>
+                            {student.isActive ? (
+                              <button
+                                onClick={() => handleArchiveStudent(student)}
+                                className="btn-icon text-amber-600 hover:bg-amber-50"
+                                title="Archive / Deactivate Student"
+                              >
+                                <Archive className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleReactivateStudent(student)}
+                                className="btn-icon text-emerald-600 hover:bg-emerald-50"
+                                title="Reactivate Student"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleDelete(student._id)}
+                              onClick={() => handleOpenDeleteModal(student)}
                               className="btn-icon text-rose-600 hover:bg-rose-50"
                               title="Delete Student"
                             >
@@ -566,9 +735,11 @@ export const StudentManagement: React.FC = () => {
 
             {modalError && (
               <div className="px-5 pt-3">
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl">
-                  {modalError}
-                </div>
+                <ErrorAlert
+                  error={modalError}
+                  onDismiss={() => setModalError(null)}
+                  title="Student Profile Issue"
+                />
               </div>
             )}
 
@@ -581,14 +752,45 @@ export const StudentManagement: React.FC = () => {
                     value={formData.usn}
                     onChange={(e) => {
                       const newUsn = e.target.value.toUpperCase();
-                      setFormData({ ...formData, usn: newUsn });
-                      const resolvedDeptCode = extractDepartmentFromUsn(newUsn);
-                      if (resolvedDeptCode) {
-                        const matchedDept = departments.find((d) => d.code === resolvedDeptCode);
-                        if (matchedDept) setFormData((prev) => ({ ...prev, usn: newUsn, departmentId: matchedDept._id }));
+                      const resolvedCode = getDepartmentCodeFromUsn(newUsn);
+                      let newDeptId = formData.departmentId;
+
+                      if (resolvedCode) {
+                        const matchedDept = departments.find((d) => {
+                          const code = (d.code || '').toUpperCase();
+                          if (code === resolvedCode) return true;
+                          if (resolvedCode === 'AI' && (code === 'AI' || code === 'AIML')) return true;
+                          return false;
+                        });
+                        if (matchedDept) {
+                          newDeptId = matchedDept._id || matchedDept.id;
+                        }
                       }
+
+                      // Auto-sync batch from 2-digit admission year in USN (e.g. 4MC22CS001 -> 2022-2026)
+                      const yearMatch = newUsn.match(/\d{1,3}(\d{2})[A-Z]/);
+                      let autoBatch = formData.batch;
+                      let autoAdmYear = formData.admissionYear;
+                      let autoGradYear = formData.graduationYear;
+                      if (yearMatch && yearMatch[1] && !editingStudent) {
+                        const yrNum = 2000 + parseInt(yearMatch[1], 10);
+                        if (yrNum >= 2018 && yrNum <= 2035) {
+                          autoAdmYear = String(yrNum);
+                          autoGradYear = String(yrNum + 4);
+                          autoBatch = `${yrNum}-${yrNum + 4}`;
+                        }
+                      }
+
+                      setFormData((prev) => ({
+                        ...prev,
+                        usn: newUsn,
+                        ...(resolvedCode && newDeptId ? { departmentId: newDeptId } : {}),
+                        batch: autoBatch,
+                        admissionYear: autoAdmYear,
+                        graduationYear: autoGradYear
+                      }));
                     }}
-                    placeholder="4MC22IS001"
+                    placeholder="4MC22CS001"
                     required
                     className="input mono-text font-bold"
                   />
@@ -664,10 +866,40 @@ export const StudentManagement: React.FC = () => {
                     required
                     className="input font-semibold"
                   >
-                    {departments.map((d) => (
-                      <option key={d._id} value={d._id}>{d.name} ({d.code})</option>
-                    ))}
+                    <optgroup label="Academic Branches">
+                      {departments.filter((d) => d.isAcademicBranch).map((d) => (
+                        <option key={d._id || d.id} value={d._id || d.id}>
+                          {d.name} ({d.code})
+                        </option>
+                      ))}
+                    </optgroup>
+                    {departments.some((d) => !d.isAcademicBranch) && (
+                      <optgroup label="Other Sections">
+                        {departments.filter((d) => !d.isAcademicBranch && d.code !== 'ADM' && d.code !== 'LAB').map((d) => (
+                          <option key={d._id || d.id} value={d._id || d.id}>
+                            {d.name} ({d.code})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
+                </div>
+
+                <div>
+                  <label className="field-label">
+                    Remarks / Admission Reason {!editingStudent && <span className="text-rose-600 font-bold">* (Compulsory)</span>}
+                  </label>
+                  <textarea
+                    value={formData.remarks}
+                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    placeholder="Enter compulsory remarks (e.g., Fee clearance approved, manual admission entry, transfer case)..."
+                    required={!editingStudent}
+                    rows={2}
+                    className="input font-medium text-xs resize-none"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Remarks are compulsory and logged in the immutable system audit trail.
+                  </p>
                 </div>
               </div>
 
@@ -729,29 +961,162 @@ export const StudentManagement: React.FC = () => {
         </>
       )}
 
-      {/* Bulk Delete Confirmation Modal */}
+      {/* Single Student Delete Confirmation Modal with Compulsory Remarks */}
+      {studentToDelete && (
+        <>
+          <div className="drawer-scrim" onClick={() => !singleDeleting && !archiving && setStudentToDelete(null)} />
+          <div className="modal open max-w-md">
+            <div className="modal-header">
+              <h3 className="h2-title text-rose-600 flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                Confirm Student Deletion
+              </h3>
+              <button onClick={() => !singleDeleting && !archiving && setStudentToDelete(null)} className="btn-icon">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleExecuteSingleDelete}>
+              <div className="modal-body space-y-3.5">
+                <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl text-xs space-y-1">
+                  <div className="font-bold text-rose-900">
+                    {studentToDelete.fullName} ({studentToDelete.usn})
+                  </div>
+                  <div className="text-rose-700">
+                    Dept: {studentToDelete.departmentId?.name || studentToDelete.departmentName || 'N/A'} • Batch: {studentToDelete.batch}
+                  </div>
+                  <div className="text-[11px] text-rose-600 mt-1 font-medium">
+                    ⚠️ Warning: Deleting this student will permanently erase their profile and associated login accounts.
+                  </div>
+                </div>
+
+                {deleteCertError && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl space-y-2.5">
+                    <div className="flex items-start gap-2 text-amber-900 text-xs font-semibold">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>{deleteCertError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={archiving}
+                      onClick={() => handleArchiveStudent(studentToDelete)}
+                      className="btn btn-warning w-full text-xs font-bold py-2 shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <Archive className="w-4 h-4" />
+                      {archiving ? 'Archiving...' : 'Deactivate / Archive Student Instead'}
+                    </button>
+                  </div>
+                )}
+
+                {!deleteCertError && (
+                  <div>
+                    <label className="field-label text-slate-800">
+                      Compulsory Remarks / Reason for Deletion <span className="text-rose-600 font-bold">*</span>
+                    </label>
+                    <textarea
+                      value={singleDeleteRemarks}
+                      onChange={(e) => setSingleDeleteRemarks(e.target.value)}
+                      placeholder="Please provide the mandatory reason for deleting this student (e.g., Admission cancelled, transferred, duplicate record)..."
+                      required
+                      rows={3}
+                      className="input text-xs font-medium resize-none border-rose-200 focus:border-rose-500 focus:ring-rose-500"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Remarks are mandatory and will be recorded in the immutable audit trail.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  disabled={singleDeleting || archiving}
+                  onClick={() => setStudentToDelete(null)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                {!deleteCertError && (
+                  <button
+                    type="submit"
+                    disabled={singleDeleting || !singleDeleteRemarks.trim()}
+                    className="btn btn-danger"
+                  >
+                    {singleDeleting ? 'Deleting...' : 'Delete Student'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* Bulk Delete Confirmation Modal with Compulsory Remarks */}
       {isBulkDeleteModalOpen && (
         <>
-          <div className="drawer-scrim" onClick={() => setIsBulkDeleteModalOpen(false)} />
-          <div className="modal open">
+          <div className="drawer-scrim" onClick={() => !bulkDeleting && setIsBulkDeleteModalOpen(false)} />
+          <div className="modal open max-w-md">
             <div className="modal-header">
-              <h3 className="h2-title text-rose-600">Confirm Bulk Deletion</h3>
-            </div>
-            <div className="modal-body text-xs text-slate-700">
-              {isDeleteAllMode ? (
-                <p>Are you sure you want to delete ALL {pagination.total || students.length} student records from the database? This action is permanent.</p>
-              ) : (
-                <p>Are you sure you want to delete {selectedIds.length} selected student profiles?</p>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button onClick={() => setIsBulkDeleteModalOpen(false)} className="btn btn-secondary">
-                Cancel
-              </button>
-              <button onClick={handleExecuteBulkDelete} disabled={bulkDeleting} className="btn btn-danger">
-                {bulkDeleting ? 'Deleting...' : 'Confirm Delete'}
+              <h3 className="h2-title text-rose-600 flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                Confirm Bulk Deletion
+              </h3>
+              <button onClick={() => !bulkDeleting && setIsBulkDeleteModalOpen(false)} className="btn-icon">
+                <X className="w-4 h-4" />
               </button>
             </div>
+            <form onSubmit={handleExecuteBulkDelete}>
+              <div className="modal-body space-y-3.5 text-xs text-slate-700">
+                <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl space-y-1">
+                  {isDeleteAllMode ? (
+                    <p className="font-bold text-rose-900">
+                      Are you sure you want to delete ALL {pagination.total || students.length} student records from the database? This action is irreversible.
+                    </p>
+                  ) : (
+                    <p className="font-bold text-rose-900">
+                      Are you sure you want to delete {selectedIds.length} selected student profiles?
+                    </p>
+                  )}
+                  <p className="text-[11px] text-rose-600 font-medium">
+                    This will permanently delete students and their associated system login accounts.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="field-label text-slate-800">
+                    Compulsory Remarks / Reason for Bulk Deletion <span className="text-rose-600 font-bold">*</span>
+                  </label>
+                  <textarea
+                    value={bulkDeleteRemarks}
+                    onChange={(e) => setBulkDeleteRemarks(e.target.value)}
+                    placeholder="Enter compulsory remarks for deleting the selected student records (e.g., Discontinued admissions batch, duplicate import rollback)..."
+                    required
+                    rows={3}
+                    className="input text-xs font-medium resize-none border-rose-200 focus:border-rose-500 focus:ring-rose-500"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Remarks are mandatory and will be recorded in the immutable audit trail.
+                  </p>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  disabled={bulkDeleting}
+                  onClick={() => setIsBulkDeleteModalOpen(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkDeleting || !bulkDeleteRemarks.trim()}
+                  className="btn btn-danger"
+                >
+                  {bulkDeleting ? 'Deleting...' : 'Confirm Bulk Delete'}
+                </button>
+              </div>
+            </form>
           </div>
         </>
       )}

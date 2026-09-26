@@ -24,6 +24,11 @@ export type User = $Result.DefaultSelection<Prisma.$UserPayload>
  */
 export type ClearanceDepartment = $Result.DefaultSelection<Prisma.$ClearanceDepartmentPayload>
 /**
+ * Model DepartmentLab
+ * 
+ */
+export type DepartmentLab = $Result.DefaultSelection<Prisma.$DepartmentLabPayload>
+/**
  * Model ClearanceOfficer
  * 
  */
@@ -280,6 +285,16 @@ export class PrismaClient<
     * ```
     */
   get clearanceDepartment(): Prisma.ClearanceDepartmentDelegate<ExtArgs>;
+
+  /**
+   * `prisma.departmentLab`: Exposes CRUD operations for the **DepartmentLab** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more DepartmentLabs
+    * const departmentLabs = await prisma.departmentLab.findMany()
+    * ```
+    */
+  get departmentLab(): Prisma.DepartmentLabDelegate<ExtArgs>;
 
   /**
    * `prisma.clearanceOfficer`: Exposes CRUD operations for the **ClearanceOfficer** model.
@@ -823,6 +838,7 @@ export namespace Prisma {
   export const ModelName: {
     User: 'User',
     ClearanceDepartment: 'ClearanceDepartment',
+    DepartmentLab: 'DepartmentLab',
     ClearanceOfficer: 'ClearanceOfficer',
     ClearanceOfficerDepartment: 'ClearanceOfficerDepartment',
     Student: 'Student',
@@ -848,7 +864,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "user" | "clearanceDepartment" | "clearanceOfficer" | "clearanceOfficerDepartment" | "student" | "ndcRequest" | "ndcClearance" | "ndcCertificate" | "certificateSequence" | "setting" | "auditLog" | "notification"
+      modelProps: "user" | "clearanceDepartment" | "departmentLab" | "clearanceOfficer" | "clearanceOfficerDepartment" | "student" | "ndcRequest" | "ndcClearance" | "ndcCertificate" | "certificateSequence" | "setting" | "auditLog" | "notification"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -989,6 +1005,76 @@ export namespace Prisma {
           count: {
             args: Prisma.ClearanceDepartmentCountArgs<ExtArgs>
             result: $Utils.Optional<ClearanceDepartmentCountAggregateOutputType> | number
+          }
+        }
+      }
+      DepartmentLab: {
+        payload: Prisma.$DepartmentLabPayload<ExtArgs>
+        fields: Prisma.DepartmentLabFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.DepartmentLabFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.DepartmentLabFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>
+          }
+          findFirst: {
+            args: Prisma.DepartmentLabFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.DepartmentLabFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>
+          }
+          findMany: {
+            args: Prisma.DepartmentLabFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>[]
+          }
+          create: {
+            args: Prisma.DepartmentLabCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>
+          }
+          createMany: {
+            args: Prisma.DepartmentLabCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.DepartmentLabCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>[]
+          }
+          delete: {
+            args: Prisma.DepartmentLabDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>
+          }
+          update: {
+            args: Prisma.DepartmentLabUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>
+          }
+          deleteMany: {
+            args: Prisma.DepartmentLabDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.DepartmentLabUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.DepartmentLabUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$DepartmentLabPayload>
+          }
+          aggregate: {
+            args: Prisma.DepartmentLabAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateDepartmentLab>
+          }
+          groupBy: {
+            args: Prisma.DepartmentLabGroupByArgs<ExtArgs>
+            result: $Utils.Optional<DepartmentLabGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.DepartmentLabCountArgs<ExtArgs>
+            result: $Utils.Optional<DepartmentLabCountAggregateOutputType> | number
           }
         }
       }
@@ -1933,6 +2019,7 @@ export namespace Prisma {
     users: number
     officerMappings: number
     clearances: number
+    labs: number
   }
 
   export type ClearanceDepartmentCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -1940,6 +2027,7 @@ export namespace Prisma {
     users?: boolean | ClearanceDepartmentCountOutputTypeCountUsersArgs
     officerMappings?: boolean | ClearanceDepartmentCountOutputTypeCountOfficerMappingsArgs
     clearances?: boolean | ClearanceDepartmentCountOutputTypeCountClearancesArgs
+    labs?: boolean | ClearanceDepartmentCountOutputTypeCountLabsArgs
   }
 
   // Custom InputTypes
@@ -1978,6 +2066,44 @@ export namespace Prisma {
    * ClearanceDepartmentCountOutputType without action
    */
   export type ClearanceDepartmentCountOutputTypeCountClearancesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: NdcClearanceWhereInput
+  }
+
+  /**
+   * ClearanceDepartmentCountOutputType without action
+   */
+  export type ClearanceDepartmentCountOutputTypeCountLabsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: DepartmentLabWhereInput
+  }
+
+
+  /**
+   * Count Type DepartmentLabCountOutputType
+   */
+
+  export type DepartmentLabCountOutputType = {
+    clearances: number
+  }
+
+  export type DepartmentLabCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    clearances?: boolean | DepartmentLabCountOutputTypeCountClearancesArgs
+  }
+
+  // Custom InputTypes
+  /**
+   * DepartmentLabCountOutputType without action
+   */
+  export type DepartmentLabCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLabCountOutputType
+     */
+    select?: DepartmentLabCountOutputTypeSelect<ExtArgs> | null
+  }
+
+  /**
+   * DepartmentLabCountOutputType without action
+   */
+  export type DepartmentLabCountOutputTypeCountClearancesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: NdcClearanceWhereInput
   }
 
@@ -2118,6 +2244,7 @@ export namespace Prisma {
 
   export type UserMinAggregateOutputType = {
     id: string | null
+    loginId: string | null
     email: string | null
     passwordHash: string | null
     role: $Enums.UserRole | null
@@ -2134,6 +2261,7 @@ export namespace Prisma {
 
   export type UserMaxAggregateOutputType = {
     id: string | null
+    loginId: string | null
     email: string | null
     passwordHash: string | null
     role: $Enums.UserRole | null
@@ -2150,6 +2278,7 @@ export namespace Prisma {
 
   export type UserCountAggregateOutputType = {
     id: number
+    loginId: number
     email: number
     passwordHash: number
     role: number
@@ -2168,6 +2297,7 @@ export namespace Prisma {
 
   export type UserMinAggregateInputType = {
     id?: true
+    loginId?: true
     email?: true
     passwordHash?: true
     role?: true
@@ -2184,6 +2314,7 @@ export namespace Prisma {
 
   export type UserMaxAggregateInputType = {
     id?: true
+    loginId?: true
     email?: true
     passwordHash?: true
     role?: true
@@ -2200,6 +2331,7 @@ export namespace Prisma {
 
   export type UserCountAggregateInputType = {
     id?: true
+    loginId?: true
     email?: true
     passwordHash?: true
     role?: true
@@ -2289,6 +2421,7 @@ export namespace Prisma {
 
   export type UserGroupByOutputType = {
     id: string
+    loginId: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -2322,6 +2455,7 @@ export namespace Prisma {
 
   export type UserSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    loginId?: boolean
     email?: boolean
     passwordHash?: boolean
     role?: boolean
@@ -2348,6 +2482,7 @@ export namespace Prisma {
 
   export type UserSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    loginId?: boolean
     email?: boolean
     passwordHash?: boolean
     role?: boolean
@@ -2367,6 +2502,7 @@ export namespace Prisma {
 
   export type UserSelectScalar = {
     id?: boolean
+    loginId?: boolean
     email?: boolean
     passwordHash?: boolean
     role?: boolean
@@ -2414,6 +2550,7 @@ export namespace Prisma {
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
+      loginId: string | null
       email: string
       passwordHash: string
       role: $Enums.UserRole
@@ -2829,6 +2966,7 @@ export namespace Prisma {
    */ 
   interface UserFieldRefs {
     readonly id: FieldRef<"User", 'String'>
+    readonly loginId: FieldRef<"User", 'String'>
     readonly email: FieldRef<"User", 'String'>
     readonly passwordHash: FieldRef<"User", 'String'>
     readonly role: FieldRef<"User", 'UserRole'>
@@ -3362,6 +3500,7 @@ export namespace Prisma {
     id: string | null
     name: string | null
     code: string | null
+    category: string | null
     description: string | null
     requiresClearance: boolean | null
     isAcademicBranch: boolean | null
@@ -3377,6 +3516,7 @@ export namespace Prisma {
     id: string | null
     name: string | null
     code: string | null
+    category: string | null
     description: string | null
     requiresClearance: boolean | null
     isAcademicBranch: boolean | null
@@ -3392,6 +3532,7 @@ export namespace Prisma {
     id: number
     name: number
     code: number
+    category: number
     description: number
     requiresClearance: number
     isAcademicBranch: number
@@ -3417,6 +3558,7 @@ export namespace Prisma {
     id?: true
     name?: true
     code?: true
+    category?: true
     description?: true
     requiresClearance?: true
     isAcademicBranch?: true
@@ -3432,6 +3574,7 @@ export namespace Prisma {
     id?: true
     name?: true
     code?: true
+    category?: true
     description?: true
     requiresClearance?: true
     isAcademicBranch?: true
@@ -3447,6 +3590,7 @@ export namespace Prisma {
     id?: true
     name?: true
     code?: true
+    category?: true
     description?: true
     requiresClearance?: true
     isAcademicBranch?: true
@@ -3549,6 +3693,7 @@ export namespace Prisma {
     id: string
     name: string
     code: string
+    category: string
     description: string
     requiresClearance: boolean
     isAcademicBranch: boolean
@@ -3583,6 +3728,7 @@ export namespace Prisma {
     id?: boolean
     name?: boolean
     code?: boolean
+    category?: boolean
     description?: boolean
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -3596,6 +3742,7 @@ export namespace Prisma {
     users?: boolean | ClearanceDepartment$usersArgs<ExtArgs>
     officerMappings?: boolean | ClearanceDepartment$officerMappingsArgs<ExtArgs>
     clearances?: boolean | ClearanceDepartment$clearancesArgs<ExtArgs>
+    labs?: boolean | ClearanceDepartment$labsArgs<ExtArgs>
     _count?: boolean | ClearanceDepartmentCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["clearanceDepartment"]>
 
@@ -3603,6 +3750,7 @@ export namespace Prisma {
     id?: boolean
     name?: boolean
     code?: boolean
+    category?: boolean
     description?: boolean
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -3618,6 +3766,7 @@ export namespace Prisma {
     id?: boolean
     name?: boolean
     code?: boolean
+    category?: boolean
     description?: boolean
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -3634,6 +3783,7 @@ export namespace Prisma {
     users?: boolean | ClearanceDepartment$usersArgs<ExtArgs>
     officerMappings?: boolean | ClearanceDepartment$officerMappingsArgs<ExtArgs>
     clearances?: boolean | ClearanceDepartment$clearancesArgs<ExtArgs>
+    labs?: boolean | ClearanceDepartment$labsArgs<ExtArgs>
     _count?: boolean | ClearanceDepartmentCountOutputTypeDefaultArgs<ExtArgs>
   }
   export type ClearanceDepartmentIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {}
@@ -3645,11 +3795,13 @@ export namespace Prisma {
       users: Prisma.$UserPayload<ExtArgs>[]
       officerMappings: Prisma.$ClearanceOfficerDepartmentPayload<ExtArgs>[]
       clearances: Prisma.$NdcClearancePayload<ExtArgs>[]
+      labs: Prisma.$DepartmentLabPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
       name: string
       code: string
+      category: string
       description: string
       requiresClearance: boolean
       isAcademicBranch: boolean
@@ -4027,6 +4179,7 @@ export namespace Prisma {
     users<T extends ClearanceDepartment$usersArgs<ExtArgs> = {}>(args?: Subset<T, ClearanceDepartment$usersArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findMany"> | Null>
     officerMappings<T extends ClearanceDepartment$officerMappingsArgs<ExtArgs> = {}>(args?: Subset<T, ClearanceDepartment$officerMappingsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ClearanceOfficerDepartmentPayload<ExtArgs>, T, "findMany"> | Null>
     clearances<T extends ClearanceDepartment$clearancesArgs<ExtArgs> = {}>(args?: Subset<T, ClearanceDepartment$clearancesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$NdcClearancePayload<ExtArgs>, T, "findMany"> | Null>
+    labs<T extends ClearanceDepartment$labsArgs<ExtArgs> = {}>(args?: Subset<T, ClearanceDepartment$labsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findMany"> | Null>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
      * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -4059,6 +4212,7 @@ export namespace Prisma {
     readonly id: FieldRef<"ClearanceDepartment", 'String'>
     readonly name: FieldRef<"ClearanceDepartment", 'String'>
     readonly code: FieldRef<"ClearanceDepartment", 'String'>
+    readonly category: FieldRef<"ClearanceDepartment", 'String'>
     readonly description: FieldRef<"ClearanceDepartment", 'String'>
     readonly requiresClearance: FieldRef<"ClearanceDepartment", 'Boolean'>
     readonly isAcademicBranch: FieldRef<"ClearanceDepartment", 'Boolean'>
@@ -4462,6 +4616,26 @@ export namespace Prisma {
   }
 
   /**
+   * ClearanceDepartment.labs
+   */
+  export type ClearanceDepartment$labsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    where?: DepartmentLabWhereInput
+    orderBy?: DepartmentLabOrderByWithRelationInput | DepartmentLabOrderByWithRelationInput[]
+    cursor?: DepartmentLabWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: DepartmentLabScalarFieldEnum | DepartmentLabScalarFieldEnum[]
+  }
+
+  /**
    * ClearanceDepartment without action
    */
   export type ClearanceDepartmentDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -4473,6 +4647,1047 @@ export namespace Prisma {
      * Choose, which related nodes to fetch as well
      */
     include?: ClearanceDepartmentInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model DepartmentLab
+   */
+
+  export type AggregateDepartmentLab = {
+    _count: DepartmentLabCountAggregateOutputType | null
+    _avg: DepartmentLabAvgAggregateOutputType | null
+    _sum: DepartmentLabSumAggregateOutputType | null
+    _min: DepartmentLabMinAggregateOutputType | null
+    _max: DepartmentLabMaxAggregateOutputType | null
+  }
+
+  export type DepartmentLabAvgAggregateOutputType = {
+    applicableSemesters: number | null
+    displayOrder: number | null
+  }
+
+  export type DepartmentLabSumAggregateOutputType = {
+    applicableSemesters: number[]
+    displayOrder: number | null
+  }
+
+  export type DepartmentLabMinAggregateOutputType = {
+    id: string | null
+    name: string | null
+    code: string | null
+    departmentId: string | null
+    displayOrder: number | null
+    isActive: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type DepartmentLabMaxAggregateOutputType = {
+    id: string | null
+    name: string | null
+    code: string | null
+    departmentId: string | null
+    displayOrder: number | null
+    isActive: boolean | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type DepartmentLabCountAggregateOutputType = {
+    id: number
+    name: number
+    code: number
+    departmentId: number
+    applicableSemesters: number
+    displayOrder: number
+    isActive: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type DepartmentLabAvgAggregateInputType = {
+    applicableSemesters?: true
+    displayOrder?: true
+  }
+
+  export type DepartmentLabSumAggregateInputType = {
+    applicableSemesters?: true
+    displayOrder?: true
+  }
+
+  export type DepartmentLabMinAggregateInputType = {
+    id?: true
+    name?: true
+    code?: true
+    departmentId?: true
+    displayOrder?: true
+    isActive?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type DepartmentLabMaxAggregateInputType = {
+    id?: true
+    name?: true
+    code?: true
+    departmentId?: true
+    displayOrder?: true
+    isActive?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type DepartmentLabCountAggregateInputType = {
+    id?: true
+    name?: true
+    code?: true
+    departmentId?: true
+    applicableSemesters?: true
+    displayOrder?: true
+    isActive?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type DepartmentLabAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which DepartmentLab to aggregate.
+     */
+    where?: DepartmentLabWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of DepartmentLabs to fetch.
+     */
+    orderBy?: DepartmentLabOrderByWithRelationInput | DepartmentLabOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: DepartmentLabWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` DepartmentLabs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` DepartmentLabs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned DepartmentLabs
+    **/
+    _count?: true | DepartmentLabCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: DepartmentLabAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: DepartmentLabSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: DepartmentLabMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: DepartmentLabMaxAggregateInputType
+  }
+
+  export type GetDepartmentLabAggregateType<T extends DepartmentLabAggregateArgs> = {
+        [P in keyof T & keyof AggregateDepartmentLab]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateDepartmentLab[P]>
+      : GetScalarType<T[P], AggregateDepartmentLab[P]>
+  }
+
+
+
+
+  export type DepartmentLabGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: DepartmentLabWhereInput
+    orderBy?: DepartmentLabOrderByWithAggregationInput | DepartmentLabOrderByWithAggregationInput[]
+    by: DepartmentLabScalarFieldEnum[] | DepartmentLabScalarFieldEnum
+    having?: DepartmentLabScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: DepartmentLabCountAggregateInputType | true
+    _avg?: DepartmentLabAvgAggregateInputType
+    _sum?: DepartmentLabSumAggregateInputType
+    _min?: DepartmentLabMinAggregateInputType
+    _max?: DepartmentLabMaxAggregateInputType
+  }
+
+  export type DepartmentLabGroupByOutputType = {
+    id: string
+    name: string
+    code: string
+    departmentId: string
+    applicableSemesters: number[]
+    displayOrder: number
+    isActive: boolean
+    createdAt: Date
+    updatedAt: Date
+    _count: DepartmentLabCountAggregateOutputType | null
+    _avg: DepartmentLabAvgAggregateOutputType | null
+    _sum: DepartmentLabSumAggregateOutputType | null
+    _min: DepartmentLabMinAggregateOutputType | null
+    _max: DepartmentLabMaxAggregateOutputType | null
+  }
+
+  type GetDepartmentLabGroupByPayload<T extends DepartmentLabGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<DepartmentLabGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof DepartmentLabGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], DepartmentLabGroupByOutputType[P]>
+            : GetScalarType<T[P], DepartmentLabGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type DepartmentLabSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    name?: boolean
+    code?: boolean
+    departmentId?: boolean
+    applicableSemesters?: boolean
+    displayOrder?: boolean
+    isActive?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+    clearances?: boolean | DepartmentLab$clearancesArgs<ExtArgs>
+    _count?: boolean | DepartmentLabCountOutputTypeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["departmentLab"]>
+
+  export type DepartmentLabSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    name?: boolean
+    code?: boolean
+    departmentId?: boolean
+    applicableSemesters?: boolean
+    displayOrder?: boolean
+    isActive?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["departmentLab"]>
+
+  export type DepartmentLabSelectScalar = {
+    id?: boolean
+    name?: boolean
+    code?: boolean
+    departmentId?: boolean
+    applicableSemesters?: boolean
+    displayOrder?: boolean
+    isActive?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type DepartmentLabInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+    clearances?: boolean | DepartmentLab$clearancesArgs<ExtArgs>
+    _count?: boolean | DepartmentLabCountOutputTypeDefaultArgs<ExtArgs>
+  }
+  export type DepartmentLabIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+  }
+
+  export type $DepartmentLabPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "DepartmentLab"
+    objects: {
+      department: Prisma.$ClearanceDepartmentPayload<ExtArgs>
+      clearances: Prisma.$NdcClearancePayload<ExtArgs>[]
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      name: string
+      code: string
+      departmentId: string
+      applicableSemesters: number[]
+      displayOrder: number
+      isActive: boolean
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["departmentLab"]>
+    composites: {}
+  }
+
+  type DepartmentLabGetPayload<S extends boolean | null | undefined | DepartmentLabDefaultArgs> = $Result.GetResult<Prisma.$DepartmentLabPayload, S>
+
+  type DepartmentLabCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<DepartmentLabFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: DepartmentLabCountAggregateInputType | true
+    }
+
+  export interface DepartmentLabDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['DepartmentLab'], meta: { name: 'DepartmentLab' } }
+    /**
+     * Find zero or one DepartmentLab that matches the filter.
+     * @param {DepartmentLabFindUniqueArgs} args - Arguments to find a DepartmentLab
+     * @example
+     * // Get one DepartmentLab
+     * const departmentLab = await prisma.departmentLab.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends DepartmentLabFindUniqueArgs>(args: SelectSubset<T, DepartmentLabFindUniqueArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one DepartmentLab that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {DepartmentLabFindUniqueOrThrowArgs} args - Arguments to find a DepartmentLab
+     * @example
+     * // Get one DepartmentLab
+     * const departmentLab = await prisma.departmentLab.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends DepartmentLabFindUniqueOrThrowArgs>(args: SelectSubset<T, DepartmentLabFindUniqueOrThrowArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first DepartmentLab that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabFindFirstArgs} args - Arguments to find a DepartmentLab
+     * @example
+     * // Get one DepartmentLab
+     * const departmentLab = await prisma.departmentLab.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends DepartmentLabFindFirstArgs>(args?: SelectSubset<T, DepartmentLabFindFirstArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first DepartmentLab that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabFindFirstOrThrowArgs} args - Arguments to find a DepartmentLab
+     * @example
+     * // Get one DepartmentLab
+     * const departmentLab = await prisma.departmentLab.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends DepartmentLabFindFirstOrThrowArgs>(args?: SelectSubset<T, DepartmentLabFindFirstOrThrowArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more DepartmentLabs that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all DepartmentLabs
+     * const departmentLabs = await prisma.departmentLab.findMany()
+     * 
+     * // Get first 10 DepartmentLabs
+     * const departmentLabs = await prisma.departmentLab.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const departmentLabWithIdOnly = await prisma.departmentLab.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends DepartmentLabFindManyArgs>(args?: SelectSubset<T, DepartmentLabFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a DepartmentLab.
+     * @param {DepartmentLabCreateArgs} args - Arguments to create a DepartmentLab.
+     * @example
+     * // Create one DepartmentLab
+     * const DepartmentLab = await prisma.departmentLab.create({
+     *   data: {
+     *     // ... data to create a DepartmentLab
+     *   }
+     * })
+     * 
+     */
+    create<T extends DepartmentLabCreateArgs>(args: SelectSubset<T, DepartmentLabCreateArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many DepartmentLabs.
+     * @param {DepartmentLabCreateManyArgs} args - Arguments to create many DepartmentLabs.
+     * @example
+     * // Create many DepartmentLabs
+     * const departmentLab = await prisma.departmentLab.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends DepartmentLabCreateManyArgs>(args?: SelectSubset<T, DepartmentLabCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many DepartmentLabs and returns the data saved in the database.
+     * @param {DepartmentLabCreateManyAndReturnArgs} args - Arguments to create many DepartmentLabs.
+     * @example
+     * // Create many DepartmentLabs
+     * const departmentLab = await prisma.departmentLab.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many DepartmentLabs and only return the `id`
+     * const departmentLabWithIdOnly = await prisma.departmentLab.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends DepartmentLabCreateManyAndReturnArgs>(args?: SelectSubset<T, DepartmentLabCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a DepartmentLab.
+     * @param {DepartmentLabDeleteArgs} args - Arguments to delete one DepartmentLab.
+     * @example
+     * // Delete one DepartmentLab
+     * const DepartmentLab = await prisma.departmentLab.delete({
+     *   where: {
+     *     // ... filter to delete one DepartmentLab
+     *   }
+     * })
+     * 
+     */
+    delete<T extends DepartmentLabDeleteArgs>(args: SelectSubset<T, DepartmentLabDeleteArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one DepartmentLab.
+     * @param {DepartmentLabUpdateArgs} args - Arguments to update one DepartmentLab.
+     * @example
+     * // Update one DepartmentLab
+     * const departmentLab = await prisma.departmentLab.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends DepartmentLabUpdateArgs>(args: SelectSubset<T, DepartmentLabUpdateArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more DepartmentLabs.
+     * @param {DepartmentLabDeleteManyArgs} args - Arguments to filter DepartmentLabs to delete.
+     * @example
+     * // Delete a few DepartmentLabs
+     * const { count } = await prisma.departmentLab.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends DepartmentLabDeleteManyArgs>(args?: SelectSubset<T, DepartmentLabDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more DepartmentLabs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many DepartmentLabs
+     * const departmentLab = await prisma.departmentLab.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends DepartmentLabUpdateManyArgs>(args: SelectSubset<T, DepartmentLabUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one DepartmentLab.
+     * @param {DepartmentLabUpsertArgs} args - Arguments to update or create a DepartmentLab.
+     * @example
+     * // Update or create a DepartmentLab
+     * const departmentLab = await prisma.departmentLab.upsert({
+     *   create: {
+     *     // ... data to create a DepartmentLab
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the DepartmentLab we want to update
+     *   }
+     * })
+     */
+    upsert<T extends DepartmentLabUpsertArgs>(args: SelectSubset<T, DepartmentLabUpsertArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of DepartmentLabs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabCountArgs} args - Arguments to filter DepartmentLabs to count.
+     * @example
+     * // Count the number of DepartmentLabs
+     * const count = await prisma.departmentLab.count({
+     *   where: {
+     *     // ... the filter for the DepartmentLabs we want to count
+     *   }
+     * })
+    **/
+    count<T extends DepartmentLabCountArgs>(
+      args?: Subset<T, DepartmentLabCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], DepartmentLabCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a DepartmentLab.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends DepartmentLabAggregateArgs>(args: Subset<T, DepartmentLabAggregateArgs>): Prisma.PrismaPromise<GetDepartmentLabAggregateType<T>>
+
+    /**
+     * Group by DepartmentLab.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {DepartmentLabGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends DepartmentLabGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: DepartmentLabGroupByArgs['orderBy'] }
+        : { orderBy?: DepartmentLabGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, DepartmentLabGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetDepartmentLabGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the DepartmentLab model
+   */
+  readonly fields: DepartmentLabFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for DepartmentLab.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__DepartmentLabClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    department<T extends ClearanceDepartmentDefaultArgs<ExtArgs> = {}>(args?: Subset<T, ClearanceDepartmentDefaultArgs<ExtArgs>>): Prisma__ClearanceDepartmentClient<$Result.GetResult<Prisma.$ClearanceDepartmentPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    clearances<T extends DepartmentLab$clearancesArgs<ExtArgs> = {}>(args?: Subset<T, DepartmentLab$clearancesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$NdcClearancePayload<ExtArgs>, T, "findMany"> | Null>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the DepartmentLab model
+   */ 
+  interface DepartmentLabFieldRefs {
+    readonly id: FieldRef<"DepartmentLab", 'String'>
+    readonly name: FieldRef<"DepartmentLab", 'String'>
+    readonly code: FieldRef<"DepartmentLab", 'String'>
+    readonly departmentId: FieldRef<"DepartmentLab", 'String'>
+    readonly applicableSemesters: FieldRef<"DepartmentLab", 'Int[]'>
+    readonly displayOrder: FieldRef<"DepartmentLab", 'Int'>
+    readonly isActive: FieldRef<"DepartmentLab", 'Boolean'>
+    readonly createdAt: FieldRef<"DepartmentLab", 'DateTime'>
+    readonly updatedAt: FieldRef<"DepartmentLab", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * DepartmentLab findUnique
+   */
+  export type DepartmentLabFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * Filter, which DepartmentLab to fetch.
+     */
+    where: DepartmentLabWhereUniqueInput
+  }
+
+  /**
+   * DepartmentLab findUniqueOrThrow
+   */
+  export type DepartmentLabFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * Filter, which DepartmentLab to fetch.
+     */
+    where: DepartmentLabWhereUniqueInput
+  }
+
+  /**
+   * DepartmentLab findFirst
+   */
+  export type DepartmentLabFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * Filter, which DepartmentLab to fetch.
+     */
+    where?: DepartmentLabWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of DepartmentLabs to fetch.
+     */
+    orderBy?: DepartmentLabOrderByWithRelationInput | DepartmentLabOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for DepartmentLabs.
+     */
+    cursor?: DepartmentLabWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` DepartmentLabs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` DepartmentLabs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of DepartmentLabs.
+     */
+    distinct?: DepartmentLabScalarFieldEnum | DepartmentLabScalarFieldEnum[]
+  }
+
+  /**
+   * DepartmentLab findFirstOrThrow
+   */
+  export type DepartmentLabFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * Filter, which DepartmentLab to fetch.
+     */
+    where?: DepartmentLabWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of DepartmentLabs to fetch.
+     */
+    orderBy?: DepartmentLabOrderByWithRelationInput | DepartmentLabOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for DepartmentLabs.
+     */
+    cursor?: DepartmentLabWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` DepartmentLabs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` DepartmentLabs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of DepartmentLabs.
+     */
+    distinct?: DepartmentLabScalarFieldEnum | DepartmentLabScalarFieldEnum[]
+  }
+
+  /**
+   * DepartmentLab findMany
+   */
+  export type DepartmentLabFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * Filter, which DepartmentLabs to fetch.
+     */
+    where?: DepartmentLabWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of DepartmentLabs to fetch.
+     */
+    orderBy?: DepartmentLabOrderByWithRelationInput | DepartmentLabOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing DepartmentLabs.
+     */
+    cursor?: DepartmentLabWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` DepartmentLabs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` DepartmentLabs.
+     */
+    skip?: number
+    distinct?: DepartmentLabScalarFieldEnum | DepartmentLabScalarFieldEnum[]
+  }
+
+  /**
+   * DepartmentLab create
+   */
+  export type DepartmentLabCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * The data needed to create a DepartmentLab.
+     */
+    data: XOR<DepartmentLabCreateInput, DepartmentLabUncheckedCreateInput>
+  }
+
+  /**
+   * DepartmentLab createMany
+   */
+  export type DepartmentLabCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many DepartmentLabs.
+     */
+    data: DepartmentLabCreateManyInput | DepartmentLabCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * DepartmentLab createManyAndReturn
+   */
+  export type DepartmentLabCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many DepartmentLabs.
+     */
+    data: DepartmentLabCreateManyInput | DepartmentLabCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * DepartmentLab update
+   */
+  export type DepartmentLabUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * The data needed to update a DepartmentLab.
+     */
+    data: XOR<DepartmentLabUpdateInput, DepartmentLabUncheckedUpdateInput>
+    /**
+     * Choose, which DepartmentLab to update.
+     */
+    where: DepartmentLabWhereUniqueInput
+  }
+
+  /**
+   * DepartmentLab updateMany
+   */
+  export type DepartmentLabUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update DepartmentLabs.
+     */
+    data: XOR<DepartmentLabUpdateManyMutationInput, DepartmentLabUncheckedUpdateManyInput>
+    /**
+     * Filter which DepartmentLabs to update
+     */
+    where?: DepartmentLabWhereInput
+  }
+
+  /**
+   * DepartmentLab upsert
+   */
+  export type DepartmentLabUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * The filter to search for the DepartmentLab to update in case it exists.
+     */
+    where: DepartmentLabWhereUniqueInput
+    /**
+     * In case the DepartmentLab found by the `where` argument doesn't exist, create a new DepartmentLab with this data.
+     */
+    create: XOR<DepartmentLabCreateInput, DepartmentLabUncheckedCreateInput>
+    /**
+     * In case the DepartmentLab was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<DepartmentLabUpdateInput, DepartmentLabUncheckedUpdateInput>
+  }
+
+  /**
+   * DepartmentLab delete
+   */
+  export type DepartmentLabDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    /**
+     * Filter which DepartmentLab to delete.
+     */
+    where: DepartmentLabWhereUniqueInput
+  }
+
+  /**
+   * DepartmentLab deleteMany
+   */
+  export type DepartmentLabDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which DepartmentLabs to delete
+     */
+    where?: DepartmentLabWhereInput
+  }
+
+  /**
+   * DepartmentLab.clearances
+   */
+  export type DepartmentLab$clearancesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the NdcClearance
+     */
+    select?: NdcClearanceSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: NdcClearanceInclude<ExtArgs> | null
+    where?: NdcClearanceWhereInput
+    orderBy?: NdcClearanceOrderByWithRelationInput | NdcClearanceOrderByWithRelationInput[]
+    cursor?: NdcClearanceWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: NdcClearanceScalarFieldEnum | NdcClearanceScalarFieldEnum[]
+  }
+
+  /**
+   * DepartmentLab without action
+   */
+  export type DepartmentLabDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
   }
 
 
@@ -8715,6 +9930,7 @@ export namespace Prisma {
     ndcRequestId: string | null
     studentId: string | null
     departmentId: string | null
+    labId: string | null
     officerId: string | null
     status: $Enums.DepartmentClearanceStatus | null
     remarks: string | null
@@ -8731,6 +9947,7 @@ export namespace Prisma {
     ndcRequestId: string | null
     studentId: string | null
     departmentId: string | null
+    labId: string | null
     officerId: string | null
     status: $Enums.DepartmentClearanceStatus | null
     remarks: string | null
@@ -8747,6 +9964,7 @@ export namespace Prisma {
     ndcRequestId: number
     studentId: number
     departmentId: number
+    labId: number
     officerId: number
     status: number
     remarks: number
@@ -8773,6 +9991,7 @@ export namespace Prisma {
     ndcRequestId?: true
     studentId?: true
     departmentId?: true
+    labId?: true
     officerId?: true
     status?: true
     remarks?: true
@@ -8789,6 +10008,7 @@ export namespace Prisma {
     ndcRequestId?: true
     studentId?: true
     departmentId?: true
+    labId?: true
     officerId?: true
     status?: true
     remarks?: true
@@ -8805,6 +10025,7 @@ export namespace Prisma {
     ndcRequestId?: true
     studentId?: true
     departmentId?: true
+    labId?: true
     officerId?: true
     status?: true
     remarks?: true
@@ -8908,6 +10129,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId: string | null
     officerId: string | null
     status: $Enums.DepartmentClearanceStatus
     remarks: string | null
@@ -8943,6 +10165,7 @@ export namespace Prisma {
     ndcRequestId?: boolean
     studentId?: boolean
     departmentId?: boolean
+    labId?: boolean
     officerId?: boolean
     status?: boolean
     remarks?: boolean
@@ -8955,6 +10178,7 @@ export namespace Prisma {
     ndcRequest?: boolean | NdcRequestDefaultArgs<ExtArgs>
     student?: boolean | StudentDefaultArgs<ExtArgs>
     department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+    lab?: boolean | NdcClearance$labArgs<ExtArgs>
     officer?: boolean | NdcClearance$officerArgs<ExtArgs>
     reviewedBy?: boolean | NdcClearance$reviewedByArgs<ExtArgs>
   }, ExtArgs["result"]["ndcClearance"]>
@@ -8964,6 +10188,7 @@ export namespace Prisma {
     ndcRequestId?: boolean
     studentId?: boolean
     departmentId?: boolean
+    labId?: boolean
     officerId?: boolean
     status?: boolean
     remarks?: boolean
@@ -8976,6 +10201,7 @@ export namespace Prisma {
     ndcRequest?: boolean | NdcRequestDefaultArgs<ExtArgs>
     student?: boolean | StudentDefaultArgs<ExtArgs>
     department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+    lab?: boolean | NdcClearance$labArgs<ExtArgs>
     officer?: boolean | NdcClearance$officerArgs<ExtArgs>
     reviewedBy?: boolean | NdcClearance$reviewedByArgs<ExtArgs>
   }, ExtArgs["result"]["ndcClearance"]>
@@ -8985,6 +10211,7 @@ export namespace Prisma {
     ndcRequestId?: boolean
     studentId?: boolean
     departmentId?: boolean
+    labId?: boolean
     officerId?: boolean
     status?: boolean
     remarks?: boolean
@@ -9000,6 +10227,7 @@ export namespace Prisma {
     ndcRequest?: boolean | NdcRequestDefaultArgs<ExtArgs>
     student?: boolean | StudentDefaultArgs<ExtArgs>
     department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+    lab?: boolean | NdcClearance$labArgs<ExtArgs>
     officer?: boolean | NdcClearance$officerArgs<ExtArgs>
     reviewedBy?: boolean | NdcClearance$reviewedByArgs<ExtArgs>
   }
@@ -9007,6 +10235,7 @@ export namespace Prisma {
     ndcRequest?: boolean | NdcRequestDefaultArgs<ExtArgs>
     student?: boolean | StudentDefaultArgs<ExtArgs>
     department?: boolean | ClearanceDepartmentDefaultArgs<ExtArgs>
+    lab?: boolean | NdcClearance$labArgs<ExtArgs>
     officer?: boolean | NdcClearance$officerArgs<ExtArgs>
     reviewedBy?: boolean | NdcClearance$reviewedByArgs<ExtArgs>
   }
@@ -9017,6 +10246,7 @@ export namespace Prisma {
       ndcRequest: Prisma.$NdcRequestPayload<ExtArgs>
       student: Prisma.$StudentPayload<ExtArgs>
       department: Prisma.$ClearanceDepartmentPayload<ExtArgs>
+      lab: Prisma.$DepartmentLabPayload<ExtArgs> | null
       officer: Prisma.$ClearanceOfficerPayload<ExtArgs> | null
       reviewedBy: Prisma.$UserPayload<ExtArgs> | null
     }
@@ -9025,6 +10255,7 @@ export namespace Prisma {
       ndcRequestId: string
       studentId: string
       departmentId: string
+      labId: string | null
       officerId: string | null
       status: $Enums.DepartmentClearanceStatus
       remarks: string | null
@@ -9401,6 +10632,7 @@ export namespace Prisma {
     ndcRequest<T extends NdcRequestDefaultArgs<ExtArgs> = {}>(args?: Subset<T, NdcRequestDefaultArgs<ExtArgs>>): Prisma__NdcRequestClient<$Result.GetResult<Prisma.$NdcRequestPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
     student<T extends StudentDefaultArgs<ExtArgs> = {}>(args?: Subset<T, StudentDefaultArgs<ExtArgs>>): Prisma__StudentClient<$Result.GetResult<Prisma.$StudentPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
     department<T extends ClearanceDepartmentDefaultArgs<ExtArgs> = {}>(args?: Subset<T, ClearanceDepartmentDefaultArgs<ExtArgs>>): Prisma__ClearanceDepartmentClient<$Result.GetResult<Prisma.$ClearanceDepartmentPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    lab<T extends NdcClearance$labArgs<ExtArgs> = {}>(args?: Subset<T, NdcClearance$labArgs<ExtArgs>>): Prisma__DepartmentLabClient<$Result.GetResult<Prisma.$DepartmentLabPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     officer<T extends NdcClearance$officerArgs<ExtArgs> = {}>(args?: Subset<T, NdcClearance$officerArgs<ExtArgs>>): Prisma__ClearanceOfficerClient<$Result.GetResult<Prisma.$ClearanceOfficerPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     reviewedBy<T extends NdcClearance$reviewedByArgs<ExtArgs> = {}>(args?: Subset<T, NdcClearance$reviewedByArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     /**
@@ -9436,6 +10668,7 @@ export namespace Prisma {
     readonly ndcRequestId: FieldRef<"NdcClearance", 'String'>
     readonly studentId: FieldRef<"NdcClearance", 'String'>
     readonly departmentId: FieldRef<"NdcClearance", 'String'>
+    readonly labId: FieldRef<"NdcClearance", 'String'>
     readonly officerId: FieldRef<"NdcClearance", 'String'>
     readonly status: FieldRef<"NdcClearance", 'DepartmentClearanceStatus'>
     readonly remarks: FieldRef<"NdcClearance", 'String'>
@@ -9763,6 +10996,21 @@ export namespace Prisma {
   }
 
   /**
+   * NdcClearance.lab
+   */
+  export type NdcClearance$labArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the DepartmentLab
+     */
+    select?: DepartmentLabSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: DepartmentLabInclude<ExtArgs> | null
+    where?: DepartmentLabWhereInput
+  }
+
+  /**
    * NdcClearance.officer
    */
   export type NdcClearance$officerArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -10046,7 +11294,7 @@ export namespace Prisma {
     id: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId: string | null
     studentName: string | null
     studentUsn: string | null
     departmentName: string | null
@@ -10108,7 +11356,7 @@ export namespace Prisma {
     createdAt?: boolean
     updatedAt?: boolean
     request?: boolean | NdcCertificate$requestArgs<ExtArgs>
-    student?: boolean | StudentDefaultArgs<ExtArgs>
+    student?: boolean | NdcCertificate$studentArgs<ExtArgs>
     issuedBy?: boolean | NdcCertificate$issuedByArgs<ExtArgs>
     revokedBy?: boolean | NdcCertificate$revokedByArgs<ExtArgs>
     submittedBy?: boolean | NdcCertificate$submittedByArgs<ExtArgs>
@@ -10137,7 +11385,7 @@ export namespace Prisma {
     submissionRemarks?: boolean
     createdAt?: boolean
     updatedAt?: boolean
-    student?: boolean | StudentDefaultArgs<ExtArgs>
+    student?: boolean | NdcCertificate$studentArgs<ExtArgs>
     issuedBy?: boolean | NdcCertificate$issuedByArgs<ExtArgs>
     revokedBy?: boolean | NdcCertificate$revokedByArgs<ExtArgs>
     submittedBy?: boolean | NdcCertificate$submittedByArgs<ExtArgs>
@@ -10170,13 +11418,13 @@ export namespace Prisma {
 
   export type NdcCertificateInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     request?: boolean | NdcCertificate$requestArgs<ExtArgs>
-    student?: boolean | StudentDefaultArgs<ExtArgs>
+    student?: boolean | NdcCertificate$studentArgs<ExtArgs>
     issuedBy?: boolean | NdcCertificate$issuedByArgs<ExtArgs>
     revokedBy?: boolean | NdcCertificate$revokedByArgs<ExtArgs>
     submittedBy?: boolean | NdcCertificate$submittedByArgs<ExtArgs>
   }
   export type NdcCertificateIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
-    student?: boolean | StudentDefaultArgs<ExtArgs>
+    student?: boolean | NdcCertificate$studentArgs<ExtArgs>
     issuedBy?: boolean | NdcCertificate$issuedByArgs<ExtArgs>
     revokedBy?: boolean | NdcCertificate$revokedByArgs<ExtArgs>
     submittedBy?: boolean | NdcCertificate$submittedByArgs<ExtArgs>
@@ -10186,7 +11434,7 @@ export namespace Prisma {
     name: "NdcCertificate"
     objects: {
       request: Prisma.$NdcRequestPayload<ExtArgs> | null
-      student: Prisma.$StudentPayload<ExtArgs>
+      student: Prisma.$StudentPayload<ExtArgs> | null
       issuedBy: Prisma.$UserPayload<ExtArgs> | null
       revokedBy: Prisma.$UserPayload<ExtArgs> | null
       submittedBy: Prisma.$UserPayload<ExtArgs> | null
@@ -10195,7 +11443,7 @@ export namespace Prisma {
       id: string
       certificateNumber: string
       ndcRequestId: string
-      studentId: string
+      studentId: string | null
       studentName: string | null
       studentUsn: string | null
       departmentName: string | null
@@ -10579,7 +11827,7 @@ export namespace Prisma {
   export interface Prisma__NdcCertificateClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     request<T extends NdcCertificate$requestArgs<ExtArgs> = {}>(args?: Subset<T, NdcCertificate$requestArgs<ExtArgs>>): Prisma__NdcRequestClient<$Result.GetResult<Prisma.$NdcRequestPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
-    student<T extends StudentDefaultArgs<ExtArgs> = {}>(args?: Subset<T, StudentDefaultArgs<ExtArgs>>): Prisma__StudentClient<$Result.GetResult<Prisma.$StudentPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    student<T extends NdcCertificate$studentArgs<ExtArgs> = {}>(args?: Subset<T, NdcCertificate$studentArgs<ExtArgs>>): Prisma__StudentClient<$Result.GetResult<Prisma.$StudentPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     issuedBy<T extends NdcCertificate$issuedByArgs<ExtArgs> = {}>(args?: Subset<T, NdcCertificate$issuedByArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     revokedBy<T extends NdcCertificate$revokedByArgs<ExtArgs> = {}>(args?: Subset<T, NdcCertificate$revokedByArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     submittedBy<T extends NdcCertificate$submittedByArgs<ExtArgs> = {}>(args?: Subset<T, NdcCertificate$submittedByArgs<ExtArgs>>): Prisma__UserClient<$Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
@@ -10964,6 +12212,21 @@ export namespace Prisma {
      */
     include?: NdcRequestInclude<ExtArgs> | null
     where?: NdcRequestWhereInput
+  }
+
+  /**
+   * NdcCertificate.student
+   */
+  export type NdcCertificate$studentArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the Student
+     */
+    select?: StudentSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: StudentInclude<ExtArgs> | null
+    where?: StudentWhereInput
   }
 
   /**
@@ -14989,6 +16252,7 @@ export namespace Prisma {
 
   export const UserScalarFieldEnum: {
     id: 'id',
+    loginId: 'loginId',
     email: 'email',
     passwordHash: 'passwordHash',
     role: 'role',
@@ -15010,6 +16274,7 @@ export namespace Prisma {
     id: 'id',
     name: 'name',
     code: 'code',
+    category: 'category',
     description: 'description',
     requiresClearance: 'requiresClearance',
     isAcademicBranch: 'isAcademicBranch',
@@ -15022,6 +16287,21 @@ export namespace Prisma {
   };
 
   export type ClearanceDepartmentScalarFieldEnum = (typeof ClearanceDepartmentScalarFieldEnum)[keyof typeof ClearanceDepartmentScalarFieldEnum]
+
+
+  export const DepartmentLabScalarFieldEnum: {
+    id: 'id',
+    name: 'name',
+    code: 'code',
+    departmentId: 'departmentId',
+    applicableSemesters: 'applicableSemesters',
+    displayOrder: 'displayOrder',
+    isActive: 'isActive',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type DepartmentLabScalarFieldEnum = (typeof DepartmentLabScalarFieldEnum)[keyof typeof DepartmentLabScalarFieldEnum]
 
 
   export const ClearanceOfficerScalarFieldEnum: {
@@ -15093,6 +16373,7 @@ export namespace Prisma {
     ndcRequestId: 'ndcRequestId',
     studentId: 'studentId',
     departmentId: 'departmentId',
+    labId: 'labId',
     officerId: 'officerId',
     status: 'status',
     remarks: 'remarks',
@@ -15383,6 +16664,7 @@ export namespace Prisma {
     OR?: UserWhereInput[]
     NOT?: UserWhereInput | UserWhereInput[]
     id?: StringFilter<"User"> | string
+    loginId?: StringNullableFilter<"User"> | string | null
     email?: StringFilter<"User"> | string
     passwordHash?: StringFilter<"User"> | string
     role?: EnumUserRoleFilter<"User"> | $Enums.UserRole
@@ -15408,6 +16690,7 @@ export namespace Prisma {
 
   export type UserOrderByWithRelationInput = {
     id?: SortOrder
+    loginId?: SortOrderInput | SortOrder
     email?: SortOrder
     passwordHash?: SortOrder
     role?: SortOrder
@@ -15433,6 +16716,7 @@ export namespace Prisma {
 
   export type UserWhereUniqueInput = Prisma.AtLeast<{
     id?: string
+    loginId?: string
     email?: string
     associatedStudentId?: string
     associatedOfficerId?: string
@@ -15457,10 +16741,11 @@ export namespace Prisma {
     reviewedClearances?: NdcClearanceListRelationFilter
     notifications?: NotificationListRelationFilter
     auditLogs?: AuditLogListRelationFilter
-  }, "id" | "email" | "associatedStudentId" | "associatedOfficerId">
+  }, "id" | "loginId" | "email" | "associatedStudentId" | "associatedOfficerId">
 
   export type UserOrderByWithAggregationInput = {
     id?: SortOrder
+    loginId?: SortOrderInput | SortOrder
     email?: SortOrder
     passwordHash?: SortOrder
     role?: SortOrder
@@ -15483,6 +16768,7 @@ export namespace Prisma {
     OR?: UserScalarWhereWithAggregatesInput[]
     NOT?: UserScalarWhereWithAggregatesInput | UserScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"User"> | string
+    loginId?: StringNullableWithAggregatesFilter<"User"> | string | null
     email?: StringWithAggregatesFilter<"User"> | string
     passwordHash?: StringWithAggregatesFilter<"User"> | string
     role?: EnumUserRoleWithAggregatesFilter<"User"> | $Enums.UserRole
@@ -15504,6 +16790,7 @@ export namespace Prisma {
     id?: StringFilter<"ClearanceDepartment"> | string
     name?: StringFilter<"ClearanceDepartment"> | string
     code?: StringFilter<"ClearanceDepartment"> | string
+    category?: StringFilter<"ClearanceDepartment"> | string
     description?: StringFilter<"ClearanceDepartment"> | string
     requiresClearance?: BoolFilter<"ClearanceDepartment"> | boolean
     isAcademicBranch?: BoolFilter<"ClearanceDepartment"> | boolean
@@ -15517,12 +16804,14 @@ export namespace Prisma {
     users?: UserListRelationFilter
     officerMappings?: ClearanceOfficerDepartmentListRelationFilter
     clearances?: NdcClearanceListRelationFilter
+    labs?: DepartmentLabListRelationFilter
   }
 
   export type ClearanceDepartmentOrderByWithRelationInput = {
     id?: SortOrder
     name?: SortOrder
     code?: SortOrder
+    category?: SortOrder
     description?: SortOrder
     requiresClearance?: SortOrder
     isAcademicBranch?: SortOrder
@@ -15536,6 +16825,7 @@ export namespace Prisma {
     users?: UserOrderByRelationAggregateInput
     officerMappings?: ClearanceOfficerDepartmentOrderByRelationAggregateInput
     clearances?: NdcClearanceOrderByRelationAggregateInput
+    labs?: DepartmentLabOrderByRelationAggregateInput
   }
 
   export type ClearanceDepartmentWhereUniqueInput = Prisma.AtLeast<{
@@ -15545,6 +16835,7 @@ export namespace Prisma {
     AND?: ClearanceDepartmentWhereInput | ClearanceDepartmentWhereInput[]
     OR?: ClearanceDepartmentWhereInput[]
     NOT?: ClearanceDepartmentWhereInput | ClearanceDepartmentWhereInput[]
+    category?: StringFilter<"ClearanceDepartment"> | string
     description?: StringFilter<"ClearanceDepartment"> | string
     requiresClearance?: BoolFilter<"ClearanceDepartment"> | boolean
     isAcademicBranch?: BoolFilter<"ClearanceDepartment"> | boolean
@@ -15558,12 +16849,14 @@ export namespace Prisma {
     users?: UserListRelationFilter
     officerMappings?: ClearanceOfficerDepartmentListRelationFilter
     clearances?: NdcClearanceListRelationFilter
+    labs?: DepartmentLabListRelationFilter
   }, "id" | "name" | "code">
 
   export type ClearanceDepartmentOrderByWithAggregationInput = {
     id?: SortOrder
     name?: SortOrder
     code?: SortOrder
+    category?: SortOrder
     description?: SortOrder
     requiresClearance?: SortOrder
     isAcademicBranch?: SortOrder
@@ -15587,6 +16880,7 @@ export namespace Prisma {
     id?: StringWithAggregatesFilter<"ClearanceDepartment"> | string
     name?: StringWithAggregatesFilter<"ClearanceDepartment"> | string
     code?: StringWithAggregatesFilter<"ClearanceDepartment"> | string
+    category?: StringWithAggregatesFilter<"ClearanceDepartment"> | string
     description?: StringWithAggregatesFilter<"ClearanceDepartment"> | string
     requiresClearance?: BoolWithAggregatesFilter<"ClearanceDepartment"> | boolean
     isAcademicBranch?: BoolWithAggregatesFilter<"ClearanceDepartment"> | boolean
@@ -15596,6 +16890,86 @@ export namespace Prisma {
     hodDesignation?: StringWithAggregatesFilter<"ClearanceDepartment"> | string
     createdAt?: DateTimeWithAggregatesFilter<"ClearanceDepartment"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"ClearanceDepartment"> | Date | string
+  }
+
+  export type DepartmentLabWhereInput = {
+    AND?: DepartmentLabWhereInput | DepartmentLabWhereInput[]
+    OR?: DepartmentLabWhereInput[]
+    NOT?: DepartmentLabWhereInput | DepartmentLabWhereInput[]
+    id?: StringFilter<"DepartmentLab"> | string
+    name?: StringFilter<"DepartmentLab"> | string
+    code?: StringFilter<"DepartmentLab"> | string
+    departmentId?: StringFilter<"DepartmentLab"> | string
+    applicableSemesters?: IntNullableListFilter<"DepartmentLab">
+    displayOrder?: IntFilter<"DepartmentLab"> | number
+    isActive?: BoolFilter<"DepartmentLab"> | boolean
+    createdAt?: DateTimeFilter<"DepartmentLab"> | Date | string
+    updatedAt?: DateTimeFilter<"DepartmentLab"> | Date | string
+    department?: XOR<ClearanceDepartmentRelationFilter, ClearanceDepartmentWhereInput>
+    clearances?: NdcClearanceListRelationFilter
+  }
+
+  export type DepartmentLabOrderByWithRelationInput = {
+    id?: SortOrder
+    name?: SortOrder
+    code?: SortOrder
+    departmentId?: SortOrder
+    applicableSemesters?: SortOrder
+    displayOrder?: SortOrder
+    isActive?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    department?: ClearanceDepartmentOrderByWithRelationInput
+    clearances?: NdcClearanceOrderByRelationAggregateInput
+  }
+
+  export type DepartmentLabWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    code?: string
+    departmentId?: string
+    AND?: DepartmentLabWhereInput | DepartmentLabWhereInput[]
+    OR?: DepartmentLabWhereInput[]
+    NOT?: DepartmentLabWhereInput | DepartmentLabWhereInput[]
+    name?: StringFilter<"DepartmentLab"> | string
+    applicableSemesters?: IntNullableListFilter<"DepartmentLab">
+    displayOrder?: IntFilter<"DepartmentLab"> | number
+    isActive?: BoolFilter<"DepartmentLab"> | boolean
+    createdAt?: DateTimeFilter<"DepartmentLab"> | Date | string
+    updatedAt?: DateTimeFilter<"DepartmentLab"> | Date | string
+    department?: XOR<ClearanceDepartmentRelationFilter, ClearanceDepartmentWhereInput>
+    clearances?: NdcClearanceListRelationFilter
+  }, "id" | "code" | "departmentId">
+
+  export type DepartmentLabOrderByWithAggregationInput = {
+    id?: SortOrder
+    name?: SortOrder
+    code?: SortOrder
+    departmentId?: SortOrder
+    applicableSemesters?: SortOrder
+    displayOrder?: SortOrder
+    isActive?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: DepartmentLabCountOrderByAggregateInput
+    _avg?: DepartmentLabAvgOrderByAggregateInput
+    _max?: DepartmentLabMaxOrderByAggregateInput
+    _min?: DepartmentLabMinOrderByAggregateInput
+    _sum?: DepartmentLabSumOrderByAggregateInput
+  }
+
+  export type DepartmentLabScalarWhereWithAggregatesInput = {
+    AND?: DepartmentLabScalarWhereWithAggregatesInput | DepartmentLabScalarWhereWithAggregatesInput[]
+    OR?: DepartmentLabScalarWhereWithAggregatesInput[]
+    NOT?: DepartmentLabScalarWhereWithAggregatesInput | DepartmentLabScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"DepartmentLab"> | string
+    name?: StringWithAggregatesFilter<"DepartmentLab"> | string
+    code?: StringWithAggregatesFilter<"DepartmentLab"> | string
+    departmentId?: StringWithAggregatesFilter<"DepartmentLab"> | string
+    applicableSemesters?: IntNullableListFilter<"DepartmentLab">
+    displayOrder?: IntWithAggregatesFilter<"DepartmentLab"> | number
+    isActive?: BoolWithAggregatesFilter<"DepartmentLab"> | boolean
+    createdAt?: DateTimeWithAggregatesFilter<"DepartmentLab"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"DepartmentLab"> | Date | string
   }
 
   export type ClearanceOfficerWhereInput = {
@@ -15956,6 +17330,7 @@ export namespace Prisma {
     ndcRequestId?: StringFilter<"NdcClearance"> | string
     studentId?: StringFilter<"NdcClearance"> | string
     departmentId?: StringFilter<"NdcClearance"> | string
+    labId?: StringNullableFilter<"NdcClearance"> | string | null
     officerId?: StringNullableFilter<"NdcClearance"> | string | null
     status?: EnumDepartmentClearanceStatusFilter<"NdcClearance"> | $Enums.DepartmentClearanceStatus
     remarks?: StringNullableFilter<"NdcClearance"> | string | null
@@ -15968,6 +17343,7 @@ export namespace Prisma {
     ndcRequest?: XOR<NdcRequestRelationFilter, NdcRequestWhereInput>
     student?: XOR<StudentRelationFilter, StudentWhereInput>
     department?: XOR<ClearanceDepartmentRelationFilter, ClearanceDepartmentWhereInput>
+    lab?: XOR<DepartmentLabNullableRelationFilter, DepartmentLabWhereInput> | null
     officer?: XOR<ClearanceOfficerNullableRelationFilter, ClearanceOfficerWhereInput> | null
     reviewedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
   }
@@ -15977,6 +17353,7 @@ export namespace Prisma {
     ndcRequestId?: SortOrder
     studentId?: SortOrder
     departmentId?: SortOrder
+    labId?: SortOrderInput | SortOrder
     officerId?: SortOrderInput | SortOrder
     status?: SortOrder
     remarks?: SortOrderInput | SortOrder
@@ -15989,19 +17366,21 @@ export namespace Prisma {
     ndcRequest?: NdcRequestOrderByWithRelationInput
     student?: StudentOrderByWithRelationInput
     department?: ClearanceDepartmentOrderByWithRelationInput
+    lab?: DepartmentLabOrderByWithRelationInput
     officer?: ClearanceOfficerOrderByWithRelationInput
     reviewedBy?: UserOrderByWithRelationInput
   }
 
   export type NdcClearanceWhereUniqueInput = Prisma.AtLeast<{
     id?: string
-    ndcRequestId_departmentId?: NdcClearanceNdcRequestIdDepartmentIdCompoundUniqueInput
+    ndcRequestId_departmentId_labId?: NdcClearanceNdcRequestIdDepartmentIdLabIdCompoundUniqueInput
     AND?: NdcClearanceWhereInput | NdcClearanceWhereInput[]
     OR?: NdcClearanceWhereInput[]
     NOT?: NdcClearanceWhereInput | NdcClearanceWhereInput[]
     ndcRequestId?: StringFilter<"NdcClearance"> | string
     studentId?: StringFilter<"NdcClearance"> | string
     departmentId?: StringFilter<"NdcClearance"> | string
+    labId?: StringNullableFilter<"NdcClearance"> | string | null
     officerId?: StringNullableFilter<"NdcClearance"> | string | null
     status?: EnumDepartmentClearanceStatusFilter<"NdcClearance"> | $Enums.DepartmentClearanceStatus
     remarks?: StringNullableFilter<"NdcClearance"> | string | null
@@ -16014,15 +17393,17 @@ export namespace Prisma {
     ndcRequest?: XOR<NdcRequestRelationFilter, NdcRequestWhereInput>
     student?: XOR<StudentRelationFilter, StudentWhereInput>
     department?: XOR<ClearanceDepartmentRelationFilter, ClearanceDepartmentWhereInput>
+    lab?: XOR<DepartmentLabNullableRelationFilter, DepartmentLabWhereInput> | null
     officer?: XOR<ClearanceOfficerNullableRelationFilter, ClearanceOfficerWhereInput> | null
     reviewedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
-  }, "id" | "ndcRequestId_departmentId">
+  }, "id" | "ndcRequestId_departmentId_labId">
 
   export type NdcClearanceOrderByWithAggregationInput = {
     id?: SortOrder
     ndcRequestId?: SortOrder
     studentId?: SortOrder
     departmentId?: SortOrder
+    labId?: SortOrderInput | SortOrder
     officerId?: SortOrderInput | SortOrder
     status?: SortOrder
     remarks?: SortOrderInput | SortOrder
@@ -16047,6 +17428,7 @@ export namespace Prisma {
     ndcRequestId?: StringWithAggregatesFilter<"NdcClearance"> | string
     studentId?: StringWithAggregatesFilter<"NdcClearance"> | string
     departmentId?: StringWithAggregatesFilter<"NdcClearance"> | string
+    labId?: StringNullableWithAggregatesFilter<"NdcClearance"> | string | null
     officerId?: StringNullableWithAggregatesFilter<"NdcClearance"> | string | null
     status?: EnumDepartmentClearanceStatusWithAggregatesFilter<"NdcClearance"> | $Enums.DepartmentClearanceStatus
     remarks?: StringNullableWithAggregatesFilter<"NdcClearance"> | string | null
@@ -16065,7 +17447,7 @@ export namespace Prisma {
     id?: StringFilter<"NdcCertificate"> | string
     certificateNumber?: StringFilter<"NdcCertificate"> | string
     ndcRequestId?: StringFilter<"NdcCertificate"> | string
-    studentId?: StringFilter<"NdcCertificate"> | string
+    studentId?: StringNullableFilter<"NdcCertificate"> | string | null
     studentName?: StringNullableFilter<"NdcCertificate"> | string | null
     studentUsn?: StringNullableFilter<"NdcCertificate"> | string | null
     departmentName?: StringNullableFilter<"NdcCertificate"> | string | null
@@ -16085,7 +17467,7 @@ export namespace Prisma {
     createdAt?: DateTimeFilter<"NdcCertificate"> | Date | string
     updatedAt?: DateTimeFilter<"NdcCertificate"> | Date | string
     request?: XOR<NdcRequestNullableRelationFilter, NdcRequestWhereInput> | null
-    student?: XOR<StudentRelationFilter, StudentWhereInput>
+    student?: XOR<StudentNullableRelationFilter, StudentWhereInput> | null
     issuedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
     revokedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
     submittedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
@@ -16095,7 +17477,7 @@ export namespace Prisma {
     id?: SortOrder
     certificateNumber?: SortOrder
     ndcRequestId?: SortOrder
-    studentId?: SortOrder
+    studentId?: SortOrderInput | SortOrder
     studentName?: SortOrderInput | SortOrder
     studentUsn?: SortOrderInput | SortOrder
     departmentName?: SortOrderInput | SortOrder
@@ -16128,7 +17510,7 @@ export namespace Prisma {
     OR?: NdcCertificateWhereInput[]
     NOT?: NdcCertificateWhereInput | NdcCertificateWhereInput[]
     ndcRequestId?: StringFilter<"NdcCertificate"> | string
-    studentId?: StringFilter<"NdcCertificate"> | string
+    studentId?: StringNullableFilter<"NdcCertificate"> | string | null
     studentName?: StringNullableFilter<"NdcCertificate"> | string | null
     studentUsn?: StringNullableFilter<"NdcCertificate"> | string | null
     departmentName?: StringNullableFilter<"NdcCertificate"> | string | null
@@ -16148,7 +17530,7 @@ export namespace Prisma {
     createdAt?: DateTimeFilter<"NdcCertificate"> | Date | string
     updatedAt?: DateTimeFilter<"NdcCertificate"> | Date | string
     request?: XOR<NdcRequestNullableRelationFilter, NdcRequestWhereInput> | null
-    student?: XOR<StudentRelationFilter, StudentWhereInput>
+    student?: XOR<StudentNullableRelationFilter, StudentWhereInput> | null
     issuedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
     revokedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
     submittedBy?: XOR<UserNullableRelationFilter, UserWhereInput> | null
@@ -16158,7 +17540,7 @@ export namespace Prisma {
     id?: SortOrder
     certificateNumber?: SortOrder
     ndcRequestId?: SortOrder
-    studentId?: SortOrder
+    studentId?: SortOrderInput | SortOrder
     studentName?: SortOrderInput | SortOrder
     studentUsn?: SortOrderInput | SortOrder
     departmentName?: SortOrderInput | SortOrder
@@ -16189,7 +17571,7 @@ export namespace Prisma {
     id?: StringWithAggregatesFilter<"NdcCertificate"> | string
     certificateNumber?: StringWithAggregatesFilter<"NdcCertificate"> | string
     ndcRequestId?: StringWithAggregatesFilter<"NdcCertificate"> | string
-    studentId?: StringWithAggregatesFilter<"NdcCertificate"> | string
+    studentId?: StringNullableWithAggregatesFilter<"NdcCertificate"> | string | null
     studentName?: StringNullableWithAggregatesFilter<"NdcCertificate"> | string | null
     studentUsn?: StringNullableWithAggregatesFilter<"NdcCertificate"> | string | null
     departmentName?: StringNullableWithAggregatesFilter<"NdcCertificate"> | string | null
@@ -16549,6 +17931,7 @@ export namespace Prisma {
 
   export type UserCreateInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -16571,6 +17954,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -16593,6 +17977,7 @@ export namespace Prisma {
 
   export type UserUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -16615,6 +18000,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -16637,6 +18023,7 @@ export namespace Prisma {
 
   export type UserCreateManyInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -16653,6 +18040,7 @@ export namespace Prisma {
 
   export type UserUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -16666,6 +18054,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -16684,6 +18073,7 @@ export namespace Prisma {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -16697,12 +18087,14 @@ export namespace Prisma {
     users?: UserCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentUncheckedCreateInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -16716,12 +18108,14 @@ export namespace Prisma {
     users?: UserUncheckedCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceUncheckedCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabUncheckedCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -16735,12 +18129,14 @@ export namespace Prisma {
     users?: UserUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -16754,12 +18150,14 @@ export namespace Prisma {
     users?: UserUncheckedUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUncheckedUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUncheckedUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentCreateManyInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -16775,6 +18173,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -16790,6 +18189,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -16797,6 +18197,93 @@ export namespace Prisma {
     isActive?: BoolFieldUpdateOperationsInput | boolean
     hodName?: StringFieldUpdateOperationsInput | string
     hodDesignation?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type DepartmentLabCreateInput = {
+    id?: string
+    name: string
+    code: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    department: ClearanceDepartmentCreateNestedOneWithoutLabsInput
+    clearances?: NdcClearanceCreateNestedManyWithoutLabInput
+  }
+
+  export type DepartmentLabUncheckedCreateInput = {
+    id?: string
+    name: string
+    code: string
+    departmentId: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    clearances?: NdcClearanceUncheckedCreateNestedManyWithoutLabInput
+  }
+
+  export type DepartmentLabUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    department?: ClearanceDepartmentUpdateOneRequiredWithoutLabsNestedInput
+    clearances?: NdcClearanceUpdateManyWithoutLabNestedInput
+  }
+
+  export type DepartmentLabUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    departmentId?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    clearances?: NdcClearanceUncheckedUpdateManyWithoutLabNestedInput
+  }
+
+  export type DepartmentLabCreateManyInput = {
+    id?: string
+    name: string
+    code: string
+    departmentId: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type DepartmentLabUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type DepartmentLabUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    departmentId?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -17204,6 +18691,7 @@ export namespace Prisma {
     ndcRequest: NdcRequestCreateNestedOneWithoutClearancesInput
     student: StudentCreateNestedOneWithoutNdcClearancesInput
     department: ClearanceDepartmentCreateNestedOneWithoutClearancesInput
+    lab?: DepartmentLabCreateNestedOneWithoutClearancesInput
     officer?: ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput
     reviewedBy?: UserCreateNestedOneWithoutReviewedClearancesInput
   }
@@ -17213,6 +18701,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -17236,6 +18725,7 @@ export namespace Prisma {
     ndcRequest?: NdcRequestUpdateOneRequiredWithoutClearancesNestedInput
     student?: StudentUpdateOneRequiredWithoutNdcClearancesNestedInput
     department?: ClearanceDepartmentUpdateOneRequiredWithoutClearancesNestedInput
+    lab?: DepartmentLabUpdateOneWithoutClearancesNestedInput
     officer?: ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput
     reviewedBy?: UserUpdateOneWithoutReviewedClearancesNestedInput
   }
@@ -17245,6 +18735,7 @@ export namespace Prisma {
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -17261,6 +18752,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -17288,6 +18780,7 @@ export namespace Prisma {
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -17319,7 +18812,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     request?: NdcRequestCreateNestedOneWithoutCertificateInput
-    student: StudentCreateNestedOneWithoutCertificatesInput
+    student?: StudentCreateNestedOneWithoutCertificatesInput
     issuedBy?: UserCreateNestedOneWithoutIssuedCertificatesInput
     revokedBy?: UserCreateNestedOneWithoutRevokedCertificatesInput
     submittedBy?: UserCreateNestedOneWithoutSubmittedCertificatesInput
@@ -17329,7 +18822,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -17371,7 +18864,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     request?: NdcRequestUpdateOneWithoutCertificateNestedInput
-    student?: StudentUpdateOneRequiredWithoutCertificatesNestedInput
+    student?: StudentUpdateOneWithoutCertificatesNestedInput
     issuedBy?: UserUpdateOneWithoutIssuedCertificatesNestedInput
     revokedBy?: UserUpdateOneWithoutRevokedCertificatesNestedInput
     submittedBy?: UserUpdateOneWithoutSubmittedCertificatesNestedInput
@@ -17381,7 +18874,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -17407,7 +18900,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -17453,7 +18946,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -17879,13 +19372,6 @@ export namespace Prisma {
     not?: NestedStringFilter<$PrismaModel> | string
   }
 
-  export type EnumUserRoleFilter<$PrismaModel = never> = {
-    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
-    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    not?: NestedEnumUserRoleFilter<$PrismaModel> | $Enums.UserRole
-  }
-
   export type StringNullableFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel> | null
     in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
@@ -17899,6 +19385,13 @@ export namespace Prisma {
     endsWith?: string | StringFieldRefInput<$PrismaModel>
     mode?: QueryMode
     not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
+  export type EnumUserRoleFilter<$PrismaModel = never> = {
+    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
+    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    not?: NestedEnumUserRoleFilter<$PrismaModel> | $Enums.UserRole
   }
 
   export type BoolFilter<$PrismaModel = never> = {
@@ -17990,6 +19483,7 @@ export namespace Prisma {
 
   export type UserCountOrderByAggregateInput = {
     id?: SortOrder
+    loginId?: SortOrder
     email?: SortOrder
     passwordHash?: SortOrder
     role?: SortOrder
@@ -18006,6 +19500,7 @@ export namespace Prisma {
 
   export type UserMaxOrderByAggregateInput = {
     id?: SortOrder
+    loginId?: SortOrder
     email?: SortOrder
     passwordHash?: SortOrder
     role?: SortOrder
@@ -18022,6 +19517,7 @@ export namespace Prisma {
 
   export type UserMinOrderByAggregateInput = {
     id?: SortOrder
+    loginId?: SortOrder
     email?: SortOrder
     passwordHash?: SortOrder
     role?: SortOrder
@@ -18054,16 +19550,6 @@ export namespace Prisma {
     _max?: NestedStringFilter<$PrismaModel>
   }
 
-  export type EnumUserRoleWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
-    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    not?: NestedEnumUserRoleWithAggregatesFilter<$PrismaModel> | $Enums.UserRole
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedEnumUserRoleFilter<$PrismaModel>
-    _max?: NestedEnumUserRoleFilter<$PrismaModel>
-  }
-
   export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel> | null
     in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
@@ -18080,6 +19566,16 @@ export namespace Prisma {
     _count?: NestedIntNullableFilter<$PrismaModel>
     _min?: NestedStringNullableFilter<$PrismaModel>
     _max?: NestedStringNullableFilter<$PrismaModel>
+  }
+
+  export type EnumUserRoleWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
+    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    not?: NestedEnumUserRoleWithAggregatesFilter<$PrismaModel> | $Enums.UserRole
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedEnumUserRoleFilter<$PrismaModel>
+    _max?: NestedEnumUserRoleFilter<$PrismaModel>
   }
 
   export type BoolWithAggregatesFilter<$PrismaModel = never> = {
@@ -18147,6 +19643,12 @@ export namespace Prisma {
     none?: ClearanceOfficerDepartmentWhereInput
   }
 
+  export type DepartmentLabListRelationFilter = {
+    every?: DepartmentLabWhereInput
+    some?: DepartmentLabWhereInput
+    none?: DepartmentLabWhereInput
+  }
+
   export type StudentOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
@@ -18159,10 +19661,15 @@ export namespace Prisma {
     _count?: SortOrder
   }
 
+  export type DepartmentLabOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
   export type ClearanceDepartmentCountOrderByAggregateInput = {
     id?: SortOrder
     name?: SortOrder
     code?: SortOrder
+    category?: SortOrder
     description?: SortOrder
     requiresClearance?: SortOrder
     isAcademicBranch?: SortOrder
@@ -18182,6 +19689,7 @@ export namespace Prisma {
     id?: SortOrder
     name?: SortOrder
     code?: SortOrder
+    category?: SortOrder
     description?: SortOrder
     requiresClearance?: SortOrder
     isAcademicBranch?: SortOrder
@@ -18197,6 +19705,7 @@ export namespace Prisma {
     id?: SortOrder
     name?: SortOrder
     code?: SortOrder
+    category?: SortOrder
     description?: SortOrder
     requiresClearance?: SortOrder
     isAcademicBranch?: SortOrder
@@ -18226,6 +19735,63 @@ export namespace Prisma {
     _sum?: NestedIntFilter<$PrismaModel>
     _min?: NestedIntFilter<$PrismaModel>
     _max?: NestedIntFilter<$PrismaModel>
+  }
+
+  export type IntNullableListFilter<$PrismaModel = never> = {
+    equals?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    has?: number | IntFieldRefInput<$PrismaModel> | null
+    hasEvery?: number[] | ListIntFieldRefInput<$PrismaModel>
+    hasSome?: number[] | ListIntFieldRefInput<$PrismaModel>
+    isEmpty?: boolean
+  }
+
+  export type ClearanceDepartmentRelationFilter = {
+    is?: ClearanceDepartmentWhereInput
+    isNot?: ClearanceDepartmentWhereInput
+  }
+
+  export type DepartmentLabCountOrderByAggregateInput = {
+    id?: SortOrder
+    name?: SortOrder
+    code?: SortOrder
+    departmentId?: SortOrder
+    applicableSemesters?: SortOrder
+    displayOrder?: SortOrder
+    isActive?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type DepartmentLabAvgOrderByAggregateInput = {
+    applicableSemesters?: SortOrder
+    displayOrder?: SortOrder
+  }
+
+  export type DepartmentLabMaxOrderByAggregateInput = {
+    id?: SortOrder
+    name?: SortOrder
+    code?: SortOrder
+    departmentId?: SortOrder
+    displayOrder?: SortOrder
+    isActive?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type DepartmentLabMinOrderByAggregateInput = {
+    id?: SortOrder
+    name?: SortOrder
+    code?: SortOrder
+    departmentId?: SortOrder
+    displayOrder?: SortOrder
+    isActive?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type DepartmentLabSumOrderByAggregateInput = {
+    applicableSemesters?: SortOrder
+    displayOrder?: SortOrder
   }
 
   export type UserNullableRelationFilter = {
@@ -18269,11 +19835,6 @@ export namespace Prisma {
   export type ClearanceOfficerRelationFilter = {
     is?: ClearanceOfficerWhereInput
     isNot?: ClearanceOfficerWhereInput
-  }
-
-  export type ClearanceDepartmentRelationFilter = {
-    is?: ClearanceDepartmentWhereInput
-    isNot?: ClearanceDepartmentWhereInput
   }
 
   export type ClearanceOfficerDepartmentOfficerIdDepartmentIdCompoundUniqueInput = {
@@ -18474,9 +20035,15 @@ export namespace Prisma {
     isNot?: NdcRequestWhereInput
   }
 
-  export type NdcClearanceNdcRequestIdDepartmentIdCompoundUniqueInput = {
+  export type DepartmentLabNullableRelationFilter = {
+    is?: DepartmentLabWhereInput | null
+    isNot?: DepartmentLabWhereInput | null
+  }
+
+  export type NdcClearanceNdcRequestIdDepartmentIdLabIdCompoundUniqueInput = {
     ndcRequestId: string
     departmentId: string
+    labId: string
   }
 
   export type NdcClearanceCountOrderByAggregateInput = {
@@ -18484,6 +20051,7 @@ export namespace Prisma {
     ndcRequestId?: SortOrder
     studentId?: SortOrder
     departmentId?: SortOrder
+    labId?: SortOrder
     officerId?: SortOrder
     status?: SortOrder
     remarks?: SortOrder
@@ -18504,6 +20072,7 @@ export namespace Prisma {
     ndcRequestId?: SortOrder
     studentId?: SortOrder
     departmentId?: SortOrder
+    labId?: SortOrder
     officerId?: SortOrder
     status?: SortOrder
     remarks?: SortOrder
@@ -18520,6 +20089,7 @@ export namespace Prisma {
     ndcRequestId?: SortOrder
     studentId?: SortOrder
     departmentId?: SortOrder
+    labId?: SortOrder
     officerId?: SortOrder
     status?: SortOrder
     remarks?: SortOrder
@@ -18999,6 +20569,10 @@ export namespace Prisma {
     set?: string
   }
 
+  export type NullableStringFieldUpdateOperationsInput = {
+    set?: string | null
+  }
+
   export type EnumUserRoleFieldUpdateOperationsInput = {
     set?: $Enums.UserRole
   }
@@ -19129,10 +20703,6 @@ export namespace Prisma {
     deleteMany?: AuditLogScalarWhereInput | AuditLogScalarWhereInput[]
   }
 
-  export type NullableStringFieldUpdateOperationsInput = {
-    set?: string | null
-  }
-
   export type NdcCertificateUncheckedUpdateManyWithoutIssuedByNestedInput = {
     create?: XOR<NdcCertificateCreateWithoutIssuedByInput, NdcCertificateUncheckedCreateWithoutIssuedByInput> | NdcCertificateCreateWithoutIssuedByInput[] | NdcCertificateUncheckedCreateWithoutIssuedByInput[]
     connectOrCreate?: NdcCertificateCreateOrConnectWithoutIssuedByInput | NdcCertificateCreateOrConnectWithoutIssuedByInput[]
@@ -19245,6 +20815,13 @@ export namespace Prisma {
     connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
   }
 
+  export type DepartmentLabCreateNestedManyWithoutDepartmentInput = {
+    create?: XOR<DepartmentLabCreateWithoutDepartmentInput, DepartmentLabUncheckedCreateWithoutDepartmentInput> | DepartmentLabCreateWithoutDepartmentInput[] | DepartmentLabUncheckedCreateWithoutDepartmentInput[]
+    connectOrCreate?: DepartmentLabCreateOrConnectWithoutDepartmentInput | DepartmentLabCreateOrConnectWithoutDepartmentInput[]
+    createMany?: DepartmentLabCreateManyDepartmentInputEnvelope
+    connect?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+  }
+
   export type StudentUncheckedCreateNestedManyWithoutDepartmentInput = {
     create?: XOR<StudentCreateWithoutDepartmentInput, StudentUncheckedCreateWithoutDepartmentInput> | StudentCreateWithoutDepartmentInput[] | StudentUncheckedCreateWithoutDepartmentInput[]
     connectOrCreate?: StudentCreateOrConnectWithoutDepartmentInput | StudentCreateOrConnectWithoutDepartmentInput[]
@@ -19271,6 +20848,13 @@ export namespace Prisma {
     connectOrCreate?: NdcClearanceCreateOrConnectWithoutDepartmentInput | NdcClearanceCreateOrConnectWithoutDepartmentInput[]
     createMany?: NdcClearanceCreateManyDepartmentInputEnvelope
     connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+  }
+
+  export type DepartmentLabUncheckedCreateNestedManyWithoutDepartmentInput = {
+    create?: XOR<DepartmentLabCreateWithoutDepartmentInput, DepartmentLabUncheckedCreateWithoutDepartmentInput> | DepartmentLabCreateWithoutDepartmentInput[] | DepartmentLabUncheckedCreateWithoutDepartmentInput[]
+    connectOrCreate?: DepartmentLabCreateOrConnectWithoutDepartmentInput | DepartmentLabCreateOrConnectWithoutDepartmentInput[]
+    createMany?: DepartmentLabCreateManyDepartmentInputEnvelope
+    connect?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
   }
 
   export type IntFieldUpdateOperationsInput = {
@@ -19337,6 +20921,20 @@ export namespace Prisma {
     deleteMany?: NdcClearanceScalarWhereInput | NdcClearanceScalarWhereInput[]
   }
 
+  export type DepartmentLabUpdateManyWithoutDepartmentNestedInput = {
+    create?: XOR<DepartmentLabCreateWithoutDepartmentInput, DepartmentLabUncheckedCreateWithoutDepartmentInput> | DepartmentLabCreateWithoutDepartmentInput[] | DepartmentLabUncheckedCreateWithoutDepartmentInput[]
+    connectOrCreate?: DepartmentLabCreateOrConnectWithoutDepartmentInput | DepartmentLabCreateOrConnectWithoutDepartmentInput[]
+    upsert?: DepartmentLabUpsertWithWhereUniqueWithoutDepartmentInput | DepartmentLabUpsertWithWhereUniqueWithoutDepartmentInput[]
+    createMany?: DepartmentLabCreateManyDepartmentInputEnvelope
+    set?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    disconnect?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    delete?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    connect?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    update?: DepartmentLabUpdateWithWhereUniqueWithoutDepartmentInput | DepartmentLabUpdateWithWhereUniqueWithoutDepartmentInput[]
+    updateMany?: DepartmentLabUpdateManyWithWhereWithoutDepartmentInput | DepartmentLabUpdateManyWithWhereWithoutDepartmentInput[]
+    deleteMany?: DepartmentLabScalarWhereInput | DepartmentLabScalarWhereInput[]
+  }
+
   export type StudentUncheckedUpdateManyWithoutDepartmentNestedInput = {
     create?: XOR<StudentCreateWithoutDepartmentInput, StudentUncheckedCreateWithoutDepartmentInput> | StudentCreateWithoutDepartmentInput[] | StudentUncheckedCreateWithoutDepartmentInput[]
     connectOrCreate?: StudentCreateOrConnectWithoutDepartmentInput | StudentCreateOrConnectWithoutDepartmentInput[]
@@ -19390,6 +20988,85 @@ export namespace Prisma {
     connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
     update?: NdcClearanceUpdateWithWhereUniqueWithoutDepartmentInput | NdcClearanceUpdateWithWhereUniqueWithoutDepartmentInput[]
     updateMany?: NdcClearanceUpdateManyWithWhereWithoutDepartmentInput | NdcClearanceUpdateManyWithWhereWithoutDepartmentInput[]
+    deleteMany?: NdcClearanceScalarWhereInput | NdcClearanceScalarWhereInput[]
+  }
+
+  export type DepartmentLabUncheckedUpdateManyWithoutDepartmentNestedInput = {
+    create?: XOR<DepartmentLabCreateWithoutDepartmentInput, DepartmentLabUncheckedCreateWithoutDepartmentInput> | DepartmentLabCreateWithoutDepartmentInput[] | DepartmentLabUncheckedCreateWithoutDepartmentInput[]
+    connectOrCreate?: DepartmentLabCreateOrConnectWithoutDepartmentInput | DepartmentLabCreateOrConnectWithoutDepartmentInput[]
+    upsert?: DepartmentLabUpsertWithWhereUniqueWithoutDepartmentInput | DepartmentLabUpsertWithWhereUniqueWithoutDepartmentInput[]
+    createMany?: DepartmentLabCreateManyDepartmentInputEnvelope
+    set?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    disconnect?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    delete?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    connect?: DepartmentLabWhereUniqueInput | DepartmentLabWhereUniqueInput[]
+    update?: DepartmentLabUpdateWithWhereUniqueWithoutDepartmentInput | DepartmentLabUpdateWithWhereUniqueWithoutDepartmentInput[]
+    updateMany?: DepartmentLabUpdateManyWithWhereWithoutDepartmentInput | DepartmentLabUpdateManyWithWhereWithoutDepartmentInput[]
+    deleteMany?: DepartmentLabScalarWhereInput | DepartmentLabScalarWhereInput[]
+  }
+
+  export type DepartmentLabCreateapplicableSemestersInput = {
+    set: number[]
+  }
+
+  export type ClearanceDepartmentCreateNestedOneWithoutLabsInput = {
+    create?: XOR<ClearanceDepartmentCreateWithoutLabsInput, ClearanceDepartmentUncheckedCreateWithoutLabsInput>
+    connectOrCreate?: ClearanceDepartmentCreateOrConnectWithoutLabsInput
+    connect?: ClearanceDepartmentWhereUniqueInput
+  }
+
+  export type NdcClearanceCreateNestedManyWithoutLabInput = {
+    create?: XOR<NdcClearanceCreateWithoutLabInput, NdcClearanceUncheckedCreateWithoutLabInput> | NdcClearanceCreateWithoutLabInput[] | NdcClearanceUncheckedCreateWithoutLabInput[]
+    connectOrCreate?: NdcClearanceCreateOrConnectWithoutLabInput | NdcClearanceCreateOrConnectWithoutLabInput[]
+    createMany?: NdcClearanceCreateManyLabInputEnvelope
+    connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+  }
+
+  export type NdcClearanceUncheckedCreateNestedManyWithoutLabInput = {
+    create?: XOR<NdcClearanceCreateWithoutLabInput, NdcClearanceUncheckedCreateWithoutLabInput> | NdcClearanceCreateWithoutLabInput[] | NdcClearanceUncheckedCreateWithoutLabInput[]
+    connectOrCreate?: NdcClearanceCreateOrConnectWithoutLabInput | NdcClearanceCreateOrConnectWithoutLabInput[]
+    createMany?: NdcClearanceCreateManyLabInputEnvelope
+    connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+  }
+
+  export type DepartmentLabUpdateapplicableSemestersInput = {
+    set?: number[]
+    push?: number | number[]
+  }
+
+  export type ClearanceDepartmentUpdateOneRequiredWithoutLabsNestedInput = {
+    create?: XOR<ClearanceDepartmentCreateWithoutLabsInput, ClearanceDepartmentUncheckedCreateWithoutLabsInput>
+    connectOrCreate?: ClearanceDepartmentCreateOrConnectWithoutLabsInput
+    upsert?: ClearanceDepartmentUpsertWithoutLabsInput
+    connect?: ClearanceDepartmentWhereUniqueInput
+    update?: XOR<XOR<ClearanceDepartmentUpdateToOneWithWhereWithoutLabsInput, ClearanceDepartmentUpdateWithoutLabsInput>, ClearanceDepartmentUncheckedUpdateWithoutLabsInput>
+  }
+
+  export type NdcClearanceUpdateManyWithoutLabNestedInput = {
+    create?: XOR<NdcClearanceCreateWithoutLabInput, NdcClearanceUncheckedCreateWithoutLabInput> | NdcClearanceCreateWithoutLabInput[] | NdcClearanceUncheckedCreateWithoutLabInput[]
+    connectOrCreate?: NdcClearanceCreateOrConnectWithoutLabInput | NdcClearanceCreateOrConnectWithoutLabInput[]
+    upsert?: NdcClearanceUpsertWithWhereUniqueWithoutLabInput | NdcClearanceUpsertWithWhereUniqueWithoutLabInput[]
+    createMany?: NdcClearanceCreateManyLabInputEnvelope
+    set?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    disconnect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    delete?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    update?: NdcClearanceUpdateWithWhereUniqueWithoutLabInput | NdcClearanceUpdateWithWhereUniqueWithoutLabInput[]
+    updateMany?: NdcClearanceUpdateManyWithWhereWithoutLabInput | NdcClearanceUpdateManyWithWhereWithoutLabInput[]
+    deleteMany?: NdcClearanceScalarWhereInput | NdcClearanceScalarWhereInput[]
+  }
+
+  export type NdcClearanceUncheckedUpdateManyWithoutLabNestedInput = {
+    create?: XOR<NdcClearanceCreateWithoutLabInput, NdcClearanceUncheckedCreateWithoutLabInput> | NdcClearanceCreateWithoutLabInput[] | NdcClearanceUncheckedCreateWithoutLabInput[]
+    connectOrCreate?: NdcClearanceCreateOrConnectWithoutLabInput | NdcClearanceCreateOrConnectWithoutLabInput[]
+    upsert?: NdcClearanceUpsertWithWhereUniqueWithoutLabInput | NdcClearanceUpsertWithWhereUniqueWithoutLabInput[]
+    createMany?: NdcClearanceCreateManyLabInputEnvelope
+    set?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    disconnect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    delete?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    connect?: NdcClearanceWhereUniqueInput | NdcClearanceWhereUniqueInput[]
+    update?: NdcClearanceUpdateWithWhereUniqueWithoutLabInput | NdcClearanceUpdateWithWhereUniqueWithoutLabInput[]
+    updateMany?: NdcClearanceUpdateManyWithWhereWithoutLabInput | NdcClearanceUpdateManyWithWhereWithoutLabInput[]
     deleteMany?: NdcClearanceScalarWhereInput | NdcClearanceScalarWhereInput[]
   }
 
@@ -19803,6 +21480,12 @@ export namespace Prisma {
     connect?: ClearanceDepartmentWhereUniqueInput
   }
 
+  export type DepartmentLabCreateNestedOneWithoutClearancesInput = {
+    create?: XOR<DepartmentLabCreateWithoutClearancesInput, DepartmentLabUncheckedCreateWithoutClearancesInput>
+    connectOrCreate?: DepartmentLabCreateOrConnectWithoutClearancesInput
+    connect?: DepartmentLabWhereUniqueInput
+  }
+
   export type ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput = {
     create?: XOR<ClearanceOfficerCreateWithoutAssignedClearancesInput, ClearanceOfficerUncheckedCreateWithoutAssignedClearancesInput>
     connectOrCreate?: ClearanceOfficerCreateOrConnectWithoutAssignedClearancesInput
@@ -19849,6 +21532,16 @@ export namespace Prisma {
     upsert?: ClearanceDepartmentUpsertWithoutClearancesInput
     connect?: ClearanceDepartmentWhereUniqueInput
     update?: XOR<XOR<ClearanceDepartmentUpdateToOneWithWhereWithoutClearancesInput, ClearanceDepartmentUpdateWithoutClearancesInput>, ClearanceDepartmentUncheckedUpdateWithoutClearancesInput>
+  }
+
+  export type DepartmentLabUpdateOneWithoutClearancesNestedInput = {
+    create?: XOR<DepartmentLabCreateWithoutClearancesInput, DepartmentLabUncheckedCreateWithoutClearancesInput>
+    connectOrCreate?: DepartmentLabCreateOrConnectWithoutClearancesInput
+    upsert?: DepartmentLabUpsertWithoutClearancesInput
+    disconnect?: DepartmentLabWhereInput | boolean
+    delete?: DepartmentLabWhereInput | boolean
+    connect?: DepartmentLabWhereUniqueInput
+    update?: XOR<XOR<DepartmentLabUpdateToOneWithWhereWithoutClearancesInput, DepartmentLabUpdateWithoutClearancesInput>, DepartmentLabUncheckedUpdateWithoutClearancesInput>
   }
 
   export type ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput = {
@@ -19921,10 +21614,12 @@ export namespace Prisma {
     update?: XOR<XOR<NdcRequestUpdateToOneWithWhereWithoutCertificateInput, NdcRequestUpdateWithoutCertificateInput>, NdcRequestUncheckedUpdateWithoutCertificateInput>
   }
 
-  export type StudentUpdateOneRequiredWithoutCertificatesNestedInput = {
+  export type StudentUpdateOneWithoutCertificatesNestedInput = {
     create?: XOR<StudentCreateWithoutCertificatesInput, StudentUncheckedCreateWithoutCertificatesInput>
     connectOrCreate?: StudentCreateOrConnectWithoutCertificatesInput
     upsert?: StudentUpsertWithoutCertificatesInput
+    disconnect?: StudentWhereInput | boolean
+    delete?: StudentWhereInput | boolean
     connect?: StudentWhereUniqueInput
     update?: XOR<XOR<StudentUpdateToOneWithWhereWithoutCertificatesInput, StudentUpdateWithoutCertificatesInput>, StudentUncheckedUpdateWithoutCertificatesInput>
   }
@@ -20031,13 +21726,6 @@ export namespace Prisma {
     not?: NestedStringFilter<$PrismaModel> | string
   }
 
-  export type NestedEnumUserRoleFilter<$PrismaModel = never> = {
-    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
-    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    not?: NestedEnumUserRoleFilter<$PrismaModel> | $Enums.UserRole
-  }
-
   export type NestedStringNullableFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel> | null
     in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
@@ -20050,6 +21738,13 @@ export namespace Prisma {
     startsWith?: string | StringFieldRefInput<$PrismaModel>
     endsWith?: string | StringFieldRefInput<$PrismaModel>
     not?: NestedStringNullableFilter<$PrismaModel> | string | null
+  }
+
+  export type NestedEnumUserRoleFilter<$PrismaModel = never> = {
+    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
+    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    not?: NestedEnumUserRoleFilter<$PrismaModel> | $Enums.UserRole
   }
 
   export type NestedBoolFilter<$PrismaModel = never> = {
@@ -20107,16 +21802,6 @@ export namespace Prisma {
     not?: NestedIntFilter<$PrismaModel> | number
   }
 
-  export type NestedEnumUserRoleWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
-    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
-    not?: NestedEnumUserRoleWithAggregatesFilter<$PrismaModel> | $Enums.UserRole
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedEnumUserRoleFilter<$PrismaModel>
-    _max?: NestedEnumUserRoleFilter<$PrismaModel>
-  }
-
   export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel> | null
     in?: string[] | ListStringFieldRefInput<$PrismaModel> | null
@@ -20143,6 +21828,16 @@ export namespace Prisma {
     gt?: number | IntFieldRefInput<$PrismaModel>
     gte?: number | IntFieldRefInput<$PrismaModel>
     not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
+  export type NestedEnumUserRoleWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: $Enums.UserRole | EnumUserRoleFieldRefInput<$PrismaModel>
+    in?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    notIn?: $Enums.UserRole[] | ListEnumUserRoleFieldRefInput<$PrismaModel>
+    not?: NestedEnumUserRoleWithAggregatesFilter<$PrismaModel> | $Enums.UserRole
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedEnumUserRoleFilter<$PrismaModel>
+    _max?: NestedEnumUserRoleFilter<$PrismaModel>
   }
 
   export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
@@ -20387,6 +22082,7 @@ export namespace Prisma {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -20399,12 +22095,14 @@ export namespace Prisma {
     students?: StudentCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentUncheckedCreateWithoutUsersInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -20417,6 +22115,7 @@ export namespace Prisma {
     students?: StudentUncheckedCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceUncheckedCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabUncheckedCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentCreateOrConnectWithoutUsersInput = {
@@ -20444,7 +22143,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     request?: NdcRequestCreateNestedOneWithoutCertificateInput
-    student: StudentCreateNestedOneWithoutCertificatesInput
+    student?: StudentCreateNestedOneWithoutCertificatesInput
     revokedBy?: UserCreateNestedOneWithoutRevokedCertificatesInput
     submittedBy?: UserCreateNestedOneWithoutSubmittedCertificatesInput
   }
@@ -20453,7 +22152,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -20504,7 +22203,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     request?: NdcRequestCreateNestedOneWithoutCertificateInput
-    student: StudentCreateNestedOneWithoutCertificatesInput
+    student?: StudentCreateNestedOneWithoutCertificatesInput
     issuedBy?: UserCreateNestedOneWithoutIssuedCertificatesInput
     submittedBy?: UserCreateNestedOneWithoutSubmittedCertificatesInput
   }
@@ -20513,7 +22212,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -20564,7 +22263,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     request?: NdcRequestCreateNestedOneWithoutCertificateInput
-    student: StudentCreateNestedOneWithoutCertificatesInput
+    student?: StudentCreateNestedOneWithoutCertificatesInput
     issuedBy?: UserCreateNestedOneWithoutIssuedCertificatesInput
     revokedBy?: UserCreateNestedOneWithoutRevokedCertificatesInput
   }
@@ -20573,7 +22272,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -20616,6 +22315,7 @@ export namespace Prisma {
     ndcRequest: NdcRequestCreateNestedOneWithoutClearancesInput
     student: StudentCreateNestedOneWithoutNdcClearancesInput
     department: ClearanceDepartmentCreateNestedOneWithoutClearancesInput
+    lab?: DepartmentLabCreateNestedOneWithoutClearancesInput
     officer?: ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput
   }
 
@@ -20624,6 +22324,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -20829,6 +22530,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -20841,12 +22543,14 @@ export namespace Prisma {
     students?: StudentUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentUncheckedUpdateWithoutUsersInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -20859,6 +22563,7 @@ export namespace Prisma {
     students?: StudentUncheckedUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUncheckedUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUncheckedUpdateManyWithoutDepartmentNestedInput
   }
 
   export type NdcCertificateUpsertWithWhereUniqueWithoutIssuedByInput = {
@@ -20884,7 +22589,7 @@ export namespace Prisma {
     id?: StringFilter<"NdcCertificate"> | string
     certificateNumber?: StringFilter<"NdcCertificate"> | string
     ndcRequestId?: StringFilter<"NdcCertificate"> | string
-    studentId?: StringFilter<"NdcCertificate"> | string
+    studentId?: StringNullableFilter<"NdcCertificate"> | string | null
     studentName?: StringNullableFilter<"NdcCertificate"> | string | null
     studentUsn?: StringNullableFilter<"NdcCertificate"> | string | null
     departmentName?: StringNullableFilter<"NdcCertificate"> | string | null
@@ -20961,6 +22666,7 @@ export namespace Prisma {
     ndcRequestId?: StringFilter<"NdcClearance"> | string
     studentId?: StringFilter<"NdcClearance"> | string
     departmentId?: StringFilter<"NdcClearance"> | string
+    labId?: StringNullableFilter<"NdcClearance"> | string | null
     officerId?: StringNullableFilter<"NdcClearance"> | string | null
     status?: EnumDepartmentClearanceStatusFilter<"NdcClearance"> | $Enums.DepartmentClearanceStatus
     remarks?: StringNullableFilter<"NdcClearance"> | string | null
@@ -21100,6 +22806,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutDepartmentInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -21121,6 +22828,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutDepartmentInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -21181,6 +22889,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     ndcRequest: NdcRequestCreateNestedOneWithoutClearancesInput
     student: StudentCreateNestedOneWithoutNdcClearancesInput
+    lab?: DepartmentLabCreateNestedOneWithoutClearancesInput
     officer?: ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput
     reviewedBy?: UserCreateNestedOneWithoutReviewedClearancesInput
   }
@@ -21189,6 +22898,7 @@ export namespace Prisma {
     id?: string
     ndcRequestId: string
     studentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -21207,6 +22917,40 @@ export namespace Prisma {
 
   export type NdcClearanceCreateManyDepartmentInputEnvelope = {
     data: NdcClearanceCreateManyDepartmentInput | NdcClearanceCreateManyDepartmentInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type DepartmentLabCreateWithoutDepartmentInput = {
+    id?: string
+    name: string
+    code: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    clearances?: NdcClearanceCreateNestedManyWithoutLabInput
+  }
+
+  export type DepartmentLabUncheckedCreateWithoutDepartmentInput = {
+    id?: string
+    name: string
+    code: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    clearances?: NdcClearanceUncheckedCreateNestedManyWithoutLabInput
+  }
+
+  export type DepartmentLabCreateOrConnectWithoutDepartmentInput = {
+    where: DepartmentLabWhereUniqueInput
+    create: XOR<DepartmentLabCreateWithoutDepartmentInput, DepartmentLabUncheckedCreateWithoutDepartmentInput>
+  }
+
+  export type DepartmentLabCreateManyDepartmentInputEnvelope = {
+    data: DepartmentLabCreateManyDepartmentInput | DepartmentLabCreateManyDepartmentInput[]
     skipDuplicates?: boolean
   }
 
@@ -21272,6 +23016,7 @@ export namespace Prisma {
     OR?: UserScalarWhereInput[]
     NOT?: UserScalarWhereInput | UserScalarWhereInput[]
     id?: StringFilter<"User"> | string
+    loginId?: StringNullableFilter<"User"> | string | null
     email?: StringFilter<"User"> | string
     passwordHash?: StringFilter<"User"> | string
     role?: EnumUserRoleFilter<"User"> | $Enums.UserRole
@@ -21327,8 +23072,194 @@ export namespace Prisma {
     data: XOR<NdcClearanceUpdateManyMutationInput, NdcClearanceUncheckedUpdateManyWithoutDepartmentInput>
   }
 
+  export type DepartmentLabUpsertWithWhereUniqueWithoutDepartmentInput = {
+    where: DepartmentLabWhereUniqueInput
+    update: XOR<DepartmentLabUpdateWithoutDepartmentInput, DepartmentLabUncheckedUpdateWithoutDepartmentInput>
+    create: XOR<DepartmentLabCreateWithoutDepartmentInput, DepartmentLabUncheckedCreateWithoutDepartmentInput>
+  }
+
+  export type DepartmentLabUpdateWithWhereUniqueWithoutDepartmentInput = {
+    where: DepartmentLabWhereUniqueInput
+    data: XOR<DepartmentLabUpdateWithoutDepartmentInput, DepartmentLabUncheckedUpdateWithoutDepartmentInput>
+  }
+
+  export type DepartmentLabUpdateManyWithWhereWithoutDepartmentInput = {
+    where: DepartmentLabScalarWhereInput
+    data: XOR<DepartmentLabUpdateManyMutationInput, DepartmentLabUncheckedUpdateManyWithoutDepartmentInput>
+  }
+
+  export type DepartmentLabScalarWhereInput = {
+    AND?: DepartmentLabScalarWhereInput | DepartmentLabScalarWhereInput[]
+    OR?: DepartmentLabScalarWhereInput[]
+    NOT?: DepartmentLabScalarWhereInput | DepartmentLabScalarWhereInput[]
+    id?: StringFilter<"DepartmentLab"> | string
+    name?: StringFilter<"DepartmentLab"> | string
+    code?: StringFilter<"DepartmentLab"> | string
+    departmentId?: StringFilter<"DepartmentLab"> | string
+    applicableSemesters?: IntNullableListFilter<"DepartmentLab">
+    displayOrder?: IntFilter<"DepartmentLab"> | number
+    isActive?: BoolFilter<"DepartmentLab"> | boolean
+    createdAt?: DateTimeFilter<"DepartmentLab"> | Date | string
+    updatedAt?: DateTimeFilter<"DepartmentLab"> | Date | string
+  }
+
+  export type ClearanceDepartmentCreateWithoutLabsInput = {
+    id?: string
+    name: string
+    code: string
+    category?: string
+    description?: string
+    requiresClearance?: boolean
+    isAcademicBranch?: boolean
+    displayOrder?: number
+    isActive?: boolean
+    hodName?: string
+    hodDesignation?: string
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    students?: StudentCreateNestedManyWithoutDepartmentInput
+    users?: UserCreateNestedManyWithoutDepartmentInput
+    officerMappings?: ClearanceOfficerDepartmentCreateNestedManyWithoutDepartmentInput
+    clearances?: NdcClearanceCreateNestedManyWithoutDepartmentInput
+  }
+
+  export type ClearanceDepartmentUncheckedCreateWithoutLabsInput = {
+    id?: string
+    name: string
+    code: string
+    category?: string
+    description?: string
+    requiresClearance?: boolean
+    isAcademicBranch?: boolean
+    displayOrder?: number
+    isActive?: boolean
+    hodName?: string
+    hodDesignation?: string
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    students?: StudentUncheckedCreateNestedManyWithoutDepartmentInput
+    users?: UserUncheckedCreateNestedManyWithoutDepartmentInput
+    officerMappings?: ClearanceOfficerDepartmentUncheckedCreateNestedManyWithoutDepartmentInput
+    clearances?: NdcClearanceUncheckedCreateNestedManyWithoutDepartmentInput
+  }
+
+  export type ClearanceDepartmentCreateOrConnectWithoutLabsInput = {
+    where: ClearanceDepartmentWhereUniqueInput
+    create: XOR<ClearanceDepartmentCreateWithoutLabsInput, ClearanceDepartmentUncheckedCreateWithoutLabsInput>
+  }
+
+  export type NdcClearanceCreateWithoutLabInput = {
+    id?: string
+    status?: $Enums.DepartmentClearanceStatus
+    remarks?: string | null
+    dueAmount?: number
+    dueDetails?: string | null
+    reviewedAt?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    ndcRequest: NdcRequestCreateNestedOneWithoutClearancesInput
+    student: StudentCreateNestedOneWithoutNdcClearancesInput
+    department: ClearanceDepartmentCreateNestedOneWithoutClearancesInput
+    officer?: ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput
+    reviewedBy?: UserCreateNestedOneWithoutReviewedClearancesInput
+  }
+
+  export type NdcClearanceUncheckedCreateWithoutLabInput = {
+    id?: string
+    ndcRequestId: string
+    studentId: string
+    departmentId: string
+    officerId?: string | null
+    status?: $Enums.DepartmentClearanceStatus
+    remarks?: string | null
+    dueAmount?: number
+    dueDetails?: string | null
+    reviewedById?: string | null
+    reviewedAt?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type NdcClearanceCreateOrConnectWithoutLabInput = {
+    where: NdcClearanceWhereUniqueInput
+    create: XOR<NdcClearanceCreateWithoutLabInput, NdcClearanceUncheckedCreateWithoutLabInput>
+  }
+
+  export type NdcClearanceCreateManyLabInputEnvelope = {
+    data: NdcClearanceCreateManyLabInput | NdcClearanceCreateManyLabInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type ClearanceDepartmentUpsertWithoutLabsInput = {
+    update: XOR<ClearanceDepartmentUpdateWithoutLabsInput, ClearanceDepartmentUncheckedUpdateWithoutLabsInput>
+    create: XOR<ClearanceDepartmentCreateWithoutLabsInput, ClearanceDepartmentUncheckedCreateWithoutLabsInput>
+    where?: ClearanceDepartmentWhereInput
+  }
+
+  export type ClearanceDepartmentUpdateToOneWithWhereWithoutLabsInput = {
+    where?: ClearanceDepartmentWhereInput
+    data: XOR<ClearanceDepartmentUpdateWithoutLabsInput, ClearanceDepartmentUncheckedUpdateWithoutLabsInput>
+  }
+
+  export type ClearanceDepartmentUpdateWithoutLabsInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
+    description?: StringFieldUpdateOperationsInput | string
+    requiresClearance?: BoolFieldUpdateOperationsInput | boolean
+    isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    hodName?: StringFieldUpdateOperationsInput | string
+    hodDesignation?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    students?: StudentUpdateManyWithoutDepartmentNestedInput
+    users?: UserUpdateManyWithoutDepartmentNestedInput
+    officerMappings?: ClearanceOfficerDepartmentUpdateManyWithoutDepartmentNestedInput
+    clearances?: NdcClearanceUpdateManyWithoutDepartmentNestedInput
+  }
+
+  export type ClearanceDepartmentUncheckedUpdateWithoutLabsInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
+    description?: StringFieldUpdateOperationsInput | string
+    requiresClearance?: BoolFieldUpdateOperationsInput | boolean
+    isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    hodName?: StringFieldUpdateOperationsInput | string
+    hodDesignation?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    students?: StudentUncheckedUpdateManyWithoutDepartmentNestedInput
+    users?: UserUncheckedUpdateManyWithoutDepartmentNestedInput
+    officerMappings?: ClearanceOfficerDepartmentUncheckedUpdateManyWithoutDepartmentNestedInput
+    clearances?: NdcClearanceUncheckedUpdateManyWithoutDepartmentNestedInput
+  }
+
+  export type NdcClearanceUpsertWithWhereUniqueWithoutLabInput = {
+    where: NdcClearanceWhereUniqueInput
+    update: XOR<NdcClearanceUpdateWithoutLabInput, NdcClearanceUncheckedUpdateWithoutLabInput>
+    create: XOR<NdcClearanceCreateWithoutLabInput, NdcClearanceUncheckedCreateWithoutLabInput>
+  }
+
+  export type NdcClearanceUpdateWithWhereUniqueWithoutLabInput = {
+    where: NdcClearanceWhereUniqueInput
+    data: XOR<NdcClearanceUpdateWithoutLabInput, NdcClearanceUncheckedUpdateWithoutLabInput>
+  }
+
+  export type NdcClearanceUpdateManyWithWhereWithoutLabInput = {
+    where: NdcClearanceScalarWhereInput
+    data: XOR<NdcClearanceUpdateManyMutationInput, NdcClearanceUncheckedUpdateManyWithoutLabInput>
+  }
+
   export type UserCreateWithoutAssociatedOfficerInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -21350,6 +23281,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutAssociatedOfficerInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -21406,6 +23338,7 @@ export namespace Prisma {
     ndcRequest: NdcRequestCreateNestedOneWithoutClearancesInput
     student: StudentCreateNestedOneWithoutNdcClearancesInput
     department: ClearanceDepartmentCreateNestedOneWithoutClearancesInput
+    lab?: DepartmentLabCreateNestedOneWithoutClearancesInput
     reviewedBy?: UserCreateNestedOneWithoutReviewedClearancesInput
   }
 
@@ -21414,6 +23347,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
     dueAmount?: number
@@ -21447,6 +23381,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutAssociatedOfficerInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -21468,6 +23403,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutAssociatedOfficerInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -21554,6 +23490,7 @@ export namespace Prisma {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -21566,12 +23503,14 @@ export namespace Prisma {
     students?: StudentCreateNestedManyWithoutDepartmentInput
     users?: UserCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentUncheckedCreateWithoutOfficerMappingsInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -21584,6 +23523,7 @@ export namespace Prisma {
     students?: StudentUncheckedCreateNestedManyWithoutDepartmentInput
     users?: UserUncheckedCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceUncheckedCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabUncheckedCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentCreateOrConnectWithoutOfficerMappingsInput = {
@@ -21643,6 +23583,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -21655,12 +23596,14 @@ export namespace Prisma {
     students?: StudentUpdateManyWithoutDepartmentNestedInput
     users?: UserUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentUncheckedUpdateWithoutOfficerMappingsInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -21673,12 +23616,14 @@ export namespace Prisma {
     students?: StudentUncheckedUpdateManyWithoutDepartmentNestedInput
     users?: UserUncheckedUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUncheckedUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUncheckedUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentCreateWithoutStudentsInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -21691,12 +23636,14 @@ export namespace Prisma {
     users?: UserCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentUncheckedCreateWithoutStudentsInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -21709,6 +23656,7 @@ export namespace Prisma {
     users?: UserUncheckedCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedCreateNestedManyWithoutDepartmentInput
     clearances?: NdcClearanceUncheckedCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabUncheckedCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentCreateOrConnectWithoutStudentsInput = {
@@ -21718,6 +23666,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutAssociatedStudentInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -21739,6 +23688,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutAssociatedStudentInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -21810,6 +23760,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     ndcRequest: NdcRequestCreateNestedOneWithoutClearancesInput
     department: ClearanceDepartmentCreateNestedOneWithoutClearancesInput
+    lab?: DepartmentLabCreateNestedOneWithoutClearancesInput
     officer?: ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput
     reviewedBy?: UserCreateNestedOneWithoutReviewedClearancesInput
   }
@@ -21818,6 +23769,7 @@ export namespace Prisma {
     id?: string
     ndcRequestId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -21914,6 +23866,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -21926,12 +23879,14 @@ export namespace Prisma {
     users?: UserUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentUncheckedUpdateWithoutStudentsInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -21944,6 +23899,7 @@ export namespace Prisma {
     users?: UserUncheckedUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedUpdateManyWithoutDepartmentNestedInput
     clearances?: NdcClearanceUncheckedUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUncheckedUpdateManyWithoutDepartmentNestedInput
   }
 
   export type UserUpsertWithoutAssociatedStudentInput = {
@@ -21959,6 +23915,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutAssociatedStudentInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -21980,6 +23937,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutAssociatedStudentInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -22137,7 +24095,7 @@ export namespace Prisma {
     submissionRemarks?: string | null
     createdAt?: Date | string
     updatedAt?: Date | string
-    student: StudentCreateNestedOneWithoutCertificatesInput
+    student?: StudentCreateNestedOneWithoutCertificatesInput
     issuedBy?: UserCreateNestedOneWithoutIssuedCertificatesInput
     revokedBy?: UserCreateNestedOneWithoutRevokedCertificatesInput
     submittedBy?: UserCreateNestedOneWithoutSubmittedCertificatesInput
@@ -22147,7 +24105,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -22184,6 +24142,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     student: StudentCreateNestedOneWithoutNdcClearancesInput
     department: ClearanceDepartmentCreateNestedOneWithoutClearancesInput
+    lab?: DepartmentLabCreateNestedOneWithoutClearancesInput
     officer?: ClearanceOfficerCreateNestedOneWithoutAssignedClearancesInput
     reviewedBy?: UserCreateNestedOneWithoutReviewedClearancesInput
   }
@@ -22192,6 +24151,7 @@ export namespace Prisma {
     id?: string
     studentId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -22304,7 +24264,7 @@ export namespace Prisma {
     submissionRemarks?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
-    student?: StudentUpdateOneRequiredWithoutCertificatesNestedInput
+    student?: StudentUpdateOneWithoutCertificatesNestedInput
     issuedBy?: UserUpdateOneWithoutIssuedCertificatesNestedInput
     revokedBy?: UserUpdateOneWithoutRevokedCertificatesNestedInput
     submittedBy?: UserUpdateOneWithoutSubmittedCertificatesNestedInput
@@ -22314,7 +24274,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -22441,6 +24401,7 @@ export namespace Prisma {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -22453,12 +24414,14 @@ export namespace Prisma {
     students?: StudentCreateNestedManyWithoutDepartmentInput
     users?: UserCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentUncheckedCreateWithoutClearancesInput = {
     id?: string
     name: string
     code: string
+    category?: string
     description?: string
     requiresClearance?: boolean
     isAcademicBranch?: boolean
@@ -22471,11 +24434,41 @@ export namespace Prisma {
     students?: StudentUncheckedCreateNestedManyWithoutDepartmentInput
     users?: UserUncheckedCreateNestedManyWithoutDepartmentInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedCreateNestedManyWithoutDepartmentInput
+    labs?: DepartmentLabUncheckedCreateNestedManyWithoutDepartmentInput
   }
 
   export type ClearanceDepartmentCreateOrConnectWithoutClearancesInput = {
     where: ClearanceDepartmentWhereUniqueInput
     create: XOR<ClearanceDepartmentCreateWithoutClearancesInput, ClearanceDepartmentUncheckedCreateWithoutClearancesInput>
+  }
+
+  export type DepartmentLabCreateWithoutClearancesInput = {
+    id?: string
+    name: string
+    code: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    department: ClearanceDepartmentCreateNestedOneWithoutLabsInput
+  }
+
+  export type DepartmentLabUncheckedCreateWithoutClearancesInput = {
+    id?: string
+    name: string
+    code: string
+    departmentId: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type DepartmentLabCreateOrConnectWithoutClearancesInput = {
+    where: DepartmentLabWhereUniqueInput
+    create: XOR<DepartmentLabCreateWithoutClearancesInput, DepartmentLabUncheckedCreateWithoutClearancesInput>
   }
 
   export type ClearanceOfficerCreateWithoutAssignedClearancesInput = {
@@ -22511,6 +24504,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutReviewedClearancesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22532,6 +24526,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutReviewedClearancesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22669,6 +24664,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -22681,12 +24677,14 @@ export namespace Prisma {
     students?: StudentUpdateManyWithoutDepartmentNestedInput
     users?: UserUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUpdateManyWithoutDepartmentNestedInput
   }
 
   export type ClearanceDepartmentUncheckedUpdateWithoutClearancesInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     code?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
     description?: StringFieldUpdateOperationsInput | string
     requiresClearance?: BoolFieldUpdateOperationsInput | boolean
     isAcademicBranch?: BoolFieldUpdateOperationsInput | boolean
@@ -22699,6 +24697,42 @@ export namespace Prisma {
     students?: StudentUncheckedUpdateManyWithoutDepartmentNestedInput
     users?: UserUncheckedUpdateManyWithoutDepartmentNestedInput
     officerMappings?: ClearanceOfficerDepartmentUncheckedUpdateManyWithoutDepartmentNestedInput
+    labs?: DepartmentLabUncheckedUpdateManyWithoutDepartmentNestedInput
+  }
+
+  export type DepartmentLabUpsertWithoutClearancesInput = {
+    update: XOR<DepartmentLabUpdateWithoutClearancesInput, DepartmentLabUncheckedUpdateWithoutClearancesInput>
+    create: XOR<DepartmentLabCreateWithoutClearancesInput, DepartmentLabUncheckedCreateWithoutClearancesInput>
+    where?: DepartmentLabWhereInput
+  }
+
+  export type DepartmentLabUpdateToOneWithWhereWithoutClearancesInput = {
+    where?: DepartmentLabWhereInput
+    data: XOR<DepartmentLabUpdateWithoutClearancesInput, DepartmentLabUncheckedUpdateWithoutClearancesInput>
+  }
+
+  export type DepartmentLabUpdateWithoutClearancesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    department?: ClearanceDepartmentUpdateOneRequiredWithoutLabsNestedInput
+  }
+
+  export type DepartmentLabUncheckedUpdateWithoutClearancesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    departmentId?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type ClearanceOfficerUpsertWithoutAssignedClearancesInput = {
@@ -22751,6 +24785,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutReviewedClearancesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -22772,6 +24807,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutReviewedClearancesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -22879,6 +24915,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutIssuedCertificatesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22900,6 +24937,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutIssuedCertificatesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22926,6 +24964,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutRevokedCertificatesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22947,6 +24986,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutRevokedCertificatesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22973,6 +25013,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutSubmittedCertificatesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -22994,6 +25035,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutSubmittedCertificatesInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -23129,6 +25171,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutIssuedCertificatesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23150,6 +25193,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutIssuedCertificatesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23182,6 +25226,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutRevokedCertificatesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23203,6 +25248,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutRevokedCertificatesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23235,6 +25281,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutSubmittedCertificatesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23256,6 +25303,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutSubmittedCertificatesInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23277,6 +25325,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutAuditLogsInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -23298,6 +25347,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutAuditLogsInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -23335,6 +25385,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutAuditLogsInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23356,6 +25407,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutAuditLogsInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23377,6 +25429,7 @@ export namespace Prisma {
 
   export type UserCreateWithoutNotificationsInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -23398,6 +25451,7 @@ export namespace Prisma {
 
   export type UserUncheckedCreateWithoutNotificationsInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -23435,6 +25489,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutNotificationsInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23456,6 +25511,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutNotificationsInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -23479,7 +25535,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -23503,7 +25559,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -23527,7 +25583,7 @@ export namespace Prisma {
     id?: string
     certificateNumber: string
     ndcRequestId: string
-    studentId: string
+    studentId?: string | null
     studentName?: string | null
     studentUsn?: string | null
     departmentName?: string | null
@@ -23552,6 +25608,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -23608,7 +25665,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     request?: NdcRequestUpdateOneWithoutCertificateNestedInput
-    student?: StudentUpdateOneRequiredWithoutCertificatesNestedInput
+    student?: StudentUpdateOneWithoutCertificatesNestedInput
     revokedBy?: UserUpdateOneWithoutRevokedCertificatesNestedInput
     submittedBy?: UserUpdateOneWithoutSubmittedCertificatesNestedInput
   }
@@ -23617,7 +25674,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23642,7 +25699,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23682,7 +25739,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     request?: NdcRequestUpdateOneWithoutCertificateNestedInput
-    student?: StudentUpdateOneRequiredWithoutCertificatesNestedInput
+    student?: StudentUpdateOneWithoutCertificatesNestedInput
     issuedBy?: UserUpdateOneWithoutIssuedCertificatesNestedInput
     submittedBy?: UserUpdateOneWithoutSubmittedCertificatesNestedInput
   }
@@ -23691,7 +25748,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23716,7 +25773,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23756,7 +25813,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     request?: NdcRequestUpdateOneWithoutCertificateNestedInput
-    student?: StudentUpdateOneRequiredWithoutCertificatesNestedInput
+    student?: StudentUpdateOneWithoutCertificatesNestedInput
     issuedBy?: UserUpdateOneWithoutIssuedCertificatesNestedInput
     revokedBy?: UserUpdateOneWithoutRevokedCertificatesNestedInput
   }
@@ -23765,7 +25822,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23790,7 +25847,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     certificateNumber?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
-    studentId?: StringFieldUpdateOperationsInput | string
+    studentId?: NullableStringFieldUpdateOperationsInput | string | null
     studentName?: NullableStringFieldUpdateOperationsInput | string | null
     studentUsn?: NullableStringFieldUpdateOperationsInput | string | null
     departmentName?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23822,6 +25879,7 @@ export namespace Prisma {
     ndcRequest?: NdcRequestUpdateOneRequiredWithoutClearancesNestedInput
     student?: StudentUpdateOneRequiredWithoutNdcClearancesNestedInput
     department?: ClearanceDepartmentUpdateOneRequiredWithoutClearancesNestedInput
+    lab?: DepartmentLabUpdateOneWithoutClearancesNestedInput
     officer?: ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput
   }
 
@@ -23830,6 +25888,7 @@ export namespace Prisma {
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23845,6 +25904,7 @@ export namespace Prisma {
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -23956,6 +26016,7 @@ export namespace Prisma {
 
   export type UserCreateManyDepartmentInput = {
     id?: string
+    loginId?: string | null
     email: string
     passwordHash: string
     role: $Enums.UserRole
@@ -23978,6 +26039,7 @@ export namespace Prisma {
     id?: string
     ndcRequestId: string
     studentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -23985,6 +26047,17 @@ export namespace Prisma {
     dueDetails?: string | null
     reviewedById?: string | null
     reviewedAt?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type DepartmentLabCreateManyDepartmentInput = {
+    id?: string
+    name: string
+    code: string
+    applicableSemesters?: DepartmentLabCreateapplicableSemestersInput | number[]
+    displayOrder?: number
+    isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
   }
@@ -24062,6 +26135,7 @@ export namespace Prisma {
 
   export type UserUpdateWithoutDepartmentInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -24083,6 +26157,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateWithoutDepartmentInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -24104,6 +26179,7 @@ export namespace Prisma {
 
   export type UserUncheckedUpdateManyWithoutDepartmentInput = {
     id?: StringFieldUpdateOperationsInput | string
+    loginId?: NullableStringFieldUpdateOperationsInput | string | null
     email?: StringFieldUpdateOperationsInput | string
     passwordHash?: StringFieldUpdateOperationsInput | string
     role?: EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
@@ -24143,6 +26219,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     ndcRequest?: NdcRequestUpdateOneRequiredWithoutClearancesNestedInput
     student?: StudentUpdateOneRequiredWithoutNdcClearancesNestedInput
+    lab?: DepartmentLabUpdateOneWithoutClearancesNestedInput
     officer?: ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput
     reviewedBy?: UserUpdateOneWithoutReviewedClearancesNestedInput
   }
@@ -24151,6 +26228,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -24166,6 +26244,106 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
+    officerId?: NullableStringFieldUpdateOperationsInput | string | null
+    status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    dueAmount?: FloatFieldUpdateOperationsInput | number
+    dueDetails?: NullableStringFieldUpdateOperationsInput | string | null
+    reviewedById?: NullableStringFieldUpdateOperationsInput | string | null
+    reviewedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type DepartmentLabUpdateWithoutDepartmentInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    clearances?: NdcClearanceUpdateManyWithoutLabNestedInput
+  }
+
+  export type DepartmentLabUncheckedUpdateWithoutDepartmentInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    clearances?: NdcClearanceUncheckedUpdateManyWithoutLabNestedInput
+  }
+
+  export type DepartmentLabUncheckedUpdateManyWithoutDepartmentInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    name?: StringFieldUpdateOperationsInput | string
+    code?: StringFieldUpdateOperationsInput | string
+    applicableSemesters?: DepartmentLabUpdateapplicableSemestersInput | number[]
+    displayOrder?: IntFieldUpdateOperationsInput | number
+    isActive?: BoolFieldUpdateOperationsInput | boolean
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type NdcClearanceCreateManyLabInput = {
+    id?: string
+    ndcRequestId: string
+    studentId: string
+    departmentId: string
+    officerId?: string | null
+    status?: $Enums.DepartmentClearanceStatus
+    remarks?: string | null
+    dueAmount?: number
+    dueDetails?: string | null
+    reviewedById?: string | null
+    reviewedAt?: Date | string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type NdcClearanceUpdateWithoutLabInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    dueAmount?: FloatFieldUpdateOperationsInput | number
+    dueDetails?: NullableStringFieldUpdateOperationsInput | string | null
+    reviewedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    ndcRequest?: NdcRequestUpdateOneRequiredWithoutClearancesNestedInput
+    student?: StudentUpdateOneRequiredWithoutNdcClearancesNestedInput
+    department?: ClearanceDepartmentUpdateOneRequiredWithoutClearancesNestedInput
+    officer?: ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput
+    reviewedBy?: UserUpdateOneWithoutReviewedClearancesNestedInput
+  }
+
+  export type NdcClearanceUncheckedUpdateWithoutLabInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    ndcRequestId?: StringFieldUpdateOperationsInput | string
+    studentId?: StringFieldUpdateOperationsInput | string
+    departmentId?: StringFieldUpdateOperationsInput | string
+    officerId?: NullableStringFieldUpdateOperationsInput | string | null
+    status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
+    remarks?: NullableStringFieldUpdateOperationsInput | string | null
+    dueAmount?: FloatFieldUpdateOperationsInput | number
+    dueDetails?: NullableStringFieldUpdateOperationsInput | string | null
+    reviewedById?: NullableStringFieldUpdateOperationsInput | string | null
+    reviewedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type NdcClearanceUncheckedUpdateManyWithoutLabInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    ndcRequestId?: StringFieldUpdateOperationsInput | string
+    studentId?: StringFieldUpdateOperationsInput | string
+    departmentId?: StringFieldUpdateOperationsInput | string
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -24187,6 +26365,7 @@ export namespace Prisma {
     ndcRequestId: string
     studentId: string
     departmentId: string
+    labId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
     dueAmount?: number
@@ -24224,6 +26403,7 @@ export namespace Prisma {
     ndcRequest?: NdcRequestUpdateOneRequiredWithoutClearancesNestedInput
     student?: StudentUpdateOneRequiredWithoutNdcClearancesNestedInput
     department?: ClearanceDepartmentUpdateOneRequiredWithoutClearancesNestedInput
+    lab?: DepartmentLabUpdateOneWithoutClearancesNestedInput
     reviewedBy?: UserUpdateOneWithoutReviewedClearancesNestedInput
   }
 
@@ -24232,6 +26412,7 @@ export namespace Prisma {
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
     dueAmount?: FloatFieldUpdateOperationsInput | number
@@ -24247,6 +26428,7 @@ export namespace Prisma {
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
     dueAmount?: FloatFieldUpdateOperationsInput | number
@@ -24273,6 +26455,7 @@ export namespace Prisma {
     id?: string
     ndcRequestId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -24357,6 +26540,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     ndcRequest?: NdcRequestUpdateOneRequiredWithoutClearancesNestedInput
     department?: ClearanceDepartmentUpdateOneRequiredWithoutClearancesNestedInput
+    lab?: DepartmentLabUpdateOneWithoutClearancesNestedInput
     officer?: ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput
     reviewedBy?: UserUpdateOneWithoutReviewedClearancesNestedInput
   }
@@ -24365,6 +26549,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -24380,6 +26565,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     ndcRequestId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -24469,6 +26655,7 @@ export namespace Prisma {
     id?: string
     studentId: string
     departmentId: string
+    labId?: string | null
     officerId?: string | null
     status?: $Enums.DepartmentClearanceStatus
     remarks?: string | null
@@ -24491,6 +26678,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     student?: StudentUpdateOneRequiredWithoutNdcClearancesNestedInput
     department?: ClearanceDepartmentUpdateOneRequiredWithoutClearancesNestedInput
+    lab?: DepartmentLabUpdateOneWithoutClearancesNestedInput
     officer?: ClearanceOfficerUpdateOneWithoutAssignedClearancesNestedInput
     reviewedBy?: UserUpdateOneWithoutReviewedClearancesNestedInput
   }
@@ -24499,6 +26687,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -24514,6 +26703,7 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     studentId?: StringFieldUpdateOperationsInput | string
     departmentId?: StringFieldUpdateOperationsInput | string
+    labId?: NullableStringFieldUpdateOperationsInput | string | null
     officerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: EnumDepartmentClearanceStatusFieldUpdateOperationsInput | $Enums.DepartmentClearanceStatus
     remarks?: NullableStringFieldUpdateOperationsInput | string | null
@@ -24539,6 +26729,10 @@ export namespace Prisma {
      */
     export type ClearanceDepartmentCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ClearanceDepartmentCountOutputTypeDefaultArgs<ExtArgs>
     /**
+     * @deprecated Use DepartmentLabCountOutputTypeDefaultArgs instead
+     */
+    export type DepartmentLabCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = DepartmentLabCountOutputTypeDefaultArgs<ExtArgs>
+    /**
      * @deprecated Use ClearanceOfficerCountOutputTypeDefaultArgs instead
      */
     export type ClearanceOfficerCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ClearanceOfficerCountOutputTypeDefaultArgs<ExtArgs>
@@ -24558,6 +26752,10 @@ export namespace Prisma {
      * @deprecated Use ClearanceDepartmentDefaultArgs instead
      */
     export type ClearanceDepartmentArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ClearanceDepartmentDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use DepartmentLabDefaultArgs instead
+     */
+    export type DepartmentLabArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = DepartmentLabDefaultArgs<ExtArgs>
     /**
      * @deprecated Use ClearanceOfficerDefaultArgs instead
      */

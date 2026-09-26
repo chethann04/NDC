@@ -260,6 +260,48 @@ export class PdfService {
           ];
         }
 
+        // Guarantee that any separate laboratories are unified into exactly ONE "Laboratory" entry
+        const isLabItem = (item: ClearanceItemPdf) => {
+          const code = (item.departmentCode || '').toUpperCase().trim();
+          const name = (item.departmentName || '').toLowerCase().trim();
+          return ['PHY', 'CHEM', 'LAB', 'PHY_LAB', 'CHEM_LAB'].includes(code) ||
+                 name === 'laboratory' ||
+                 (name.includes('laboratory') && !name.includes('academic') && !name.includes('branch'));
+        };
+
+        const labItems = clearanceRows.filter(isLabItem);
+        if (labItems.length > 0) {
+          const nonLabItems = clearanceRows.filter((item) => !isLabItem(item));
+          let latestLabTimestamp: Date | string = certificateData.issuedAt;
+          for (const l of labItems) {
+            if (l.approvalTimestamp && new Date(l.approvalTimestamp) > new Date(latestLabTimestamp)) {
+              latestLabTimestamp = l.approvalTimestamp;
+            }
+          }
+
+          const unifiedLabItem: ClearanceItemPdf = {
+            departmentName: 'Laboratory',
+            departmentCode: 'LAB',
+            status: 'CLEARED',
+            approvalTimestamp: latestLabTimestamp,
+            reviewedByName: 'Designated Laboratory In-charge'
+          };
+
+          // Re-insert Laboratory at standard position (display order 2, right after LIB)
+          const merged: ClearanceItemPdf[] = [];
+          let labAdded = false;
+          for (const item of nonLabItems) {
+            const cCode = (item.departmentCode || '').toUpperCase();
+            if (!labAdded && (cCode === 'HST' || cCode === 'SPT' || cCode === 'ACC' || cCode === 'ACAD')) {
+              merged.push(unifiedLabItem);
+              labAdded = true;
+            }
+            merged.push(item);
+          }
+          if (!labAdded) merged.push(unifiedLabItem);
+          clearanceRows = merged;
+        }
+
         const headerHeight = 22;
         const rowHeight = 24;
         const totalTableH = headerHeight + (clearanceRows.length * rowHeight);

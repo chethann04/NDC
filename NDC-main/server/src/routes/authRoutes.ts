@@ -9,6 +9,8 @@ const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'fallback-refre
 const router = Router();
 
 router.post('/login', AuthController.login);
+router.get('/student-check/:usn', AuthController.studentCheck);
+router.post('/student-register', AuthController.studentRegister);
 router.post('/student-login', AuthController.studentLogin);
 router.get('/me', authenticateToken, AuthController.getMe);
 router.post('/reset-password', authenticateToken, AuthController.resetPassword);

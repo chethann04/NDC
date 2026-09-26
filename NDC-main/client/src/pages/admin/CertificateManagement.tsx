@@ -15,10 +15,14 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
+import { clientCache } from '../../utils/clientCache';
+import { ErrorAlert } from '../../components/ErrorAlert';
+import { showErrorModal } from '../../store/useErrorModalStore';
 
 export const CertificateManagement: React.FC = () => {
-  const [certificates, setCertificates] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = 'certificates_list_default';
+  const [certificates, setCertificates] = useState<any[]>(() => clientCache.get<any[]>(cacheKey) || []);
+  const [loading, setLoading] = useState(!clientCache.get<any[]>(cacheKey));
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [submissionFilter, setSubmissionFilter] = useState(''); // '' | 'SUBMITTED' | 'NOT_SUBMITTED'
@@ -28,22 +32,31 @@ export const CertificateManagement: React.FC = () => {
   const [revokingCert, setRevokingCert] = useState<any>(null);
   const [revocationReason, setRevocationReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [modalError, setModalError] = useState('');
+  const [modalError, setModalError] = useState<any>(null);
 
   // Submission Modal State
   const [submittingCert, setSubmittingCert] = useState<any>(null);
   const [submissionTargetStatus, setSubmissionTargetStatus] = useState<boolean>(true);
   const [submissionRemarks, setSubmissionRemarks] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
-  const [submissionModalError, setSubmissionModalError] = useState('');
+  const [submissionModalError, setSubmissionModalError] = useState<any>(null);
 
   useEffect(() => {
     fetchCertificates();
   }, [search, statusFilter, submissionFilter]);
 
   const fetchCertificates = async () => {
-    try {
+    const isDefault = !search && !statusFilter && !submissionFilter;
+    const currentKey = isDefault ? cacheKey : `certificates_${search}_${statusFilter}_${submissionFilter}`;
+    const cached = clientCache.get<any[]>(currentKey);
+    if (cached) {
+      setCertificates(cached);
+      setLoading(false);
+    } else {
       setLoading(true);
+    }
+
+    try {
       const res = await api.get('/certificates', {
         params: {
           search,
@@ -52,7 +65,9 @@ export const CertificateManagement: React.FC = () => {
           limit: 100
         }
       });
-      setCertificates(res.data.data || []);
+      const data = res.data.data || [];
+      setCertificates(data);
+      clientCache.set(currentKey, data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -67,22 +82,25 @@ export const CertificateManagement: React.FC = () => {
       setPreviewCert(res.data.data);
       alert(`Certificate [${cert.certificateNumber}] regenerated successfully.`);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to regenerate certificate.');
+      showErrorModal(err, { title: 'Certificate Regeneration Failed' });
     }
   };
 
   const handleOpenRevokeModal = (cert: any) => {
     setRevokingCert(cert);
     setRevocationReason('');
-    setModalError('');
+    setModalError(null);
   };
 
   const handleExecuteRevocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    setModalError('');
+    setModalError(null);
 
     if (!revocationReason || revocationReason.trim() === '') {
-      setModalError('Revocation reason is mandatory.');
+      setModalError({
+        title: 'Revocation reason required',
+        message: 'Please enter a clear explanation for revoking this certificate.'
+      });
       return;
     }
 
@@ -95,7 +113,7 @@ export const CertificateManagement: React.FC = () => {
       setRevokingCert(null);
       await fetchCertificates();
     } catch (err: any) {
-      setModalError(err.response?.data?.message || 'Revocation failed.');
+      setModalError(err);
     } finally {
       setSubmitting(false);
     }
@@ -106,12 +124,12 @@ export const CertificateManagement: React.FC = () => {
     setSubmittingCert(cert);
     setSubmissionTargetStatus(targetStatus);
     setSubmissionRemarks('');
-    setSubmissionModalError('');
+    setSubmissionModalError(null);
   };
 
   const handleExecuteSubmission = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmissionModalError('');
+    setSubmissionModalError(null);
     setSubmittingAction(true);
 
     try {
@@ -123,7 +141,7 @@ export const CertificateManagement: React.FC = () => {
       setSubmittingCert(null);
       await fetchCertificates();
     } catch (err: any) {
-      setSubmissionModalError(err.response?.data?.message || 'Failed to update submission status.');
+      setSubmissionModalError(err);
     } finally {
       setSubmittingAction(false);
     }
@@ -422,9 +440,11 @@ export const CertificateManagement: React.FC = () => {
             </p>
 
             {submissionModalError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-lg">
-                {submissionModalError}
-              </div>
+              <ErrorAlert
+                error={submissionModalError}
+                onDismiss={() => setSubmissionModalError(null)}
+                title="Submission Update Issue"
+              />
             )}
 
             <form onSubmit={handleExecuteSubmission} className="space-y-4 text-xs">
@@ -482,9 +502,11 @@ export const CertificateManagement: React.FC = () => {
             </p>
 
             {modalError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-lg">
-                {modalError}
-              </div>
+              <ErrorAlert
+                error={modalError}
+                onDismiss={() => setModalError(null)}
+                title="Revocation Blocked"
+              />
             )}
 
             <form onSubmit={handleExecuteRevocation} className="space-y-4 text-xs">

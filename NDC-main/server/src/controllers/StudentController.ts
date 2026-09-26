@@ -12,6 +12,7 @@ import { AuthRequest } from '../middleware/auth';
 import { withId, withIds } from '../utils/formatters';
 import { hashPassword } from '../utils/passwordUtils';
 import { getOrCreateDepartmentByUsn, normalizeUsnString } from '../utils/usnDepartmentResolver';
+import emailService from '../services/EmailService';
 
 export class StudentController {
   public static async getAllStudents(req: AuthRequest, res: Response): Promise<void> {
@@ -51,7 +52,7 @@ export class StudentController {
         prisma.student.findMany({
           where,
           include: { department: true },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ usn: 'asc' }, { createdAt: 'desc' }],
           skip,
           take: limitNum
         })
@@ -107,7 +108,13 @@ export class StudentController {
 
   public static async createStudent(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { usn, fullName, email, phone, section, batch, academicYear, semester, year, admissionYear, graduationYear, dateOfBirth, dob } = req.body;
+      const { usn, fullName, email, phone, section, batch, academicYear, semester, year, admissionYear, graduationYear, dateOfBirth, dob, remarks } = req.body;
+
+      const trimmedRemarks = (remarks || '').toString().trim();
+      if (!trimmedRemarks) {
+        res.status(400).json({ success: false, message: 'Remarks are compulsory when adding a student.' });
+        return;
+      }
 
       const normalizedUsn = normalizeUsnString(usn);
       if (!normalizedUsn) {
@@ -180,13 +187,32 @@ export class StudentController {
         }
 
         // Initialize NDC Request and departmental clearance tasks with bulk createMany
-        await NdcWorkflowService.initializeNewStudentNdc(newStudent.id, deptResolution.departmentId!, tx);
+        await NdcWorkflowService.initializeNewStudentNdc(newStudent.id, deptResolution.departmentId!, tx, trimmedRemarks);
 
         return newStudent;
       });
 
       // 4. Asynchronous audit logging - do not block client response
-      AuditService.log(req, 'STUDENT_CREATED', 'Student', `Created student [${student.usn}] (${student.fullName}).`, student.id).catch(() => {});
+      AuditService.log(
+        req,
+        'STUDENT_CREATED',
+        'Student',
+        `Created student [${student.usn}] (${student.fullName}). Remarks: ${trimmedRemarks}`,
+        student.id,
+        null,
+        { student, remarks: trimmedRemarks }
+      ).catch(() => {});
+
+      // 5. Asynchronously dispatch student welcome email
+      if (student.email && student.email.includes('@')) {
+        emailService.sendStudentWelcomeEmail({
+          toEmail: student.email,
+          studentName: student.fullName,
+          usn: student.usn,
+          departmentName: (student.departmentName || deptResolution.name) ?? undefined,
+          batch: student.batch
+        }).catch((emailErr) => console.warn('[StudentController]: Failed to send welcome email:', emailErr));
+      }
 
       res.status(201).json({ success: true, message: 'Student created successfully.', data: withId(student) });
     } catch (err: any) {
@@ -237,23 +263,154 @@ export class StudentController {
 
   public static async deleteStudent(req: AuthRequest, res: Response): Promise<void> {
     try {
+      const remarks = (req.body?.remarks || req.query?.remarks || '').toString().trim();
+      if (!remarks) {
+        res.status(400).json({ success: false, message: 'Remarks are compulsory when deleting a student.' });
+        return;
+      }
+
+      const student = await prisma.student.findUnique({
+        where: { id: req.params.id },
+        include: {
+          certificates: { select: { id: true, certificateNumber: true } }
+        }
+      });
+      if (!student) {
+        res.status(404).json({ success: false, message: 'Student not found.' });
+        return;
+      }
+
+      // Check if student has any issued/generated NDC certificate
+      if (student.certificates && student.certificates.length > 0) {
+        res.status(400).json({
+          success: false,
+          code: 'CERTIFICATE_EXISTS',
+          certificateCount: student.certificates.length,
+          message: 'Student cannot be deleted because an NDC certificate is associated with this student. Deactivate or archive the student instead.'
+        });
+        return;
+      }
+
+      // If no certificate, safely remove dependent clearances, requests, user account, and student record in a single transaction
+      await prisma.$transaction(async (tx) => {
+        // 1. Delete clearances associated with this student
+        await tx.ndcClearance.deleteMany({
+          where: { studentId: student.id }
+        });
+
+        // 2. Delete NDC requests associated with this student
+        await tx.ndcRequest.deleteMany({
+          where: { studentId: student.id }
+        });
+
+        // 3. Cascade delete student's User accounts
+        await tx.user.deleteMany({
+          where: {
+            OR: [{ associatedStudentId: student.id }, { email: student.email }]
+          }
+        });
+
+        // 4. Delete student record
+        await tx.student.delete({ where: { id: student.id } });
+      });
+
+      await AuditService.log(
+        req,
+        'STUDENT_DELETED',
+        'Student',
+        `Deleted student record [${student.usn}] (${student.fullName}). Remarks: ${remarks}`,
+        student.id,
+        { student, remarks },
+        null
+      );
+
+      res.status(200).json({ success: true, message: 'Student deleted successfully.' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+
+  /**
+   * Deactivate / Archive Student
+   */
+  public static async deactivateStudent(req: AuthRequest, res: Response): Promise<void> {
+    try {
       const student = await prisma.student.findUnique({ where: { id: req.params.id } });
       if (!student) {
         res.status(404).json({ success: false, message: 'Student not found.' });
         return;
       }
 
-      // Cascade delete student's User account and student record
-      await prisma.user.deleteMany({
-        where: {
-          OR: [{ associatedStudentId: student.id }, { email: student.email }]
-        }
+      await prisma.$transaction(async (tx) => {
+        await tx.student.update({
+          where: { id: student.id },
+          data: { isActive: false }
+        });
+        await tx.user.updateMany({
+          where: {
+            OR: [{ associatedStudentId: student.id }, { email: student.email }]
+          },
+          data: { isActive: false }
+        });
       });
-      await prisma.student.delete({ where: { id: student.id } });
 
-      await AuditService.log(req, 'STUDENT_DELETED', 'Student', `Deleted student record [${student.usn}].`, student.id);
+      await AuditService.log(
+        req,
+        'STUDENT_DEACTIVATED',
+        'Student',
+        `Archived / deactivated student [${student.usn}] (${student.fullName}).`,
+        student.id,
+        { isActive: true },
+        { isActive: false }
+      );
 
-      res.status(200).json({ success: true, message: 'Student deleted successfully.' });
+      res.status(200).json({
+        success: true,
+        message: `Student [${student.usn}] has been archived and deactivated successfully. Login access is disabled while historical certificates and records are preserved.`
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+
+  /**
+   * Reactivate Archived Student
+   */
+  public static async reactivateStudent(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const student = await prisma.student.findUnique({ where: { id: req.params.id } });
+      if (!student) {
+        res.status(404).json({ success: false, message: 'Student not found.' });
+        return;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.student.update({
+          where: { id: student.id },
+          data: { isActive: true }
+        });
+        await tx.user.updateMany({
+          where: {
+            OR: [{ associatedStudentId: student.id }, { email: student.email }]
+          },
+          data: { isActive: true }
+        });
+      });
+
+      await AuditService.log(
+        req,
+        'STUDENT_REACTIVATED',
+        'Student',
+        `Reactivated student [${student.usn}] (${student.fullName}).`,
+        student.id,
+        { isActive: false },
+        { isActive: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Student [${student.usn}] has been reactivated successfully.`
+      });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
     }
@@ -284,7 +441,8 @@ export class StudentController {
           validRecords: previewResult.validRecords,
           invalidRecords: previewResult.invalidRecords,
           duplicateRecords: previewResult.duplicateRecords,
-          rows: previewResult.rows
+          rows: previewResult.rows,
+          departmentBreakdown: previewResult.departmentBreakdown
         }
       });
     } catch (err: any) {
@@ -297,13 +455,19 @@ export class StudentController {
    */
   public static async confirmImport(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { rows, duplicateAction } = req.body;
+      const { rows, duplicateAction, autoInitiateClearances } = req.body;
       if (!rows || !Array.isArray(rows) || rows.length === 0) {
         res.status(400).json({ success: false, message: 'Rows data array is required for import execution.' });
         return;
       }
 
-      const result = await ImportService.executeImport(rows, duplicateAction || 'SKIP', req.user.id || req.user._id, req);
+      const result = await ImportService.executeImport(
+        rows,
+        duplicateAction || 'SKIP',
+        req.user.id || req.user._id,
+        req,
+        Boolean(autoInitiateClearances)
+      );
       res.status(200).json({
         success: true,
         message: 'Import operation completed.',
@@ -314,7 +478,8 @@ export class StudentController {
           updated: result.updated,
           invalid: result.failed,
           failed: result.failed,
-          errorReport: result.errorReport
+          errorReport: result.errorReport,
+          departmentSummary: result.departmentSummary
         }
       });
     } catch (err: any) {
@@ -379,7 +544,12 @@ export class StudentController {
    */
   public static async bulkDeleteStudents(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { studentIds, deleteAll } = req.body;
+      const { studentIds, deleteAll, remarks } = req.body;
+      const trimmedRemarks = (remarks || '').toString().trim();
+      if (!trimmedRemarks) {
+        res.status(400).json({ success: false, message: 'Remarks are compulsory when deleting student records.' });
+        return;
+      }
 
       let targetStudentIds: string[] = [];
       if (deleteAll) {
@@ -397,38 +567,78 @@ export class StudentController {
         return;
       }
 
+      // 1. Identify which students have issued NDC certificates
+      const certificates = await prisma.ndcCertificate.findMany({
+        where: { studentId: { in: targetStudentIds } },
+        select: { studentId: true }
+      });
+      const blockedStudentIds = new Set(certificates.map((c) => c.studentId));
+      const allowedStudentIds = targetStudentIds.filter((id) => !blockedStudentIds.has(id));
+
+      if (allowedStudentIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          code: 'CERTIFICATE_EXISTS',
+          blockedCount: blockedStudentIds.size,
+          message: 'Student cannot be deleted because an NDC certificate is associated with this student. Deactivate or archive the student instead.'
+        });
+        return;
+      }
+
       const studentsToDelete = await prisma.student.findMany({
-        where: { id: { in: targetStudentIds } },
-        select: { email: true }
+        where: { id: { in: allowedStudentIds } },
+        select: { id: true, usn: true, email: true }
       });
       const emails = studentsToDelete.map((s) => s.email).filter(Boolean);
+      const usns = studentsToDelete.map((s) => s.usn).filter(Boolean);
 
-      // Cascade deletion of login User accounts
-      await prisma.user.deleteMany({
-        where: {
-          OR: [
-            { associatedStudentId: { in: targetStudentIds } },
-            { email: { in: emails } }
-          ]
-        }
+      // 2. Safely delete dependent records and students in transaction
+      await prisma.$transaction(async (tx) => {
+        // Clearances
+        await tx.ndcClearance.deleteMany({
+          where: { studentId: { in: allowedStudentIds } }
+        });
+        // NDC Requests
+        await tx.ndcRequest.deleteMany({
+          where: { studentId: { in: allowedStudentIds } }
+        });
+        // Cascade deletion of login User accounts
+        await tx.user.deleteMany({
+          where: {
+            OR: [
+              { associatedStudentId: { in: allowedStudentIds } },
+              { email: { in: emails } }
+            ]
+          }
+        });
+        // Delete Student records
+        await tx.student.deleteMany({
+          where: { id: { in: allowedStudentIds } }
+        });
       });
 
-      // Delete Student records
-      const deleteResult = await prisma.student.deleteMany({
-        where: { id: { in: targetStudentIds } }
-      });
+      const deletedCount = allowedStudentIds.length;
+      const blockedCount = blockedStudentIds.size;
 
       await AuditService.log(
         req,
         'STUDENTS_BULK_DELETED',
         'Student',
-        `Bulk deleted ${deleteResult.count} student records and login accounts.`
+        `Bulk deleted ${deletedCount} student records. Blocked due to certificates: ${blockedCount}. Remarks: ${trimmedRemarks}`,
+        null,
+        { count: deletedCount, blockedCount, usns, remarks: trimmedRemarks },
+        null
       );
+
+      const responseMessage = blockedCount > 0
+        ? `Successfully deleted ${deletedCount} student(s). ${blockedCount} student(s) could not be deleted because NDC certificates are associated with them. Deactivate or archive them instead.`
+        : `Successfully deleted ${deletedCount} student records.`;
 
       res.status(200).json({
         success: true,
-        message: `Successfully deleted ${deleteResult.count} student records.`,
-        deletedCount: deleteResult.count
+        message: responseMessage,
+        deletedCount,
+        blockedCount
       });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });

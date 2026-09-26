@@ -35,17 +35,17 @@ export const resolveDepartmentFromUsn = (usn: string): UsnDepartmentResolution =
     };
   }
 
-  // Extract 2-letter department code preceding digits (e.g. 4MC22IS001 -> IS)
-  const match = normalized.match(/\d{2}([A-Z]{2})\d+$/);
+  const match = normalized.match(/\d{2}([A-Z]{2,4})(\d*)$/);
   let code: string | null = null;
 
   if (match && match[1]) {
-    code = match[1];
+    code = match[1] === 'AIML' ? 'AI' : match[1];
   } else {
-    // Fallback scanner for 2-letter codes present in authoritative mapping
-    for (const k of Object.keys(USN_DEPARTMENT_MAP)) {
-      if (normalized.includes(k)) {
-        code = k;
+    const knownCodes = ['AIML', 'CS', 'IS', 'EC', 'ME', 'CV', 'EE', 'AI', 'CB', 'VL', 'ET', 'RA', 'ST', ...Object.keys(USN_DEPARTMENT_MAP)];
+    for (const k of knownCodes) {
+      const idx = normalized.indexOf(k);
+      if (idx >= 3) {
+        code = k === 'AIML' ? 'AI' : k;
         break;
       }
     }

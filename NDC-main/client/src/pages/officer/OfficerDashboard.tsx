@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Link } from 'react-router-dom';
+import { clientCache } from '../../utils/clientCache';
 import {
   Users,
   CheckCircle2,
@@ -19,18 +20,23 @@ import {
   Layers,
   ArrowUpRight,
   UploadCloud,
-  ShieldAlert
+  ShieldAlert,
+  FlaskConical,
+  Atom,
+  Laptop
 } from 'lucide-react';
+
+const CACHE_KEY_STATS = 'officer_dashboard_stats';
 
 export const OfficerDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const [clearances, setClearances] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [kpiStats, setKpiStats] = useState<any>(() => clientCache.get(CACHE_KEY_STATS) || null);
+  const [loading, setLoading] = useState<boolean>(() => !clientCache.get(CACHE_KEY_STATS));
 
   // Resolve Department Info
   const deptObj = user?.departmentId as any;
   const officerDeptObj = user?.officerProfile?.departmentIds?.[0] as any;
-  const fetchedDept = clearances.find((c) => c.departmentId?.name)?.departmentId;
+  const fetchedDept = kpiStats?.byDepartment?.[0];
 
   const isCashFeeOfficer =
     user?.email?.startsWith('cashfee') ||
@@ -44,14 +50,46 @@ export const OfficerDashboard: React.FC = () => {
     officerDeptObj?.name?.includes('Cash') ||
     fetchedDept?.code === 'ACC';
 
-  const departmentName = isCashFeeOfficer
+  const isPhysicsOfficer =
+    user?.loginId === 'PHY001' ||
+    user?.email?.includes('physics') ||
+    officerDeptObj?.code === 'PHY' ||
+    deptObj?.code === 'PHY' ||
+    fetchedDept?.code === 'PHY';
+
+  const isChemistryOfficer =
+    user?.loginId === 'CHEM001' ||
+    user?.email?.includes('chemistry') ||
+    officerDeptObj?.code === 'CHEM' ||
+    deptObj?.code === 'CHEM' ||
+    fetchedDept?.code === 'CHEM';
+
+  const isAcademicBranchOfficer =
+    !isPhysicsOfficer &&
+    !isChemistryOfficer &&
+    !isCashFeeOfficer &&
+    (officerDeptObj?.isAcademicBranch || (typeof deptObj === 'object' && deptObj?.isAcademicBranch) ||
+     officerDeptObj?.category === 'ACADEMIC_BRANCH' || (typeof deptObj === 'object' && deptObj?.category === 'ACADEMIC_BRANCH') ||
+     ['IS', 'CS', 'EC', 'ME', 'CV', 'EE', 'AIML', 'BT', 'CB', 'VL', 'ET', 'AI', 'RA', 'ST'].includes(officerDeptObj?.code || deptObj?.code || fetchedDept?.code));
+
+  const departmentName = isPhysicsOfficer
+    ? 'Physics Lab'
+    : isChemistryOfficer
+    ? 'Chemistry Lab'
+    : isCashFeeOfficer
     ? 'Cash/Fee Section'
+    : isAcademicBranchOfficer
+    ? (officerDeptObj?.name || (typeof deptObj === 'object' ? deptObj?.name : undefined) || fetchedDept?.name || 'Academic Department')
     : officerDeptObj?.name ||
       (typeof deptObj === 'object' ? deptObj?.name : undefined) ||
       fetchedDept?.name ||
       (user?.role === 'HOD' ? 'Academic Department' : 'Clearance Desk');
 
-  const departmentCode = isCashFeeOfficer
+  const departmentCode = isPhysicsOfficer
+    ? 'PHY'
+    : isChemistryOfficer
+    ? 'CHEM'
+    : isCashFeeOfficer
     ? 'ACC'
     : officerDeptObj?.code ||
       (typeof deptObj === 'object' ? deptObj?.code : undefined) ||
@@ -59,15 +97,20 @@ export const OfficerDashboard: React.FC = () => {
       'DEPT';
 
   useEffect(() => {
-    fetchDepartmentClearances();
+    fetchDepartmentData(!kpiStats);
   }, []);
 
-  const fetchDepartmentClearances = async () => {
+  const fetchDepartmentData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
-      const res = await api.get('/ndc/officer/clearances', { params: { status: '' } });
-      setClearances(res.data.data || []);
+      // Fetch stats (includes aggregated byDepartment breakdown in 1 fast query)
+      const statsRes = await api.get('/ndc/officer/stats');
+      const newStats = statsRes.data?.data || null;
+
+      setKpiStats(newStats);
+      clientCache.set(CACHE_KEY_STATS, newStats);
     } catch (err) {
-      console.error('Error fetching department clearances:', err);
+      console.error('Error fetching department data:', err);
     } finally {
       setLoading(false);
     }
@@ -77,31 +120,23 @@ export const OfficerDashboard: React.FC = () => {
     return <div className="p-8 text-center text-slate-500 font-semibold">Loading {departmentName} overview...</div>;
   }
 
-  // Current Academic Year (2026) Metrics
-  const totalQueue = clearances.length;
-  const pendingCount = clearances.filter((c) => c.status === 'PENDING').length;
-  const dueCount = clearances.filter((c) => c.status === 'DUE').length;
-  const clearedCount = clearances.filter((c) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE').length;
+  // Current Academic Year (2026) Metrics — from fast server-side groupBy
+  const totalQueue = kpiStats?.TOTAL ?? 0;
+  const pendingCount = kpiStats?.PENDING ?? 0;
+  const dueCount = kpiStats?.DUE ?? 0;
+  const clearedCount = (kpiStats?.CLEARED ?? 0) + (kpiStats?.NOT_APPLICABLE ?? 0);
   const completionPercentage = totalQueue > 0 ? Math.round((clearedCount / totalQueue) * 100) : 0;
 
-  // Group clearances by Academic Branch for this specific department
-  const branchBreakdownMap: Record<string, { total: number; cleared: number; pending: number; due: number }> = {};
-
-  clearances.forEach((c) => {
-    const branchName = c.studentId?.departmentId?.name || 'General / Unassigned';
-    if (!branchBreakdownMap[branchName]) {
-      branchBreakdownMap[branchName] = { total: 0, cleared: 0, pending: 0, due: 0 };
-    }
-    branchBreakdownMap[branchName].total += 1;
-    if (c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE') branchBreakdownMap[branchName].cleared += 1;
-    else if (c.status === 'DUE') branchBreakdownMap[branchName].due += 1;
-    else branchBreakdownMap[branchName].pending += 1;
-  });
-
-  const branchBreakdown = Object.entries(branchBreakdownMap).map(([branch, counts]) => ({
-    branch,
-    ...counts,
-    pct: counts.total > 0 ? Math.round((counts.cleared / counts.total) * 100) : 0
+  // Use fast server-aggregated Academic Branch breakdown
+  const branchBreakdown = (kpiStats?.byDepartment || []).map((dept: any) => ({
+    branch: dept.departmentName,
+    deptId: dept.departmentId,
+    deptCode: dept.departmentCode,
+    total: dept.total || 0,
+    cleared: dept.cleared || 0,
+    pending: dept.pending || 0,
+    due: dept.due || 0,
+    pct: dept.total > 0 ? Math.round(((dept.cleared || 0) / (dept.total || 1)) * 100) : 0
   }));
 
   // Historical Comparison Stats (2025 vs 2026 Current)
@@ -118,6 +153,10 @@ export const OfficerDashboard: React.FC = () => {
   // Scope of Clearance Descriptions
   const getDepartmentScope = (code: string) => {
     switch (code.toUpperCase()) {
+      case 'PHY':
+        return 'Engineering Physics laboratory apparatus, laser optics kits, spectrometers, experiment observation handbooks, and apparatus breakage dues.';
+      case 'CHEM':
+        return 'Engineering Chemistry laboratory glassware (burettes, pipettes, volumetric flasks), chemical reagents, titration sets, and breakage dues.';
       case 'LIB':
         return 'Textbook returns, central library overdue fines, reference section book clearance, and digital portal access.';
       case 'LAB':
@@ -160,6 +199,10 @@ export const OfficerDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {isCashFeeOfficer && (
             <>
+              <Link to="/officer/students" className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50">
+                <Users className="w-3.5 h-3.5 text-blue-600" />
+                Manage Students
+              </Link>
               <Link to="/officer/import" className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50">
                 <UploadCloud className="w-3.5 h-3.5 text-blue-600" />
                 Import Students
@@ -170,16 +213,60 @@ export const OfficerDashboard: React.FC = () => {
               </Link>
             </>
           )}
-          <button onClick={fetchDepartmentClearances} className="btn btn-secondary text-xs">
+          <button onClick={() => fetchDepartmentData(true)} className="btn btn-secondary text-xs">
             <RefreshCw className="w-3.5 h-3.5" />
             Refresh
           </button>
-          <Link to="/officer/clearances" className="btn btn-primary text-xs">
-            <FileCheck className="w-3.5 h-3.5" />
-            Go to Clearance Queue
-          </Link>
+          {isPhysicsOfficer ? (
+            <Link to="/officer/physics-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-cyan-700 hover:bg-cyan-800">
+              <Atom className="w-3.5 h-3.5" />
+              Physics Lab Queue
+            </Link>
+          ) : isChemistryOfficer ? (
+            <Link to="/officer/chemistry-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800">
+              <FlaskConical className="w-3.5 h-3.5" />
+              Chemistry Lab Queue
+            </Link>
+          ) : isAcademicBranchOfficer ? (
+            <Link to="/officer/department-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-800">
+              <Laptop className="w-3.5 h-3.5" />
+              Department Lab Queue
+            </Link>
+          ) : (
+            <Link to="/officer/clearances" className="btn btn-primary text-xs">
+              <FileCheck className="w-3.5 h-3.5" />
+              Go to Clearance Queue
+            </Link>
+          )}
         </div>
       </div>
+
+      {/* Department Lab Banner for Academic Branches */}
+      {isAcademicBranchOfficer && (
+        <div className="bg-gradient-to-r from-indigo-50/70 to-blue-50/70 border border-indigo-200/80 rounded-2xl p-5 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                <Laptop className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {departmentName || departmentCode} Department Laboratory Clearance
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  As {departmentCode} Faculty, you manage the Department Laboratory clearance for your branch students.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link to="/officer/department-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white">
+                <span>Manage Department Lab Queue</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Respective Department Current Year (2026) Stat Row */}
       <div className="stat-row">
@@ -234,6 +321,59 @@ export const OfficerDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Department Laboratories Section if applicable */}
+      {kpiStats?.departmentLabs && kpiStats.departmentLabs.length > 0 && (
+        <div className="card card-pad space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <FlaskConical className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="h2-title">Department Laboratory</h2>
+                <p className="caption-text mt-0.5">
+                  Laboratory managed under {departmentName} (Aggregated into Laboratory NDC Category)
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60">
+              {kpiStats.departmentLabs.length === 1 ? '1 Laboratory' : `${kpiStats.departmentLabs.length} Laboratories`}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {kpiStats.departmentLabs.map((lab: any) => (
+              <div
+                key={lab.id || lab._id}
+                className="p-3.5 bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/70 hover:border-blue-200 rounded-xl transition-all flex flex-col justify-between gap-3 shadow-2xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900">{lab.name}</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200 mt-1 inline-block">
+                      {lab.code}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    Active Lab
+                  </span>
+                </div>
+
+                <Link
+                  to={`/officer/clearances`}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center justify-between pt-2 border-t border-slate-200/60 group"
+                >
+                  <span>Manage Laboratory Clearances</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Two Column Grid: Branch Breakdown & Historical Comparison */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Branch-wise Breakdown for Respective Department */}
@@ -247,7 +387,7 @@ export const OfficerDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {branchBreakdown.map((item) => (
+            {branchBreakdown.map((item: any) => (
               <div key={item.branch} className="p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-900">
                   <div className="flex items-center gap-2">
@@ -267,12 +407,21 @@ export const OfficerDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-600 font-medium pt-1">
-                  <span>Total: <strong className="text-slate-900">{item.total}</strong></span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-600 font-medium pt-1 gap-1">
+                  <span>Total: <strong className="text-slate-900">{item.total}</strong> students</span>
                   <div className="flex items-center gap-3">
                     <span className="text-emerald-700 font-bold">Cleared: {item.cleared}</span>
                     <span className="text-amber-700 font-bold">Pending: {item.pending}</span>
                     <span className="text-rose-700 font-bold">Due: {item.due}</span>
+                    {item.deptId && (
+                      <Link
+                        to={`/officer/clearances?studentDepartmentId=${item.deptId}`}
+                        className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 ml-1 bg-blue-50 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
+                      >
+                        <span>Open Queue</span>
+                        <ArrowUpRight className="w-3 h-3" />
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
