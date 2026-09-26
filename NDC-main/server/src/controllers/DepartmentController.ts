@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import { AuditService } from '../services/AuditService';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest, invalidateUserCache } from '../middleware/auth';
 import { withId, withIds } from '../utils/formatters';
 import { departmentCache } from '../utils/departmentCache';
 import { NdcWorkflowService } from '../services/NdcWorkflowService';
@@ -589,7 +589,77 @@ export class DepartmentController {
           where: { departmentId: id }
         });
 
-        // 4. Detach users assigned to this department
+        // 4. Clean up and permanently delete operational staff accounts (HOD & Department Faculty/Officers) created for this department
+        const deptStaffUsers = await tx.user.findMany({
+          where: {
+            departmentId: id,
+            role: { in: [UserRole.HOD, UserRole.DEPARTMENT_OFFICER] }
+          },
+          select: { id: true, associatedOfficerId: true }
+        });
+
+        if (deptStaffUsers.length > 0) {
+          const staffUserIds = deptStaffUsers.map((u) => u.id);
+          const staffOfficerIds = deptStaffUsers
+            .map((u) => u.associatedOfficerId)
+            .filter(Boolean) as string[];
+
+          // Disconnect foreign references
+          await tx.auditLog.updateMany({
+            where: { userId: { in: staffUserIds } },
+            data: { userId: null }
+          });
+          await tx.ndcClearance.updateMany({
+            where: { reviewedById: { in: staffUserIds } },
+            data: { reviewedById: null }
+          });
+          await tx.ndcCertificate.updateMany({
+            where: { issuedById: { in: staffUserIds } },
+            data: { issuedById: null }
+          });
+          await tx.ndcCertificate.updateMany({
+            where: { revokedById: { in: staffUserIds } },
+            data: { revokedById: null }
+          });
+          await tx.ndcCertificate.updateMany({
+            where: { submittedById: { in: staffUserIds } },
+            data: { submittedById: null }
+          });
+          await tx.notification.deleteMany({
+            where: { recipientUserId: { in: staffUserIds } }
+          });
+
+          if (staffOfficerIds.length > 0) {
+            await tx.ndcClearance.updateMany({
+              where: { officerId: { in: staffOfficerIds } },
+              data: { officerId: null }
+            });
+            await tx.clearanceOfficerDepartment.deleteMany({
+              where: { officerId: { in: staffOfficerIds } }
+            });
+          }
+
+          // Unlink associatedOfficerId from User to prevent FK constraint deadlock
+          await tx.user.updateMany({
+            where: { id: { in: staffUserIds } },
+            data: { associatedOfficerId: null }
+          });
+
+          // Delete operational staff user accounts
+          await tx.user.deleteMany({
+            where: { id: { in: staffUserIds } }
+          });
+
+          if (staffOfficerIds.length > 0) {
+            await tx.clearanceOfficer.deleteMany({
+              where: { id: { in: staffOfficerIds } }
+            });
+          }
+
+          staffUserIds.forEach((uid) => invalidateUserCache(uid));
+        }
+
+        // For any remaining users (e.g. admins with department pointer), detach them
         await tx.user.updateMany({
           where: { departmentId: id },
           data: { departmentId: null }
@@ -621,7 +691,7 @@ export class DepartmentController {
         await tx.clearanceDepartment.delete({
           where: { id }
         });
-      });
+      }, { maxWait: 15000, timeout: 60000 });
 
       await AuditService.log(
         req,

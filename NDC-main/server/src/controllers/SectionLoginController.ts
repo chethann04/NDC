@@ -145,6 +145,14 @@ export class SectionLoginController {
 
       let accounts = users.map(SectionLoginController.formatAccount);
 
+      // Do not display orphan staff accounts whose department was deleted or is unassigned
+      accounts = accounts.filter((a) => {
+        if ((a.role === UserRole.HOD || a.role === UserRole.DEPARTMENT_OFFICER) && !a.departmentId && !a.department) {
+          return false;
+        }
+        return true;
+      });
+
       // Search filter (in-memory across mapped fields for maximum flexibility)
       if (search && String(search).trim()) {
         const q = String(search).trim().toLowerCase();
