@@ -55,7 +55,8 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     // Redirect to respective dashboard if role not allowed
     if (user.role === 'STUDENT') return <Navigate to="/student/dashboard" replace />;
-    if (user.role === 'DEPARTMENT_OFFICER' || user.role === 'HOD') return <Navigate to="/officer/dashboard" replace />;
+    if (user.role === 'HOD') return <Navigate to="/teaching-departments" replace />;
+    if (user.role === 'DEPARTMENT_OFFICER') return <Navigate to="/officer/dashboard" replace />;
     return <Navigate to="/admin/dashboard" replace />;
   }
 

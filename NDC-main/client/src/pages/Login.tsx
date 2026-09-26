@@ -31,11 +31,14 @@ export const Login: React.FC = () => {
       } else if (user.role === 'HOD') {
         navigate('/teaching-departments');
       } else if (user.role === 'DEPARTMENT_OFFICER') {
-        const code = user?.officerProfile?.departmentIds?.[0]?.code || (typeof user?.departmentId === 'object' ? user?.departmentId?.code : undefined);
+        const code = user?.department?.code || user?.officerProfile?.departmentIds?.[0]?.code || (typeof user?.departmentId === 'object' ? (user?.departmentId as any)?.code : undefined);
+        const isAcademic = user?.department?.isAcademicBranch || user?.department?.category === 'ACADEMIC_BRANCH' || user?.officerProfile?.departmentIds?.[0]?.isAcademicBranch;
         if (user.loginId === 'PHY001' || user.email?.includes('physics') || code === 'PHY') {
           navigate('/officer/physics-lab');
         } else if (user.loginId === 'CHEM001' || user.email?.includes('chemistry') || code === 'CHEM') {
           navigate('/officer/chemistry-lab');
+        } else if (isAcademic) {
+          navigate('/officer/department-lab');
         } else {
           navigate('/officer/dashboard');
         }

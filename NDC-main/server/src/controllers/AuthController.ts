@@ -106,7 +106,8 @@ export class AuthController {
           mustChangePassword: user.role === 'STUDENT' ? false : !!user.mustChangePassword,
           associatedStudentId: user.associatedStudentId,
           associatedOfficerId: user.associatedOfficerId,
-          departmentId: user.departmentId,
+          departmentId: user.departmentId || user.associatedOfficer?.departmentMappings?.[0]?.departmentId || null,
+          department: user.department ? withId(user.department) : (user.associatedOfficer?.departmentMappings?.[0]?.department ? withId(user.associatedOfficer?.departmentMappings?.[0]?.department) : null),
           studentProfile: withId(studentProfile),
           officerProfile: withId(officerProfile)
         }

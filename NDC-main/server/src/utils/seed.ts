@@ -104,12 +104,14 @@ export const seedDatabase = async () => {
       name: string,
       empId: string,
       dept: any,
-      role: any = UserRole.DEPARTMENT_OFFICER
+      role: any = UserRole.DEPARTMENT_OFFICER,
+      loginId?: string
     ) => {
       if (!dept) return;
       const user = await prisma.user.create({
         data: {
           email,
+          loginId: loginId || empId,
           passwordHash: officerPass,
           role: role as any,
           name,
@@ -142,17 +144,17 @@ export const seedDatabase = async () => {
     };
 
     // Central Clearance Officers
-    await createOfficerAccount('office@mce.ac.in', 'Administrative Office In-charge', 'EMP-ADM-01', admDept);
-    await createOfficerAccount('library@mce.ac.in', 'Central Library Officer', 'EMP-LIB-01', libDept);
-    await createOfficerAccount('lab@mce.ac.in', 'Laboratory In-charge Officer', 'EMP-LAB-01', labDept);
-    await createOfficerAccount('hostel@mce.ac.in', 'Hostel Warden', 'EMP-HST-01', hstDept);
-    await createOfficerAccount('sports@mce.ac.in', 'Physical Education / Sports Officer', 'EMP-SPT-01', sptDept);
+    await createOfficerAccount('office@mce.ac.in', 'Administrative Office In-charge', 'EMP-ADM-01', admDept, UserRole.DEPARTMENT_OFFICER, 'ADM001');
+    await createOfficerAccount('library@mce.ac.in', 'Central Library Officer', 'EMP-LIB-01', libDept, UserRole.DEPARTMENT_OFFICER, 'LIB001');
+    await createOfficerAccount('lab@mce.ac.in', 'Laboratory In-charge Officer', 'EMP-LAB-01', labDept, UserRole.DEPARTMENT_OFFICER, 'LAB001');
+    await createOfficerAccount('hostel@mce.ac.in', 'Hostel Warden', 'EMP-HST-01', hstDept, UserRole.DEPARTMENT_OFFICER, 'HST001');
+    await createOfficerAccount('sports@mce.ac.in', 'Physical Education / Sports Officer', 'EMP-SPT-01', sptDept, UserRole.DEPARTMENT_OFFICER, 'SPT001');
     
     // Cash/Fee Section 3 Operators + In-charge
-    await createOfficerAccount('cashfee1@mce.ac.in', 'Cash/Fee Officer 1', 'EMP-ACC-01', accDept);
-    await createOfficerAccount('cashfee2@mce.ac.in', 'Cash/Fee Officer 2', 'EMP-ACC-02', accDept);
-    await createOfficerAccount('cashfee3@mce.ac.in', 'Cash/Fee Officer 3', 'EMP-ACC-03', accDept);
-    await createOfficerAccount('accounts@mce.ac.in', 'Cash/Fee Section In-charge', 'EMP-ACC-00', accDept);
+    await createOfficerAccount('cashfee1@mce.ac.in', 'Cash/Fee Officer 1', 'EMP-ACC-01', accDept, UserRole.DEPARTMENT_OFFICER, 'ACC001');
+    await createOfficerAccount('cashfee2@mce.ac.in', 'Cash/Fee Officer 2', 'EMP-ACC-02', accDept, UserRole.DEPARTMENT_OFFICER, 'ACC002');
+    await createOfficerAccount('cashfee3@mce.ac.in', 'Cash/Fee Officer 3', 'EMP-ACC-03', accDept, UserRole.DEPARTMENT_OFFICER, 'ACC003');
+    await createOfficerAccount('accounts@mce.ac.in', 'Cash/Fee Section In-charge', 'EMP-ACC-00', accDept, UserRole.DEPARTMENT_OFFICER, 'ACC000');
 
     // 6. All 11 Academic Branches & Faculty/HOD Accounts
     const academicDepts = [
@@ -190,7 +192,8 @@ export const seedDatabase = async () => {
         `Head of Department (${ad.code})`,
         `EMP-HOD-${ad.code}-01`,
         deptRecord,
-        UserRole.HOD
+        UserRole.HOD,
+        `HOD-${ad.code}`
       );
 
       // Seed Faculty
@@ -199,7 +202,8 @@ export const seedDatabase = async () => {
         `Department Faculty (${ad.code})`,
         `EMP-FAC-${ad.code}-01`,
         deptRecord,
-        UserRole.HOD
+        UserRole.DEPARTMENT_OFFICER,
+        `${ad.code}001`
       );
     }
 

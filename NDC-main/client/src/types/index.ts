@@ -48,6 +48,7 @@ export interface User {
   associatedStudentId?: string;
   associatedOfficerId?: string;
   departmentId?: string;
+  department?: Department;
   studentProfile?: Student;
   officerProfile?: ClearanceOfficer;
 }
