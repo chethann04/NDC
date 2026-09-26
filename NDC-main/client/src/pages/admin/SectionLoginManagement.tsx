@@ -66,6 +66,9 @@ export const SectionLoginManagement: React.FC = () => {
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [targetAccount, setTargetAccount] = useState<SectionAccount | null>(null);
   const [newEmail, setNewEmail] = useState('');
+  const [adminOtp, setAdminOtp] = useState('');
+  const [otpDispatched, setOtpDispatched] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
 
   // Change Department Modal State
@@ -217,18 +220,46 @@ export const SectionLoginManagement: React.FC = () => {
   const openEditEmail = (acc: SectionAccount) => {
     setTargetAccount(acc);
     setNewEmail(acc.email);
+    setAdminOtp('');
+    setOtpDispatched(false);
     setEmailModalOpen(true);
+  };
+
+  const handleSendAdminOtp = async () => {
+    if (!targetAccount) return;
+    const trimmed = newEmail.trim().toLowerCase();
+    if (!trimmed) return;
+    try {
+      setSendingOtp(true);
+      const res = await api.post(`/admin/section-logins/${targetAccount.id}/request-email-otp`, { newEmail: trimmed });
+      setOtpDispatched(true);
+      showToast(res.data.message || `Verification code sent to ${trimmed}`);
+    } catch (err: any) {
+      showErrorModal(err, { title: 'Failed to dispatch verification code' });
+    } finally {
+      setSendingOtp(false);
+    }
   };
 
   const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetAccount) return;
     const trimmed = newEmail.trim().toLowerCase();
+    const trimmedOtp = adminOtp.trim();
     if (!trimmed) return;
 
     try {
       setSavingEmail(true);
-      const res = await api.put(`/admin/section-logins/${targetAccount.id}/email`, { email: trimmed });
+      let res;
+      if (otpDispatched && trimmedOtp) {
+        res = await api.post(`/admin/section-logins/${targetAccount.id}/verify-email-otp`, {
+          newEmail: trimmed,
+          otp: trimmedOtp
+        });
+      } else {
+        res = await api.put(`/admin/section-logins/${targetAccount.id}/email`, { email: trimmed });
+      }
+
       setAccounts((prev) =>
         prev.map((a) => (a.id === targetAccount.id ? { ...a, email: trimmed } : a))
       );
@@ -862,21 +893,51 @@ export const SectionLoginManagement: React.FC = () => {
                 <label className="block text-xs font-semibold text-zinc-700 mb-1">
                   New Login Email Address *
                 </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
-                  <input
-                    type="email"
-                    required
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="e.g. new.email@mce.ac.in"
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-zinc-300 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 font-medium text-zinc-900"
-                  />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Mail className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
+                    <input
+                      type="email"
+                      required
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="e.g. new.email@mce.ac.in"
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-zinc-300 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 font-medium text-zinc-900"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendAdminOtp}
+                    disabled={sendingOtp || !newEmail.trim() || newEmail.trim().toLowerCase() === targetAccount.email.toLowerCase()}
+                    className="px-3 py-2 text-xs font-semibold rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-50 whitespace-nowrap cursor-pointer transition-colors"
+                  >
+                    {sendingOtp ? 'Sending...' : otpDispatched ? 'Resend OTP' : 'Send Verification OTP'}
+                  </button>
                 </div>
                 <p className="text-[11px] text-zinc-500 mt-1">
-                  The old email will immediately stop working. The user must use this new email to log in.
+                  The OTP is sent to the new email address to ensure it is verified before changing credentials.
                 </p>
               </div>
+
+              {otpDispatched && (
+                <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-blue-950">
+                      Enter 6-Digit Verification Code
+                    </label>
+                    <span className="text-[10px] text-blue-600 font-medium">Valid for 10 min</span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={adminOtp}
+                    onChange={(e) => setAdminOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Enter 6-digit code"
+                    className="w-full tracking-widest text-center text-sm font-bold font-mono py-2 px-3 rounded-lg border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+                  />
+                  <p className="text-[10px] text-zinc-500">Code delivered to {newEmail}</p>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
                 <button
@@ -889,10 +950,16 @@ export const SectionLoginManagement: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={savingEmail}
+                  disabled={savingEmail || (otpDispatched && adminOtp.trim().length !== 6)}
                   className="px-4 py-2 text-xs font-semibold text-white bg-zinc-900 hover:bg-zinc-800 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
-                  <span>{savingEmail ? 'Updating Email...' : 'Save New Email'}</span>
+                  <span>
+                    {savingEmail
+                      ? 'Updating Email...'
+                      : otpDispatched
+                      ? 'Verify OTP & Save Email'
+                      : 'Save New Email'}
+                  </span>
                 </button>
               </div>
             </form>

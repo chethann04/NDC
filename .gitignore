@@ -35,3 +35,5 @@ demo_students.xlsx
 # Temporary and binary files
 *.tmp*
 *.node.tmp*
+.cache/
+**/.cache/

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { AuthController } from '../controllers/AuthController';
+import { CredentialController } from '../controllers/CredentialController';
 import { authenticateToken } from '../middleware/auth';
 import { generateTokens } from '../middleware/authMiddleware';
 
@@ -14,6 +15,11 @@ router.post('/student-register', AuthController.studentRegister);
 router.post('/student-login', AuthController.studentLogin);
 router.get('/me', authenticateToken, AuthController.getMe);
 router.post('/reset-password', authenticateToken, AuthController.resetPassword);
+
+// Self-service Credential Management (OTP verification & password change)
+router.post('/credentials/request-email-otp', authenticateToken, CredentialController.requestEmailChangeOtp);
+router.post('/credentials/verify-otp', authenticateToken, CredentialController.verifyEmailChangeOtp);
+router.post('/credentials/update', authenticateToken, CredentialController.updateCredentials);
 
 // Refresh token endpoint
 router.post('/refresh', async (req: Request, res: Response) => {

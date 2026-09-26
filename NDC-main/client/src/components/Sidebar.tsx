@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import {
   LayoutDashboard,
@@ -330,6 +330,12 @@ export const Sidebar: React.FC = () => {
                       />
                     </>
                   )}
+                  <NavItem
+                    to="/account/settings"
+                    icon={<KeyRound className="w-4 h-4 text-zinc-500" />}
+                    label="Account Settings"
+                    collapsed={collapsed}
+                  />
                 </>
               )}
             </div>
@@ -425,6 +431,12 @@ export const Sidebar: React.FC = () => {
                   />
                 </>
               )}
+              <NavItem
+                to="/account/settings"
+                icon={<KeyRound className="w-4 h-4 text-zinc-500" />}
+                label="Account Settings"
+                collapsed={collapsed}
+              />
             </div>
           </div>
         )}
@@ -454,16 +466,25 @@ export const Sidebar: React.FC = () => {
             )}
 
             {!collapsed && (
-              <button
-                onClick={() => {
-                  logout();
-                  window.location.href = '/login';
-                }}
-                className="text-zinc-400 hover:text-rose-600 p-1 rounded hover:bg-zinc-100 transition-colors"
-                title="Sign Out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <Link
+                  to="/account/settings"
+                  className="text-zinc-400 hover:text-zinc-700 p-1 rounded hover:bg-zinc-100 transition-colors"
+                  title="Account Settings"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                </Link>
+                <button
+                  onClick={() => {
+                    logout();
+                    window.location.href = '/login';
+                  }}
+                  className="text-zinc-400 hover:text-rose-600 p-1 rounded hover:bg-zinc-100 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
           </div>
         </div>

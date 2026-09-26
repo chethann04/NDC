@@ -2,7 +2,6 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar';
-import { FirstLoginPasswordModal } from '../components/FirstLoginPasswordModal';
 
 export const DashboardLayout: React.FC = () => {
   return (
@@ -14,7 +13,6 @@ export const DashboardLayout: React.FC = () => {
           <Outlet />
         </div>
       </div>
-      <FirstLoginPasswordModal />
     </div>
   );
 };

@@ -8,7 +8,8 @@ import {
   ChevronDown,
   Sparkles,
   Command,
-  Database
+  Database,
+  KeyRound
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 
@@ -58,6 +59,7 @@ export const Navbar: React.FC = () => {
     if (path.includes('/teaching-departments')) return ['Faculty', 'Academic Dept'];
     if (path.includes('/student/dashboard')) return ['Student', 'Clearance Status'];
     if (path.includes('/student/certificates')) return ['Student', 'My Certificates'];
+    if (path.includes('/account/settings')) return ['Account', 'Security Settings'];
     if (path.includes('/verify')) return ['Verify', 'QR Verification'];
     return ['NDC', 'Overview'];
   };
@@ -116,6 +118,17 @@ export const Navbar: React.FC = () => {
                   <span className="inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700">
                     {user.role.replace(/_/g, ' ')}
                   </span>
+                </div>
+
+                <div className="py-1 border-b border-zinc-100">
+                  <Link
+                    to="/account/settings"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors text-left"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>Account Settings</span>
+                  </Link>
                 </div>
 
                 <div className="pt-1">

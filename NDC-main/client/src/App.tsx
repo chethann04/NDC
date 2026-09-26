@@ -39,6 +39,7 @@ const AuditLogs = React.lazy(() => import('./pages/admin/AuditLogs').then((m) =>
 const Settings = React.lazy(() => import('./pages/admin/Settings').then((m) => ({ default: m.Settings })));
 const SectionLoginManagement = React.lazy(() => import('./pages/admin/SectionLoginManagement').then((m) => ({ default: m.SectionLoginManagement })));
 const TeachingDepartmentView = React.lazy(() => import('./pages/teaching/TeachingDepartmentView').then((m) => ({ default: m.TeachingDepartmentView })));
+const AccountSettings = React.lazy(() => import('./pages/AccountSettings').then((m) => ({ default: m.AccountSettings })));
 
 // Protected Route Guard
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
@@ -276,6 +277,14 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                 <SectionLoginManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/account/settings"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD', 'DEPARTMENT_OFFICER']}>
+                <AccountSettings />
               </ProtectedRoute>
             }
           />

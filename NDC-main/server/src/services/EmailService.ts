@@ -346,6 +346,111 @@ class EmailService {
     return this.sendMail(toEmail, subject, htmlContent);
   }
 
+  /**
+   * Send one-time verification code (OTP) for credential / email change.
+   */
+  public async sendCredentialChangeOtpEmail(payload: {
+    toEmail: string;
+    otpCode: string;
+    accountName: string;
+    role?: string;
+    expiresMinutes?: number;
+  }): Promise<boolean> {
+    const { toEmail, otpCode, accountName, role, expiresMinutes = 10 } = payload;
+    const subject = `MCE NDC Portal: Verification Code for Login Email Change - ${otpCode}`;
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #0f172a; margin: 0 0 6px; font-size: 20px; font-weight: 700;">Malnad College of Engineering</h2>
+          <p style="color: #64748b; margin: 0; font-size: 13px;">Autonomous Institution | Hassan, Karnataka</p>
+          <div style="height: 1px; background: #e2e8f0; margin-top: 16px;"></div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <span style="display: inline-block; background-color: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Security Verification
+          </span>
+          <h3 style="color: #0f172a; margin: 12px 0 8px; font-size: 16px; font-weight: 600;">
+            Verify Your New Login Email Identity
+          </h3>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 16px;">
+            Hello <strong>${accountName}</strong>${role ? ` (${role.replace(/_/g, ' ')})` : ''},
+          </p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 20px;">
+            A request was initiated to update your official login credentials on the MCE Digital No Due Certificate (NDC) portal to this email address (<strong>${toEmail}</strong>).
+          </p>
+
+          <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+            <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 8px;">
+              Your 6-Digit Verification Code
+            </p>
+            <div style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1e3a8a; padding: 6px 0;">
+              ${otpCode}
+            </div>
+            <p style="color: #94a3b8; font-size: 12px; margin: 8px 0 0;">
+              Valid for ${expiresMinutes} minutes • Single-use only
+            </p>
+          </div>
+
+          <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 12px 16px; margin: 20px 0;">
+            <p style="color: #92400e; font-size: 12px; line-height: 1.4; margin: 0;">
+              <strong>Security Notice:</strong> If you did not initiate this credential change request, please disregard this email or report it immediately to the college administration. Never share this verification code with anyone.
+            </p>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center; font-size: 11px; color: #94a3b8;">
+          <p style="margin: 0 0 4px;">Malnad College of Engineering, Hassan, Karnataka - 573202</p>
+          <p style="margin: 0;">Digital No Due Certificate (NDC) Management System</p>
+        </div>
+      </div>
+    `;
+
+    return this.sendMail(toEmail, subject, htmlContent);
+  }
+
+  /**
+   * Send notification when password has been reset by Super Admin.
+   */
+  public async sendPasswordResetNoticeEmail(payload: {
+    toEmail: string;
+    accountName: string;
+    resetBy: string;
+  }): Promise<boolean> {
+    const { toEmail, accountName, resetBy } = payload;
+    const subject = `MCE NDC Portal: Password Reset Notification`;
+
+    const htmlContent = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #0f172a; margin: 0 0 6px; font-size: 20px; font-weight: 700;">Malnad College of Engineering</h2>
+          <p style="color: #64748b; margin: 0; font-size: 13px;">Autonomous Institution | Hassan, Karnataka</p>
+          <div style="height: 1px; background: #e2e8f0; margin-top: 16px;"></div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #0f172a; margin: 12px 0 8px; font-size: 16px; font-weight: 600;">
+            Security Notification: Password Updated
+          </h3>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 16px;">
+            Hello <strong>${accountName}</strong>,
+          </p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 20px;">
+            Your account password on the MCE Digital No Due Certificate portal was reset by ${resetBy}. If you did not request or anticipate this change, please contact college administration immediately.
+          </p>
+        </div>
+
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center; font-size: 11px; color: #94a3b8;">
+          <p style="margin: 0 0 4px;">Malnad College of Engineering, Hassan, Karnataka - 573202</p>
+          <p style="margin: 0;">Digital No Due Certificate (NDC) Management System</p>
+        </div>
+      </div>
+    `;
+
+    return this.sendMail(toEmail, subject, htmlContent);
+  }
+
   private async sendMail(to: string, subject: string, html: string): Promise<boolean> {
     const transporter = this.getTransporter();
     const userEmail = process.env.SMTP_USER || '4MC24IS022@gmail.com';
