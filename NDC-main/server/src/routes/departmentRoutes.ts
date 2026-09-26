@@ -13,5 +13,6 @@ router.get('/:id', DepartmentController.getDepartmentById);
 router.post('/', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), DepartmentController.createDepartment);
 router.put('/:id', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), DepartmentController.updateDepartment);
 router.patch('/:id/toggle', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), DepartmentController.toggleDepartmentStatus);
+router.delete('/:id', authorizeRoles(UserRole.SUPER_ADMIN), DepartmentController.deleteDepartment);
 
 export default router;

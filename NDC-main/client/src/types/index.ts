@@ -77,6 +77,7 @@ export interface Department {
   name: string;
   code: string;
   description?: string;
+  category?: string;
   requiresClearance: boolean;
   isAcademicBranch?: boolean;
   displayOrder: number;
