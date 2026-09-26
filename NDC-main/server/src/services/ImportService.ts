@@ -381,10 +381,12 @@ export class ImportService {
 
       const toInsert: ImportRow[] = [];
       const toUpdate: ImportRow[] = [];
+      const workflowStudentIdsInChunk: string[] = [];
 
       for (const row of chunk) {
         const existingStudent = studentMap.get(row.usn);
         if (existingStudent) {
+          workflowStudentIdsInChunk.push(existingStudent.id);
           if (duplicateAction === 'SKIP') {
             skipped++;
             trackDept(row, 'skipped');
@@ -446,6 +448,7 @@ export class ImportService {
           });
 
           affectedStudentIdsInChunk.push(generatedId);
+          workflowStudentIdsInChunk.push(generatedId);
 
           if (!userMap.has(row.email)) {
             const usnHash = passwordHashMap.get(row.usn) || (await hashPassword(String(row.usn)));
@@ -530,11 +533,17 @@ export class ImportService {
         }
       }
 
-      // Batch workflow creation for this chunk only if auto-initiation is requested
-      if (autoInitiateClearances && affectedStudentIdsInChunk.length > 0) {
-        await NdcWorkflowService.ensureStudentNdcRequestsBulk(affectedStudentIdsInChunk, reqObj);
+      // Batch workflow creation for all students in this chunk (inserted, updated, or existing)
+      if (autoInitiateClearances && workflowStudentIdsInChunk.length > 0) {
+        await NdcWorkflowService.ensureStudentNdcRequestsBulk(workflowStudentIdsInChunk, reqObj);
       }
     }
+
+    try {
+      const { invalidateOfficerStatsCache, invalidateStudentStatusCache } = await import('../controllers/NdcController');
+      invalidateOfficerStatsCache();
+      invalidateStudentStatusCache();
+    } catch {}
 
     await AuditService.log(
       reqObj || null,

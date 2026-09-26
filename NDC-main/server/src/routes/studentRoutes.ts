@@ -49,6 +49,7 @@ router.use(authenticateToken);
 router.post('/bulk-import', authorizeRolesOrCashFee(UserRole.ADMIN, UserRole.SUPER_ADMIN), upload.single('file'), StudentController.previewImport);
 router.post('/import/preview', authorizeRolesOrCashFee(UserRole.ADMIN, UserRole.SUPER_ADMIN), upload.single('file'), StudentController.previewImport);
 router.post('/import/confirm', authorizeRolesOrCashFee(UserRole.ADMIN, UserRole.SUPER_ADMIN), StudentController.confirmImport);
+router.post('/sync-clearances', authorizeRolesOrCashFee(UserRole.ADMIN, UserRole.SUPER_ADMIN), StudentController.syncAllClearances);
 
 router.get('/', StudentController.getAllStudents);
 router.get('/:id', StudentController.getStudentById);

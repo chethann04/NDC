@@ -155,7 +155,8 @@ export const BulkImport: React.FC = () => {
 
         const response = await api.post('/students/import/confirm', {
           rows: batchRows,
-          duplicateAction
+          duplicateAction,
+          autoInitiateClearances: true
         });
 
         const data = response.data.data;

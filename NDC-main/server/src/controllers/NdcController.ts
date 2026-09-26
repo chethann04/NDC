@@ -883,7 +883,7 @@ export class NdcController {
       const limitNum = Math.min(1000, Math.max(1, parseInt(String(limit || '50'), 10)));
       const skip = (pageNum - 1) * limitNum;
 
-      const [total, clearances] = await Promise.all([
+      let [total, clearances] = await Promise.all([
         prisma.ndcClearance.count({ where }),
         prisma.ndcClearance.findMany({
           where,
@@ -923,6 +923,60 @@ export class NdcController {
           take: limitNum
         })
       ]);
+
+      // Self-healing fallback: If queue is empty, check if students exist without clearances and auto-heal
+      if (total === 0 && pageNum === 1) {
+        const studentCount = await prisma.student.count({ where: { isActive: true } });
+        if (studentCount > 0) {
+          const totalClearancesCount = await prisma.ndcClearance.count();
+          if (totalClearancesCount < studentCount) {
+            const { NdcWorkflowService } = await import('../services/NdcWorkflowService');
+            await NdcWorkflowService.ensureAllStudentsClearances(req);
+            OFFICER_STATS_CACHE.clear();
+
+            [total, clearances] = await Promise.all([
+              prisma.ndcClearance.count({ where }),
+              prisma.ndcClearance.findMany({
+                where,
+                include: {
+                  student: {
+                    select: {
+                      id: true,
+                      studentId: true,
+                      usn: true,
+                      fullName: true,
+                      email: true,
+                      batch: true,
+                      academicYear: true,
+                      department: {
+                        select: { id: true, name: true, code: true }
+                      }
+                    }
+                  },
+                  ndcRequest: {
+                    select: { id: true, requestNumber: true, status: true, submittedAt: true }
+                  },
+                  department: {
+                    select: { id: true, name: true, code: true }
+                  },
+                  lab: {
+                    select: { id: true, name: true, code: true }
+                  },
+                  reviewedBy: {
+                    select: { id: true, name: true, email: true, role: true }
+                  }
+                },
+                orderBy: [
+                  { student: { usn: 'asc' } },
+                  { createdAt: 'desc' }
+                ],
+                skip,
+                take: limitNum
+              })
+            ]);
+          }
+        }
+      }
 
       const formatted = clearances.map((c) => ({
         ...c,

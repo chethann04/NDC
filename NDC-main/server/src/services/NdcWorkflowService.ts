@@ -287,7 +287,8 @@ export class NdcWorkflowService {
 
     for (const s of studentsNeedingRequest) {
       seq++;
-      const requestNumber = `NDC-${currentYear}-${String(seq).padStart(6, '0')}`;
+      const randSuffix = Math.floor(1000 + Math.random() * 9000);
+      const requestNumber = `NDC-${currentYear}-${String(seq).padStart(6, '0')}-${randSuffix}`;
       newRequestsData.push({
         id: crypto.randomUUID(),
         requestNumber,
@@ -340,6 +341,32 @@ export class NdcWorkflowService {
       labsByDeptId.set(l.departmentId, arr);
     });
 
+    // Auto-provision branch department lab if missing
+    for (const dId of deptIds) {
+      if (!labsByDeptId.has(dId) || (labsByDeptId.get(dId) || []).length === 0) {
+        const branchDept = branchDeptMap.get(dId);
+        if (branchDept && branchDept.isAcademicBranch) {
+          try {
+            const newLab = await prisma.departmentLab.upsert({
+              where: { departmentId: dId },
+              update: { isActive: true },
+              create: {
+                departmentId: dId,
+                code: `${branchDept.code.toUpperCase()}-LAB`,
+                name: `${branchDept.name} Lab`,
+                isActive: true,
+                displayOrder: 1
+              }
+            });
+            labsByDeptId.set(dId, [newLab]);
+          } catch {
+            const fetched = await prisma.departmentLab.findFirst({ where: { departmentId: dId } });
+            if (fetched) labsByDeptId.set(dId, [fetched]);
+          }
+        }
+      }
+    }
+
     const newClearances: any[] = [];
     for (const s of students) {
       const req = requestMap.get(s.id);
@@ -386,6 +413,26 @@ export class NdcWorkflowService {
         skipDuplicates: true
       });
     }
+  }
+
+  /**
+   * System-wide sync: checks all active students in the database and ensures every student
+   * has an active NDC Request and clearances across all required departments.
+   */
+  public static async ensureAllStudentsClearances(reqObj?: any): Promise<number> {
+    const allStudents = await prisma.student.findMany({
+      where: { isActive: true },
+      select: { id: true }
+    });
+    if (allStudents.length === 0) return 0;
+
+    const studentIds = allStudents.map((s) => s.id);
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < studentIds.length; i += BATCH_SIZE) {
+      const slice = studentIds.slice(i, i + BATCH_SIZE);
+      await this.ensureStudentNdcRequestsBulk(slice, reqObj);
+    }
+    return studentIds.length;
   }
 
   /**

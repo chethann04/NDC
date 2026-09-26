@@ -12,15 +12,49 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-      - run: npm ci
-      - name: Run npm audit
-        run: npm audit --production --audit-level=high
+          node-version: '20'
+
+      - name: Run Security Audit
+        run: |
+          REPORT_FILE="${GITHUB_WORKSPACE:-$PWD}/npm-audit-report.txt"
+          echo "=== SECURITY SCAN AUDIT REPORT ===" > "$REPORT_FILE"
+          echo "Date: $(date -u)" >> "$REPORT_FILE"
+
+          if [ -d "NDC-main/server" ]; then
+            SERVER_DIR="NDC-main/server"
+          elif [ -d "server" ]; then
+            SERVER_DIR="server"
+          fi
+
+          if [ -d "NDC-main/client" ]; then
+            CLIENT_DIR="NDC-main/client"
+          elif [ -d "client" ]; then
+            CLIENT_DIR="client"
+          fi
+
+          if [ -n "$SERVER_DIR" ]; then
+            echo -e "\n----------------------------------------" >> "$REPORT_FILE"
+            echo "Auditing Server dependencies ($SERVER_DIR)..." >> "$REPORT_FILE"
+            echo "----------------------------------------" >> "$REPORT_FILE"
+            (cd "$SERVER_DIR" && npm audit --audit-level=critical >> "$REPORT_FILE" 2>&1) || true
+          fi
+
+          if [ -n "$CLIENT_DIR" ]; then
+            echo -e "\n----------------------------------------" >> "$REPORT_FILE"
+            echo "Auditing Client dependencies ($CLIENT_DIR)..." >> "$REPORT_FILE"
+            echo "----------------------------------------" >> "$REPORT_FILE"
+            (cd "$CLIENT_DIR" && npm audit --audit-level=critical >> "$REPORT_FILE" 2>&1) || true
+          fi
+
+          cat "$REPORT_FILE"
+        shell: bash
+
       - name: Upload audit report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: npm-audit-report

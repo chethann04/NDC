@@ -461,12 +461,14 @@ export class StudentController {
         return;
       }
 
+      const shouldAutoInitiate = autoInitiateClearances === undefined ? true : Boolean(autoInitiateClearances);
+
       const result = await ImportService.executeImport(
         rows,
         duplicateAction || 'SKIP',
         req.user.id || req.user._id,
         req,
-        Boolean(autoInitiateClearances)
+        shouldAutoInitiate
       );
       res.status(200).json({
         success: true,
@@ -685,6 +687,27 @@ export class StudentController {
         success: true,
         message: `Successfully updated batch year to "${cleanBatch}" for ${updateResult.count} students.`,
         modifiedCount: updateResult.count
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+
+  /**
+   * System-wide Clearance Sync / Backfill
+   * Ensures all active students have an active NDC Request and departmental clearance tasks.
+   */
+  public static async syncAllClearances(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { NdcWorkflowService } = await import('../services/NdcWorkflowService');
+      const { invalidateOfficerStatsCache, invalidateStudentStatusCache } = await import('./NdcController');
+      const count = await NdcWorkflowService.ensureAllStudentsClearances(req);
+      invalidateOfficerStatsCache();
+      invalidateStudentStatusCache();
+      res.status(200).json({
+        success: true,
+        message: `Successfully synchronized clearances across all departments for ${count} students.`,
+        data: { synchronizedStudents: count }
       });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
