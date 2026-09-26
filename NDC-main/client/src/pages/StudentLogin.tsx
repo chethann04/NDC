@@ -11,9 +11,9 @@ import {
   ArrowRight,
   ShieldCheck,
   Building2,
-  Sparkles,
   KeyRound
 } from 'lucide-react';
+
 import { ErrorAlert } from '../components/ErrorAlert';
 
 type LoginCredentialMode = 'email' | 'password';
@@ -135,7 +135,7 @@ export const StudentLogin: React.FC = () => {
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>Sign In with Mail ID</span>
+            <span>Sign In with Email</span>
           </button>
 
           <button
@@ -154,19 +154,6 @@ export const StudentLogin: React.FC = () => {
             <span>With Password</span>
           </button>
         </div>
-
-        {/* Helpful notice for Mail ID login */}
-        {credentialMode === 'email' && (
-          <div className="mb-4 p-3 rounded-xl bg-blue-50/70 border border-blue-200/60 text-left text-xs text-blue-950 leading-relaxed flex gap-2.5 items-start">
-            <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-blue-950">Direct Excel Record Authentication</p>
-              <p className="text-[11px] text-blue-900/90 mt-0.5 font-medium">
-                Log in instantly using your USN and the email address registered in your student batch sheet. No password setup required!
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Error Alert */}
         {error && (
@@ -204,14 +191,13 @@ export const StudentLogin: React.FC = () => {
             </div>
           </div>
 
-          {/* Mail ID Field */}
+          {/* Email Address Field */}
           {credentialMode === 'email' ? (
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-zinc-800 uppercase tracking-wider">
-                  Registered Email Address (Mail ID)
+                  Registered Email Address
                 </label>
-                <span className="text-[10px] text-blue-800 font-bold">From Excel Records</span>
               </div>
               <div className="relative">
                 <Mail className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
@@ -224,9 +210,6 @@ export const StudentLogin: React.FC = () => {
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-white/60 bg-white/65 hover:bg-white/80 focus:bg-white/95 text-zinc-900 text-sm font-medium placeholder:text-zinc-500 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] transition-all lowercase"
                 />
               </div>
-              <p className="text-[10px] text-zinc-600 mt-1 font-medium">
-                The institutional or personal email provided when your student profile was uploaded.
-              </p>
             </div>
           ) : (
             /* Password Field */
@@ -291,7 +274,7 @@ export const StudentLogin: React.FC = () => {
               }}
               className="text-xs font-semibold text-zinc-600 hover:text-blue-700 transition-colors cursor-pointer"
             >
-              Don't have a password? <span className="text-blue-700 font-bold underline">Sign in with Mail ID</span>
+              Don't have a password? <span className="text-blue-700 font-bold underline">Sign in with Email</span>
             </button>
           )}
         </div>
