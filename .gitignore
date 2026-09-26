@@ -21,6 +21,10 @@ uploads/
 Thumbs.db
 
 LOGIN_CREDENTIALS.md
+DEMO_LOGINS.json
+DEMO_LOGINS.md  
+demo_students.xls
+demo_students.xlsx
 
 # Temporary and binary files
 *.tmp*
