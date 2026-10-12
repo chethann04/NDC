@@ -6,10 +6,6 @@ export const connectDB = async (): Promise<void> => {
     await prisma.$connect();
     console.log(`[Supabase PostgreSQL Connected via Prisma]`);
   } catch (error) {
-    console.error(`[Database Connection Error]:`, error);
-    // Don't crash immediately in development if offline; log warning
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    }
+    console.error(`[Database Connection Warning]:`, error);
   }
 };
