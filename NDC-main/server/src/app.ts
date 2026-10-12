@@ -78,6 +78,16 @@ app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/teaching-department', teachingDepartmentRoutes);
 app.use('/api/v1/admin/section-logins', sectionLoginRoutes);
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ONLINE',
+    message: 'NDC Backend API is running successfully.',
+    healthCheck: '/api/v1/health',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint with diagnostic info
 app.get('/api/v1/health', (req, res) => {
   res.status(200).json({
