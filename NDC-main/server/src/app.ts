@@ -58,6 +58,15 @@ app.use(compression({ threshold: 1024 }));
 
 app.use(cookieParser());
 app.use(cors({ origin: true, credentials: true }));
+
+// Normalize consecutive slashes in URLs (e.g. //api/v1 -> /api/v1)
+app.use((req, res, next) => {
+  if (req.url.startsWith('//')) {
+    req.url = req.url.replace(/^\/+/, '/');
+  }
+  next();
+});
+
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
