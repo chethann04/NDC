@@ -19,6 +19,7 @@ import auditRoutes from './routes/auditRoutes';
 import settingRoutes from './routes/settingRoutes';
 import teachingDepartmentRoutes from './routes/teachingDepartmentRoutes';
 import sectionLoginRoutes from './routes/sectionLoginRoutes';
+import emailService from './services/EmailService';
 
 dotenv.config(); // Reloaded with high-speed direct connection pool
 
@@ -98,13 +99,46 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint with diagnostic info
-app.get('/api/v1/health', (req, res) => {
+app.get('/api/v1/health', async (req, res) => {
+  const isConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'your-email@gmail.com');
+  const testResult = isConfigured ? await emailService.testConnection() : { success: false, message: 'SMTP environment variables not configured in Render.' };
+
   res.status(200).json({
     status: 'OK',
     system: 'No Due Certificate Management System',
     time: new Date(),
-    smtpUser: process.env.SMTP_USER,
-    smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'your-email@gmail.com')
+    smtp: {
+      configured: isConfigured,
+      user: process.env.SMTP_USER ? `${process.env.SMTP_USER.slice(0, 4)}***@${process.env.SMTP_USER.split('@')[1] || ''}` : 'Not set',
+      test: testResult
+    }
+  });
+});
+
+// Diagnostic endpoint to send a live test clearance email
+app.get('/api/v1/health/send-test-email', async (req, res) => {
+  const targetEmail = (req.query.to as string) || process.env.SMTP_USER;
+  if (!targetEmail) {
+    res.status(400).json({ error: 'Please specify ?to=your_email@gmail.com' });
+    return;
+  }
+
+  const success = await emailService.sendClearanceUpdateEmail({
+    toEmail: targetEmail,
+    studentName: 'Diagnostic Test Student',
+    usn: '4MC24IS022',
+    departmentName: 'Central Library',
+    status: 'CLEARED',
+    remarks: 'Live test email dispatched from deployed server',
+    clearedCount: 1,
+    totalCount: 6
+  });
+
+  res.status(200).json({
+    attempted: true,
+    sent: success,
+    sentTo: targetEmail,
+    notice: success ? 'Email dispatched! Check your inbox/spam folder.' : 'Email failed. Verify your SMTP credentials in Render.'
   });
 });
 

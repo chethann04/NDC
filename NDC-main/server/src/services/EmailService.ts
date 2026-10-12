@@ -52,17 +52,28 @@ class EmailService {
 
     if (!this.transporter || this.lastUser !== user || this.lastPass !== pass) {
       try {
-        this.transporter = nodemailer.createTransport({
-          host,
-          port,
-          secure,
-          auth: { user, pass },
-          tls: { rejectUnauthorized: false }
-        });
+        const cleanUser = user.trim();
+        const cleanPass = pass.trim().replace(/\s+/g, '');
+        const isGmail = host.includes('gmail') || cleanUser.endsWith('@gmail.com');
+
+        const transportConfig: any = isGmail
+          ? {
+              service: 'gmail',
+              auth: { user: cleanUser, pass: cleanPass }
+            }
+          : {
+              host,
+              port,
+              secure,
+              auth: { user: cleanUser, pass: cleanPass },
+              tls: { rejectUnauthorized: false }
+            };
+
+        this.transporter = nodemailer.createTransport(transportConfig);
         this.lastUser = user;
         this.lastPass = pass;
         this.isConfigured = true;
-        console.log(`[EmailService]: SMTP transporter initialized with host: ${host}, user: ${user}`);
+        console.log(`[EmailService]: SMTP transporter initialized with host: ${host}, user: ${cleanUser}`);
       } catch (err) {
         console.warn('[EmailService]: Failed to initialize SMTP transporter:', err);
         this.transporter = null;
