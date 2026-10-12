@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Response } from 'express';
-import { Prisma } from '../generated/client';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { NdcWorkflowService } from '../services/NdcWorkflowService';
 import { CertificateService } from '../services/CertificateService';
