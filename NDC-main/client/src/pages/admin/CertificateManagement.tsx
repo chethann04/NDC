@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../../services/api';
+import api, { getApiUrl } from '../../services/api';
 import { ClearanceStatusBadge } from '../../components/ClearanceStatusBadge';
 import {
   Search,
@@ -157,7 +157,7 @@ export const CertificateManagement: React.FC = () => {
       submissionStatus: submissionFilter,
       token
     });
-    window.open(`/api/v1/certificates/export?${params.toString()}`, '_blank');
+    window.open(getApiUrl(`/api/v1/certificates/export?${params.toString()}`), '_blank');
   };
 
   // Count metrics for current filter view
@@ -352,7 +352,7 @@ export const CertificateManagement: React.FC = () => {
                               <Eye className="w-4 h-4" />
                             </button>
                             <a
-                              href={`/api/v1/certificates/${cert._id}/download?token=${localStorage.getItem('ndc_token') || ''}`}
+                              href={getApiUrl(`/api/v1/certificates/${cert._id}/download?token=${localStorage.getItem('ndc_token') || ''}`)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors inline-flex items-center justify-center cursor-pointer"

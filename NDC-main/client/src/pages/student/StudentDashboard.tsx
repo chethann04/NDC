@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../../services/api';
+import api, { getApiUrl } from '../../services/api';
 import { ProgressRing } from '../../components/ProgressRing';
 import { ClearanceStatusBadge } from '../../components/ClearanceStatusBadge';
 import {
@@ -132,7 +132,7 @@ export const StudentDashboard: React.FC = () => {
         {/* Action Button on Welcome Banner */}
         {hasActiveRequest && ndcRequest?.status === 'APPROVED' && ndcRequest?.certificateId ? (
           <a
-            href={`/api/v1/certificates/${ndcRequest.certificateId._id || ndcRequest.certificateId}/download?token=${localStorage.getItem('ndc_token') || ''}`}
+            href={getApiUrl(`/api/v1/certificates/${ndcRequest.certificateId._id || ndcRequest.certificateId}/download?token=${localStorage.getItem('ndc_token') || ''}`)}
             download={`NDC_${ndcRequest.certificateId?.certificateNumber || 'Certificate'}.pdf`}
             target="_blank"
             rel="noopener noreferrer"

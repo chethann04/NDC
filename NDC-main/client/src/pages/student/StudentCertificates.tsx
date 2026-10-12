@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../../services/api';
+import api, { getApiUrl } from '../../services/api';
 import { ClearanceStatusBadge } from '../../components/ClearanceStatusBadge';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
 import { Award, Download, Calendar, ShieldCheck, Eye } from 'lucide-react';
@@ -79,7 +79,7 @@ export const StudentCertificates: React.FC = () => {
                             View
                           </button>
                           <a
-                            href={`/api/v1/certificates/${cert._id}/download?token=${localStorage.getItem('ndc_token') || ''}`}
+                            href={getApiUrl(`/api/v1/certificates/${cert._id}/download?token=${localStorage.getItem('ndc_token') || ''}`)}
                             download={`NDC_${cert.certificateNumber}.pdf`}
                             target="_blank"
                             rel="noopener noreferrer"

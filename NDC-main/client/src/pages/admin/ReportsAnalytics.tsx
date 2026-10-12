@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BarChart3, Download, FileSpreadsheet, Filter } from 'lucide-react';
+import { getApiUrl } from '../../services/api';
 
 export const ReportsAnalytics: React.FC = () => {
   const [reportType, setReportType] = useState('StudentNdcStatus');
@@ -7,7 +8,7 @@ export const ReportsAnalytics: React.FC = () => {
   const [status, setStatus] = useState('');
 
   const handleExport = () => {
-    const url = `/api/v1/reports/export?type=${reportType}&format=${format}${status ? `&status=${status}` : ''}`;
+    const url = getApiUrl(`/api/v1/reports/export?type=${reportType}&format=${format}${status ? `&status=${status}` : ''}`);
     window.open(url, '_blank');
   };
 

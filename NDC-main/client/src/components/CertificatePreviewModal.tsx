@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../services/api';
+import api, { getApiUrl } from '../services/api';
 import { Download, X, CheckCircle2, ShieldCheck, Award } from 'lucide-react';
 
 interface CertificatePreviewModalProps {
@@ -43,7 +43,7 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
   };
 
   const token = localStorage.getItem('ndc_token') || '';
-  const downloadUrl = `/api/v1/certificates/${certificate._id}/download?token=${token}`;
+  const downloadUrl = getApiUrl(`/api/v1/certificates/${certificate._id}/download?token=${token}`);
 
   const studentName = certificate.studentId?.fullName || certificate.studentName || 'Student Name';
   const usn = certificate.studentId?.usn || certificate.studentUsn || 'N/A';

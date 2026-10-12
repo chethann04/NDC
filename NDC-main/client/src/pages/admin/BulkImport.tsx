@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
-import api from '../../services/api';
+import api, { getApiUrl } from '../../services/api';
 import * as xlsx from 'xlsx';
 import {
   Upload,
@@ -252,7 +252,7 @@ export const BulkImport: React.FC = () => {
             Single Student Entry
           </Link>
           <a
-            href="/api/v1/students/template"
+            href={getApiUrl('/api/v1/students/template')}
             download="Students.xlsx"
             target="_blank"
             rel="noopener noreferrer"
