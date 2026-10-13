@@ -494,21 +494,6 @@ export class StudentController {
    */
   public static async downloadTemplate(req: Request, res: Response): Promise<void> {
     try {
-      const candidatePaths = [
-        path.resolve(process.cwd(), '../Students.xlsx'),
-        'd:/NDC/Students.xlsx',
-        path.resolve(process.cwd(), 'Students.xlsx')
-      ];
-
-      for (const filePath of candidatePaths) {
-        if (fs.existsSync(filePath)) {
-          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-          res.setHeader('Content-Disposition', 'attachment; filename="Students.xlsx"');
-          const fileStream = fs.createReadStream(filePath);
-          fileStream.pipe(res);
-          return;
-        }
-      }
 
       const templateData = [
         {

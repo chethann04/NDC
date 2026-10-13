@@ -21,9 +21,18 @@ import teachingDepartmentRoutes from './routes/teachingDepartmentRoutes';
 import sectionLoginRoutes from './routes/sectionLoginRoutes';
 import emailService from './services/EmailService';
 
-dotenv.config(); // Reloaded with high-speed direct connection pool
+import { sanitizeInput } from './middleware/sanitizeInput';
+import { generalApiLimiter } from './middleware/rateLimiter';
+import { authenticateToken } from './middleware/auth';
+import { authorizeRoles } from './middleware/rbac';
+import { UserRole } from './constants/roles';
+
+dotenv.config();
 
 const app: Application = express();
+
+// Disable x-powered-by to prevent Express version leakage
+app.disable('x-powered-by');
 
 // Hardened Security & Cookie Headers
 app.use(
@@ -48,7 +57,7 @@ app.use(
     dnsPrefetchControl: true,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     xContentTypeOptions: true,
-    xFrameOptions: { action: 'deny' },
+    xFrameOptions: { action: 'sameorigin' },
     xPermittedCrossDomainPolicies: { permittedPolicies: 'none' },
     xXssProtection: true,
   })
@@ -58,7 +67,40 @@ app.use(
 app.use(compression({ threshold: 1024 }));
 
 app.use(cookieParser());
-app.use(cors({ origin: true, credentials: true }));
+
+// Whitelisted CORS Configuration
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'https://ndc-mce.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+].filter(Boolean) as string[];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) ||
+        /\.vercel\.app$/.test(origin);
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Blocked by CORS policy'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    exposedHeaders: ['Content-Disposition']
+  })
+);
 
 // Normalize consecutive slashes in URLs (e.g. //api/v1 -> /api/v1)
 app.use((req, res, next) => {
@@ -70,6 +112,12 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Input sanitization against XSS & prototype pollution
+app.use(sanitizeInput);
+
+// Global API rate limiting
+app.use('/api/', generalApiLimiter);
 
 // Static directory for generated PDF certificates
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -115,8 +163,8 @@ app.get('/api/v1/health', async (req, res) => {
   });
 });
 
-// Diagnostic endpoint to send a live test clearance email
-app.get('/api/v1/health/send-test-email', async (req, res) => {
+// Diagnostic endpoint to send a live test clearance email (strictly restricted to Super Admins)
+app.get('/api/v1/health/send-test-email', authenticateToken, authorizeRoles(UserRole.SUPER_ADMIN), async (req, res) => {
   const targetEmail = (req.query.to as string) || process.env.SMTP_USER;
   if (!targetEmail) {
     res.status(400).json({ error: 'Please specify ?to=your_email@gmail.com' });

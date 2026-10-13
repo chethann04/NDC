@@ -4,6 +4,7 @@ import { CredentialController } from '../controllers/CredentialController';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/rbac';
 import { UserRole } from '../constants/roles';
+import { otpLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.post('/department', SectionLoginController.createDepartment);
 router.post('/hod', SectionLoginController.createHodAccount);
 router.post('/faculty', SectionLoginController.createFacultyAccount);
 router.put('/:id/email', SectionLoginController.updateLoginEmail);
-router.post('/:id/request-email-otp', CredentialController.adminRequestEmailChangeOtp);
+router.post('/:id/request-email-otp', otpLimiter, CredentialController.adminRequestEmailChangeOtp);
 router.post('/:id/verify-email-otp', CredentialController.adminVerifyAndUpdateEmail);
 router.patch('/:id/status', SectionLoginController.toggleAccountStatus);
 router.put('/:id/department', SectionLoginController.updateDepartmentAssignment);

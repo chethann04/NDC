@@ -4,20 +4,21 @@ import { AuthController } from '../controllers/AuthController';
 import { CredentialController } from '../controllers/CredentialController';
 import { authenticateToken } from '../middleware/auth';
 import { generateTokens } from '../middleware/authMiddleware';
+import { authLimiter, otpLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
 
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'fallback-refresh-secret-change-in-prod';
 
 const router = Router();
 
-router.post('/login', AuthController.login);
-router.get('/student-check/:usn', AuthController.studentCheck);
-router.post('/student-register', AuthController.studentRegister);
-router.post('/student-login', AuthController.studentLogin);
+router.post('/login', authLimiter, AuthController.login);
+router.get('/student-check/:usn', authLimiter, AuthController.studentCheck);
+router.post('/student-register', authLimiter, AuthController.studentRegister);
+router.post('/student-login', authLimiter, AuthController.studentLogin);
 router.get('/me', authenticateToken, AuthController.getMe);
-router.post('/reset-password', authenticateToken, AuthController.resetPassword);
+router.post('/reset-password', authenticateToken, passwordResetLimiter, AuthController.resetPassword);
 
 // Self-service Credential Management (OTP verification & password change)
-router.post('/credentials/request-email-otp', authenticateToken, CredentialController.requestEmailChangeOtp);
+router.post('/credentials/request-email-otp', authenticateToken, otpLimiter, CredentialController.requestEmailChangeOtp);
 router.post('/credentials/verify-otp', authenticateToken, CredentialController.verifyEmailChangeOtp);
 router.post('/credentials/update', authenticateToken, CredentialController.updateCredentials);
 

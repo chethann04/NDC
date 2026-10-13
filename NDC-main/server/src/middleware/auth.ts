@@ -61,8 +61,8 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     if (!token) {
       return res.status(401).json({ success: false, message: 'Access token missing or invalid format.' });
     }
-    const secret = process.env.JWT_SECRET || 'super_secret_ndc_jwt_key_2026_mce_auth_token_string';
-    const decoded = jwt.verify(token, secret) as { userId: string; role: string };
+    const secret = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'super_secret_ndc_jwt_key_2026_mce_auth_token_string';
+    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as { userId: string; role: string };
 
     // Fast path: return cached user if available and fresh
     const cached = getCachedUser(decoded.userId);
