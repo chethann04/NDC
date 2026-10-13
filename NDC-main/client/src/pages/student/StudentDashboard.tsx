@@ -135,6 +135,11 @@ export const StudentDashboard: React.FC = () => {
       )}/download?token=${encodeURIComponent(localStorage.getItem('ndc_token') || '')}`)
     : '#';
 
+  const isApproved = ndcRequest?.status === 'APPROVED';
+  const effectiveTotal = (progress?.total && progress.total > 0) ? progress.total : (clearances?.length || 5);
+  const effectiveCleared = isApproved ? effectiveTotal : (progress?.cleared ?? 0);
+  const effectivePercentage = isApproved ? 100 : (progress?.percentage ?? Math.round((effectiveCleared / effectiveTotal) * 100));
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Student Welcome Banner */}
@@ -165,28 +170,34 @@ export const StudentDashboard: React.FC = () => {
         </div>
 
         {/* Action Button on Welcome Banner */}
-        {hasActiveRequest && ndcRequest?.status === 'APPROVED' && (ndcRequest?.certificateId || ndcRequest?.certificate) ? (
-          <button
-            onClick={handleDownloadCertificate}
-            disabled={downloadingCert}
-            className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm shadow-soft-md hover:shadow-soft-lg transition-all flex items-center gap-2 cursor-pointer relative z-10 shrink-0 disabled:opacity-75 disabled:cursor-not-allowed"
-          >
-            {downloadingCert ? (
-              <RefreshCw className="w-5 h-5 animate-spin" />
-            ) : (
-              <Award className="w-5 h-5" />
-            )}
-            {downloadingCert ? 'Generating & Downloading...' : 'Download Official Certificate'}
-          </button>
+        {hasActiveRequest && isApproved && (ndcRequest?.certificateId || ndcRequest?.certificate) ? (
+          <div className="flex flex-wrap items-center gap-3 relative z-10">
+            <div className="flex items-center gap-2.5 bg-emerald-500/20 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-emerald-400/30 text-xs font-bold text-white shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>NDC Clearance Complete ({effectiveCleared} / {effectiveTotal} Cleared)</span>
+            </div>
+            <button
+              onClick={handleDownloadCertificate}
+              disabled={downloadingCert}
+              className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm shadow-soft-md hover:shadow-soft-lg transition-all flex items-center gap-2 cursor-pointer shrink-0 disabled:opacity-75 disabled:cursor-not-allowed"
+            >
+              {downloadingCert ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <Award className="w-5 h-5" />
+              )}
+              {downloadingCert ? 'Generating & Downloading...' : 'Download Official Certificate'}
+            </button>
+          </div>
         ) : hasActiveRequest ? (
           <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20 text-xs font-bold relative z-10">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>NDC Clearance In Progress ({progress?.cleared || 0} / {progress?.total || 0} Cleared)</span>
+            <span>NDC Clearance In Progress ({effectiveCleared} / {effectiveTotal} Cleared)</span>
           </div>
         ) : (
           <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20 text-xs font-bold relative z-10">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Automatic Institutional Clearance ({progress?.cleared || 0} / {progress?.total || 0} Cleared)</span>
+            <span>Automatic Institutional Clearance ({effectiveCleared} / {effectiveTotal} Cleared)</span>
           </div>
         )}
       </div>
@@ -232,17 +243,17 @@ export const StudentDashboard: React.FC = () => {
             </div>
 
             <div className="text-center pt-5 border-t border-slate-100 flex flex-col items-center">
-              <ProgressRing percentage={progress?.percentage || 0} size={130} strokeWidth={12} />
+              <ProgressRing percentage={effectivePercentage} size={130} strokeWidth={12} />
               <p className="text-xs font-bold text-slate-700 mt-4">
-                {progress?.cleared || 0} of {progress?.total || 0} Departments Cleared
+                {effectiveCleared} of {effectiveTotal} Departments Cleared
               </p>
               <div className="w-full bg-slate-100 rounded-full h-2.5 mt-3 overflow-hidden">
                 <div
                   className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
-                  style={{ width: `${progress?.percentage || 0}%` }}
+                  style={{ width: `${effectivePercentage}%` }}
                 />
               </div>
-              <span className="text-[11px] font-bold text-blue-600 mt-1">{progress?.percentage || 0}% Complete</span>
+              <span className="text-[11px] font-bold text-blue-600 mt-1">{effectivePercentage}% Complete</span>
             </div>
           </div>
 

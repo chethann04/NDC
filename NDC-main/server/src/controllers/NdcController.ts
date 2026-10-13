@@ -355,7 +355,7 @@ export class NdcController {
         const fallbackStudent = await prisma.student.findFirst({
           where: {
             OR: [
-              { userId: req.user.id || req.user._id },
+              { user: { id: req.user.id || req.user._id } },
               { email: req.user.email }
             ]
           }

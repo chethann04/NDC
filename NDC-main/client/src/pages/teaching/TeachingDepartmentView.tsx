@@ -465,6 +465,9 @@ export const TeachingDepartmentView: React.FC = () => {
                 {sortedStudents.map((student) => {
                   const initials = student.fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
                   const isDue = student.ndcStatus === 'DUE' || student.duesCount > 0;
+                  const isApproved = student.ndcStatus === 'APPROVED';
+                  const totalSteps = (student.progress?.total && student.progress.total > 0) ? student.progress.total : 6;
+                  const clearedSteps = isApproved ? totalSteps : (student.progress?.cleared ?? 0);
                   return (
                     <tr key={student._id} className={isDue ? 'due-row-accent' : ''}>
                       <td>
@@ -476,12 +479,12 @@ export const TeachingDepartmentView: React.FC = () => {
                       <td className="mono-text font-bold text-blue-700">{student.usn}</td>
                       <td>{student.batch}</td>
                       <td>
-                        <div className="progress-frac">{student.progress.cleared} / {student.progress.total}</div>
+                        <div className="progress-frac">{clearedSteps} / {totalSteps}</div>
                         <div className="seg-bar">
-                          {Array.from({ length: student.progress.total || 6 }).map((_, i) => (
+                          {Array.from({ length: totalSteps }).map((_, i) => (
                             <div
                               key={i}
-                              className={`seg ${i < student.progress.cleared ? 'done' : 'pend'}`}
+                              className={`seg ${i < clearedSteps ? 'done' : 'pend'}`}
                             />
                           ))}
                         </div>

@@ -125,7 +125,7 @@ export const OfficerDashboard: React.FC = () => {
   const pendingCount = kpiStats?.PENDING ?? 0;
   const dueCount = kpiStats?.DUE ?? 0;
   const clearedCount = (kpiStats?.CLEARED ?? 0) + (kpiStats?.NOT_APPLICABLE ?? 0);
-  const completionPercentage = totalQueue > 0 ? Math.round((clearedCount / totalQueue) * 100) : 0;
+  const completionPercentage = Math.min(100, Math.max(0, totalQueue > 0 ? Math.round((clearedCount / totalQueue) * 100) : 0));
 
   // Use fast server-aggregated Academic Branch breakdown
   const branchBreakdown = (kpiStats?.byDepartment || []).map((dept: any) => ({
@@ -136,7 +136,7 @@ export const OfficerDashboard: React.FC = () => {
     cleared: dept.cleared || 0,
     pending: dept.pending || 0,
     due: dept.due || 0,
-    pct: dept.total > 0 ? Math.round(((dept.cleared || 0) / (dept.total || 1)) * 100) : 0
+    pct: Math.min(100, Math.max(0, dept.total > 0 ? Math.round(((dept.cleared || 0) / (dept.total || 1)) * 100) : 0))
   }));
 
   // Historical Comparison Stats (2025 vs 2026 Current)

@@ -5,6 +5,7 @@ import xlsx from 'xlsx';
 import prisma from '../config/prisma';
 import { CertificateService } from '../services/CertificateService';
 import { PdfService } from '../services/PdfService';
+import { LaboratoryAggregationService } from '../services/LaboratoryAggregationService';
 import { AuditService } from '../services/AuditService';
 import { CertificateStatus } from '../constants/statuses';
 import { AuthRequest } from '../middleware/auth';

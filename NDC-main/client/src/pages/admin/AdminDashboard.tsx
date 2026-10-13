@@ -203,7 +203,7 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="space-y-4">
             {departmentStats?.map((dept: any) => {
-              const pct = dept.completionPercentage || 0;
+              const pct = Math.min(100, Math.max(0, Math.round(Number(dept.completionPercentage) || 0)));
               const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
               return (
                 <div key={dept.departmentId} className="space-y-1.5">
