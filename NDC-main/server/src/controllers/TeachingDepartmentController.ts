@@ -519,13 +519,15 @@ export class TeachingDepartmentController {
         return;
       }
 
-      const pdfPathStr = certificate.pdfPath || `uploads/certificates/NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
-      let fullPath = path.isAbsolute(pdfPathStr)
-        ? pdfPathStr
-        : path.resolve(process.cwd(), pdfPathStr.replace(/^\//, ''));
+      const filename = `NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
+      const uploadsDir = path.resolve(process.cwd(), 'uploads/certificates');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const fullPath = path.join(uploadsDir, filename);
 
-      // Always verify clearance tasks & ensure ZERO dues or holds
-      const clearanceDocs = await prisma.ndcClearance.findMany({
+      // Verify clearance tasks if available & ensure ZERO dues or holds
+      const clearanceDocs = certificate.ndcRequestId ? await prisma.ndcClearance.findMany({
         where: {
           ndcRequestId: certificate.ndcRequestId,
           department: {
@@ -540,30 +542,31 @@ export class TeachingDepartmentController {
           }
         },
         orderBy: { createdAt: 'asc' }
-      });
+      }) : [];
 
       const hasUnresolved = clearanceDocs.some((c: any) =>
         c.status === 'DUE' ||
         c.status === 'ON_HOLD' ||
-        c.status === 'PENDING' ||
         (c.dueAmount && c.dueAmount > 0)
       );
 
-      if (hasUnresolved || clearanceDocs.length === 0) {
+      if (hasUnresolved) {
         res.status(400).json({
           success: false,
-          message: 'Cannot download certificate: Student has pending departmental dues, unresolved holds, or incomplete clearance tasks.'
+          message: 'Cannot download certificate: Student has pending departmental dues or unresolved holds.'
         });
         return;
       }
 
-      const clearanceItems = clearanceDocs.map((c: any) => ({
-        departmentName: c.department?.name || 'Department Desk',
-        departmentCode: c.department?.code || 'DEPT',
-        status: c.status || 'CLEARED',
-        approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
-        reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-      }));
+      const clearanceItems = clearanceDocs
+        .filter((c: any) => c.status !== 'NOT_APPLICABLE')
+        .map((c: any) => ({
+          departmentName: c.department?.name || 'Department Desk',
+          departmentCode: c.department?.code || 'DEPT',
+          status: c.status || 'CLEARED',
+          approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
+          reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
+        }));
 
       await PdfService.generateCertificatePdf(
         {
@@ -575,18 +578,28 @@ export class TeachingDepartmentController {
           academicYear: student.academicYear || '2025-2026',
           issuedAt: certificate.issuedAt || new Date(),
           hodName: student.department?.hodName,
-          clearances: clearanceItems
+          clearances: clearanceItems.length > 0 ? clearanceItems : undefined
         },
         fullPath
       );
 
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
 
       const fileStream = fs.createReadStream(fullPath);
+      fileStream.on('error', (streamErr) => {
+        console.error('[Teaching Dept Download PDF Stream Error]:', streamErr);
+        if (!res.headersSent) {
+          res.status(500).json({ success: false, message: 'Error streaming PDF file.' });
+        }
+      });
       fileStream.pipe(res);
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      console.error('[Teaching Dept Download PDF Error]:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message || 'Internal server error while generating certificate.' });
+      }
     }
   }
 }

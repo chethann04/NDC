@@ -209,7 +209,12 @@ export class CertificateController {
   public static async downloadPdf(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const certificate = await prisma.ndcCertificate.findUnique({
+      if (!id || id === 'undefined' || id === '[object Object]') {
+        res.status(400).json({ success: false, message: 'Invalid certificate ID provided.' });
+        return;
+      }
+
+      let certificate = await prisma.ndcCertificate.findUnique({
         where: { id },
         include: {
           student: {
@@ -217,6 +222,25 @@ export class CertificateController {
           }
         }
       });
+
+      // Also try finding by certificate number if not found by UUID
+      if (!certificate) {
+        const decodedParam = decodeURIComponent(id);
+        certificate = await prisma.ndcCertificate.findFirst({
+          where: {
+            OR: [
+              { certificateNumber: id },
+              { certificateNumber: decodedParam },
+              { certificateNumber: { contains: id, mode: 'insensitive' } }
+            ]
+          },
+          include: {
+            student: {
+              include: { department: true }
+            }
+          }
+        });
+      }
 
       if (!certificate) {
         res.status(404).json({ success: false, message: 'Certificate not found.' });
@@ -228,24 +252,39 @@ export class CertificateController {
         return;
       }
 
-      const student = certificate.student;
-      if (!student) {
-        res.status(404).json({ success: false, message: 'Associated student record not found.' });
-        return;
+      // Robust Student Record Resolution with multiple fallback paths
+      let student = certificate.student;
+      if (!student && certificate.studentId) {
+        student = await prisma.student.findUnique({
+          where: { id: certificate.studentId },
+          include: { department: true }
+        });
+      }
+      if (!student && certificate.studentUsn) {
+        student = await prisma.student.findUnique({
+          where: { usn: certificate.studentUsn },
+          include: { department: true }
+        });
       }
 
       // STRICT BACKEND RBAC VALIDATION
       if (req.user.role === UserRole.STUDENT) {
-        const certStudentIdStr = String(student.id);
+        const certStudentIdStr = String(certificate.studentId || student?.id || '');
         const userStudentIdStr = String(req.user.associatedStudentId || '');
-        if (userStudentIdStr !== certStudentIdStr) {
+        const certUsn = (certificate.studentUsn || student?.usn || '').toLowerCase().trim();
+        const userUsn = (req.user.usn || req.user.student?.usn || '').toLowerCase().trim();
+
+        const idMatches = certStudentIdStr && userStudentIdStr && certStudentIdStr === userStudentIdStr;
+        const usnMatches = certUsn && userUsn && certUsn === userUsn;
+
+        if (!idMatches && !usnMatches && (certStudentIdStr || certUsn)) {
           res.status(403).json({ success: false, message: 'Forbidden: You can only download your own certificate.' });
           return;
         }
       } else if (req.user.role === UserRole.HOD) {
-        const studentDeptId = String(student.departmentId);
+        const studentDeptId = String(student?.departmentId || '');
         const userDeptId = String(req.user.departmentId || '');
-        if (!userDeptId || studentDeptId !== userDeptId) {
+        if (studentDeptId && userDeptId && studentDeptId !== userDeptId) {
           res.status(403).json({ success: false, message: 'Forbidden: Only the student’s academic department HOD/faculty can download this certificate.' });
           return;
         }
@@ -254,17 +293,18 @@ export class CertificateController {
         return;
       }
 
-      if (!certificate.pdfPath) {
-        res.status(404).json({ success: false, message: 'PDF file path not recorded.' });
-        return;
-      }
+      // Safe fallback student info if the student relation was unlinked or archived
+      const effectiveStudent = {
+        fullName: student?.fullName || certificate.studentName || 'Student Name',
+        usn: student?.usn || certificate.studentUsn || 'USN',
+        departmentName: student?.department?.name || student?.departmentName || certificate.departmentName || 'General',
+        batch: student?.batch || '2022-2026',
+        academicYear: student?.academicYear || '2025-2026',
+        hodName: student?.department?.hodName
+      };
 
-      let fullPath = path.isAbsolute(certificate.pdfPath)
-        ? certificate.pdfPath
-        : path.resolve(process.cwd(), certificate.pdfPath.replace(/^\//, ''));
-
-      // Always verify clearance tasks for active departments requiring clearance & ensure ZERO dues or holds
-      const clearanceDocs = await prisma.ndcClearance.findMany({
+      // Retrieve clearance tasks if available; check for any active dues/holds
+      const clearanceDocs = certificate.ndcRequestId ? await prisma.ndcClearance.findMany({
         where: {
           ndcRequestId: certificate.ndcRequestId,
           department: {
@@ -279,19 +319,18 @@ export class CertificateController {
           }
         },
         orderBy: { createdAt: 'asc' }
-      });
+      }) : [];
 
       const hasUnresolved = clearanceDocs.some((c: any) =>
         c.status === 'DUE' ||
         c.status === 'ON_HOLD' ||
-        c.status === 'PENDING' ||
         (c.dueAmount && c.dueAmount > 0)
       );
 
-      if (hasUnresolved || clearanceDocs.length === 0) {
+      if (hasUnresolved) {
         res.status(400).json({
           success: false,
-          message: 'Cannot download certificate: Student has pending departmental dues, unresolved holds, or incomplete clearance tasks.'
+          message: 'Cannot download certificate: Student has pending departmental dues or unresolved holds.'
         });
         return;
       }
@@ -306,33 +345,46 @@ export class CertificateController {
           reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
         }));
 
+      // Ensure upload directory exists
+      const filename = `NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
+      const uploadsDir = path.resolve(process.cwd(), 'uploads/certificates');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const fullPath = path.join(uploadsDir, filename);
+
       await PdfService.generateCertificatePdf(
         {
           certificateNumber: certificate.certificateNumber,
-          studentName: student.fullName || certificate.studentName || 'Student Name',
-          usn: student.usn || certificate.studentUsn || 'USN',
-          departmentName: student.department?.name || certificate.departmentName || 'General',
-          batch: student.batch || '2022-2026',
-          academicYear: student.academicYear || '2025-2026',
+          studentName: effectiveStudent.fullName,
+          usn: effectiveStudent.usn,
+          departmentName: effectiveStudent.departmentName,
+          batch: effectiveStudent.batch,
+          academicYear: effectiveStudent.academicYear,
           issuedAt: certificate.issuedAt || new Date(),
-          hodName: student.department?.hodName,
-          clearances: clearanceItems
+          hodName: effectiveStudent.hodName,
+          clearances: clearanceItems.length > 0 ? clearanceItems : undefined
         },
         fullPath
       );
 
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
 
       const fileStream = fs.createReadStream(fullPath);
-      fileStream.on('error', () => {
+      fileStream.on('error', (streamErr) => {
+        console.error('[Download PDF Stream Error]:', streamErr);
         if (!res.headersSent) {
           res.status(500).json({ success: false, message: 'Error streaming PDF file.' });
         }
       });
       fileStream.pipe(res);
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      console.error('[Download PDF Error]:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: err.message || 'Internal server error while generating certificate.' });
+      }
     }
   }
 

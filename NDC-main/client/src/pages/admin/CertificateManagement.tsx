@@ -18,6 +18,7 @@ import { CertificatePreviewModal } from '../../components/CertificatePreviewModa
 import { clientCache } from '../../utils/clientCache';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { showErrorModal } from '../../store/useErrorModalStore';
+import { downloadCertificatePdf } from '../../services/certificateService';
 
 export const CertificateManagement: React.FC = () => {
   const cacheKey = 'certificates_list_default';
@@ -40,6 +41,21 @@ export const CertificateManagement: React.FC = () => {
   const [submissionRemarks, setSubmissionRemarks] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
   const [submissionModalError, setSubmissionModalError] = useState<any>(null);
+  const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
+
+  const handleDownloadPdf = async (cert: any) => {
+    const certId = cert._id || cert.id;
+    if (!certId) return;
+    setDownloadingCertId(certId);
+    try {
+      await downloadCertificatePdf(cert, cert.certificateNumber);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      showErrorModal(err, { title: 'Certificate Download Failed' });
+    } finally {
+      setDownloadingCertId(null);
+    }
+  };
 
   useEffect(() => {
     fetchCertificates();
@@ -351,15 +367,18 @@ export const CertificateManagement: React.FC = () => {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            <a
-                              href={getApiUrl(`/api/v1/certificates/${cert._id}/download?token=${localStorage.getItem('ndc_token') || ''}`)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors inline-flex items-center justify-center cursor-pointer"
+                            <button
+                              onClick={() => handleDownloadPdf(cert)}
+                              disabled={downloadingCertId === (cert._id || cert.id)}
+                              className="w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
                               title="Download PDF"
                             >
-                              <Download className="w-4 h-4" />
-                            </a>
+                              {downloadingCertId === (cert._id || cert.id) ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4" />
+                              )}
+                            </button>
                             <button
                               onClick={() => handleRegenerateCertificate(cert)}
                               className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors inline-flex items-center justify-center cursor-pointer"

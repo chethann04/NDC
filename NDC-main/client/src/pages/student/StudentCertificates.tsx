@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import api, { getApiUrl } from '../../services/api';
 import { ClearanceStatusBadge } from '../../components/ClearanceStatusBadge';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
-import { Award, Download, Calendar, ShieldCheck, Eye } from 'lucide-react';
+import { Award, Download, Calendar, ShieldCheck, Eye, RefreshCw } from 'lucide-react';
+import { downloadCertificatePdf } from '../../services/certificateService';
 
 export const StudentCertificates: React.FC = () => {
   const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewCert, setPreviewCert] = useState<any>(null);
+  const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCertificates();
@@ -21,6 +23,20 @@ export const StudentCertificates: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownload = async (cert: any) => {
+    const certId = cert._id || cert.id;
+    if (!certId) return;
+    setDownloadingCertId(certId);
+    try {
+      await downloadCertificatePdf(cert, cert.certificateNumber);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      alert(err.message || 'Failed to download certificate PDF. Please retry.');
+    } finally {
+      setDownloadingCertId(null);
     }
   };
 
@@ -56,45 +72,51 @@ export const StudentCertificates: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {certificates.map((cert) => (
-                  <tr key={cert._id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-4 font-mono font-bold text-slate-900 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-blue-600" />
-                      {cert.certificateNumber}
-                    </td>
-                    <td className="p-4 font-medium text-slate-600">
-                      {new Date(cert.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </td>
-                    <td className="p-4">
-                      <ClearanceStatusBadge status={cert.status} />
-                    </td>
-                    <td className="p-4 text-right">
-                      {cert.status === 'VALID' ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setPreviewCert(cert)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-semibold rounded-lg text-xs transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View
-                          </button>
-                          <a
-                            href={getApiUrl(`/api/v1/certificates/${cert._id}/download?token=${localStorage.getItem('ndc_token') || ''}`)}
-                            download={`NDC_${cert.certificateNumber}.pdf`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            Download PDF
-                          </a>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-rose-600 font-bold italic">Certificate Revoked</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {certificates.map((cert) => {
+                  const certKey = cert._id || cert.id;
+                  const isDownloading = downloadingCertId === certKey;
+                  return (
+                    <tr key={certKey} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="p-4 font-mono font-bold text-slate-900 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-blue-600" />
+                        {cert.certificateNumber}
+                      </td>
+                      <td className="p-4 font-medium text-slate-600">
+                        {new Date(cert.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </td>
+                      <td className="p-4">
+                        <ClearanceStatusBadge status={cert.status} />
+                      </td>
+                      <td className="p-4 text-right">
+                        {cert.status === 'VALID' ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setPreviewCert(cert)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View
+                            </button>
+                            <button
+                              onClick={() => handleDownload(cert)}
+                              disabled={isDownloading}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                            >
+                              {isDownloading ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
+                              {isDownloading ? 'Downloading...' : 'Download PDF'}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-rose-600 font-bold italic">Certificate Revoked</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

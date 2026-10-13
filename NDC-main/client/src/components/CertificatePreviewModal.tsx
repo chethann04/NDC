@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api, { getApiUrl } from '../services/api';
-import { Download, X, CheckCircle2, ShieldCheck, Award } from 'lucide-react';
+import { Download, X, CheckCircle2, ShieldCheck, Award, RefreshCw } from 'lucide-react';
+import { downloadCertificatePdf } from '../services/certificateService';
 
 interface CertificatePreviewModalProps {
   certificate: any;
@@ -12,6 +13,7 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
 
   const [clearances, setClearances] = useState<any[]>([]);
   const [loadingClearances, setLoadingClearances] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -42,8 +44,22 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
     }
   };
 
+  const certId = certificate._id || certificate.id;
   const token = localStorage.getItem('ndc_token') || '';
-  const downloadUrl = getApiUrl(`/api/v1/certificates/${certificate._id}/download?token=${token}`);
+  const downloadUrl = certId ? getApiUrl(`/api/v1/certificates/${encodeURIComponent(certId)}/download?token=${encodeURIComponent(token)}`) : '#';
+
+  const handleDownload = async () => {
+    if (!certId) return;
+    setDownloading(true);
+    try {
+      await downloadCertificatePdf(certificate, certificate.certificateNumber);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      alert(err.message || 'Failed to download certificate PDF.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const studentName = certificate.studentId?.fullName || certificate.studentName || 'Student Name';
   const usn = certificate.studentId?.usn || certificate.studentUsn || 'N/A';
@@ -78,16 +94,18 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
             </h3>
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href={downloadUrl}
-              download={`NDC_${certificate.certificateNumber || 'Certificate'}.pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs"
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
             >
-              <Download className="w-3.5 h-3.5" />
-              Download PDF
-            </a>
+              {downloading ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              {downloading ? 'Downloading...' : 'Download PDF'}
+            </button>
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"

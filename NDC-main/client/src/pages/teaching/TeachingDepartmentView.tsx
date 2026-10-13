@@ -3,6 +3,7 @@ import api from '../../services/api';
 import { ClearanceStatusBadge } from '../../components/ClearanceStatusBadge';
 import { showErrorModal } from '../../store/useErrorModalStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { downloadCertificatePdf } from '../../services/certificateService';
 import {
   Users,
   CheckCircle2,
@@ -164,11 +165,14 @@ export const TeachingDepartmentView: React.FC = () => {
     }
   };
 
-  const handleDownloadCertificate = (certId: string, certNo: string) => {
+  const handleDownloadCertificate = async (certId: string, certNo: string) => {
     if (!certId) return;
-    const token = localStorage.getItem('ndc_token') || '';
-    const downloadUrl = `${api.defaults.baseURL}/teaching-department/certificates/${certId}/download?token=${token}`;
-    window.open(downloadUrl, '_blank');
+    try {
+      await downloadCertificatePdf(certId, certNo);
+    } catch (err: any) {
+      console.error('Error downloading certificate PDF:', err);
+      showErrorModal(err, { title: 'Certificate Download Failed' });
+    }
   };
 
   const { department, statistics, allBranches = [] } = dashboardData || {};

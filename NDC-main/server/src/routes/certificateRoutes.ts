@@ -15,6 +15,7 @@ router.get('/student', CertificateController.getStudentCertificates);
 router.get('/student/:studentId', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.HOD), CertificateController.getStudentCertificates);
 router.put('/:id/submission', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DEPARTMENT_OFFICER), CertificateController.updateSubmissionStatus);
 router.get('/:id/download', CertificateController.downloadPdf);
+router.get('/:id/pdf', CertificateController.downloadPdf);
 router.post('/:id/revoke', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), CertificateController.revokeCertificate);
 router.post('/reissue', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), CertificateController.reissueCertificate);
 router.post('/:id/regenerate', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN), CertificateController.regenerateCertificate);

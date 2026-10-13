@@ -20,9 +20,11 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Mail
+  Mail,
+  RefreshCw
 } from 'lucide-react';
 import { clientCache } from '../../utils/clientCache';
+import { downloadCertificatePdf } from '../../services/certificateService';
 
 const getDepartmentIcon = (code?: string, name?: string) => {
   const c = (code || '').toUpperCase();
@@ -48,6 +50,7 @@ export const StudentDashboard: React.FC = () => {
   const [data, setData] = useState<any>(() => clientCache.get('student_ndc_status'));
   const [loading, setLoading] = useState<boolean>(() => !clientCache.get('student_ndc_status'));
   const [showAllLabs, setShowAllLabs] = useState<boolean>(false);
+  const [downloadingCert, setDownloadingCert] = useState<boolean>(false);
 
   useEffect(() => {
     fetchStatus(!data);
@@ -100,6 +103,38 @@ export const StudentDashboard: React.FC = () => {
 
   const { student, ndcRequest, clearances, progress, hasActiveRequest } = data || {};
 
+  const handleDownloadCertificate = async () => {
+    const certId = typeof ndcRequest?.certificateId === 'object'
+      ? (ndcRequest.certificateId?._id || ndcRequest.certificateId?.id)
+      : (ndcRequest?.certificateId || ndcRequest?.certificate?._id || ndcRequest?.certificate?.id);
+    const certNo = typeof ndcRequest?.certificateId === 'object'
+      ? ndcRequest.certificateId?.certificateNumber
+      : (ndcRequest?.certificate?.certificateNumber || 'Certificate');
+
+    if (!certId) {
+      alert('Certificate identifier not found. Please refresh the page or contact administration.');
+      return;
+    }
+
+    setDownloadingCert(true);
+    try {
+      await downloadCertificatePdf(certId, certNo);
+    } catch (err: any) {
+      console.error('Failed to download certificate PDF:', err);
+      alert(err.message || 'Unable to download certificate. Please retry in a few moments.');
+    } finally {
+      setDownloadingCert(false);
+    }
+  };
+
+  const directDownloadUrl = ndcRequest?.certificateId || ndcRequest?.certificate
+    ? getApiUrl(`/api/v1/certificates/${encodeURIComponent(
+        typeof ndcRequest?.certificateId === 'object'
+          ? (ndcRequest.certificateId?._id || ndcRequest.certificateId?.id || '')
+          : (ndcRequest?.certificateId || ndcRequest?.certificate?._id || ndcRequest?.certificate?.id || '')
+      )}/download?token=${encodeURIComponent(localStorage.getItem('ndc_token') || '')}`)
+    : '#';
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Student Welcome Banner */}
@@ -130,17 +165,19 @@ export const StudentDashboard: React.FC = () => {
         </div>
 
         {/* Action Button on Welcome Banner */}
-        {hasActiveRequest && ndcRequest?.status === 'APPROVED' && ndcRequest?.certificateId ? (
-          <a
-            href={getApiUrl(`/api/v1/certificates/${ndcRequest.certificateId._id || ndcRequest.certificateId}/download?token=${localStorage.getItem('ndc_token') || ''}`)}
-            download={`NDC_${ndcRequest.certificateId?.certificateNumber || 'Certificate'}.pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm shadow-soft-md hover:shadow-soft-lg transition-all flex items-center gap-2 cursor-pointer relative z-10 shrink-0"
+        {hasActiveRequest && ndcRequest?.status === 'APPROVED' && (ndcRequest?.certificateId || ndcRequest?.certificate) ? (
+          <button
+            onClick={handleDownloadCertificate}
+            disabled={downloadingCert}
+            className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm shadow-soft-md hover:shadow-soft-lg transition-all flex items-center gap-2 cursor-pointer relative z-10 shrink-0 disabled:opacity-75 disabled:cursor-not-allowed"
           >
-            <Award className="w-5 h-5" />
-            Download Official Certificate
-          </a>
+            {downloadingCert ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <Award className="w-5 h-5" />
+            )}
+            {downloadingCert ? 'Generating & Downloading...' : 'Download Official Certificate'}
+          </button>
         ) : hasActiveRequest ? (
           <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20 text-xs font-bold relative z-10">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />

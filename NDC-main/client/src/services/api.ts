@@ -1,10 +1,15 @@
 import axios from 'axios';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const rawBaseUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+// Strip trailing /api/v1 from rawBaseUrl so API_BASE_URL is always the origin root
+export const API_BASE_URL = rawBaseUrl.replace(/\/api\/v1$/, '');
 
 export const getApiUrl = (path: string): string => {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${cleanPath}`;
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (!cleanPath.startsWith('/api/v1')) {
+    cleanPath = `/api/v1${cleanPath}`;
+  }
+  return API_BASE_URL ? `${API_BASE_URL}${cleanPath}` : cleanPath;
 };
 
 const api = axios.create({
