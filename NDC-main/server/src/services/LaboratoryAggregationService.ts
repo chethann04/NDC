@@ -511,11 +511,14 @@ export class LaboratoryAggregationService {
     let labRow: any = null;
     if (labSummary.applicableLabsCount > 0 || labSummary.clearedLabs > 0) {
       const labDocs = clearanceDocs.filter(this.isLaboratoryClearance);
-      let latestTimestamp: Date = new Date();
+      let latestTimestamp: Date | null = null;
       for (const l of labDocs) {
         const t = l.reviewedAt || l.updatedAt;
-        if (t && new Date(t) > latestTimestamp) {
-          latestTimestamp = new Date(t);
+        if (t) {
+          const dt = new Date(t);
+          if (!latestTimestamp || dt > latestTimestamp) {
+            latestTimestamp = dt;
+          }
         }
       }
 
@@ -523,7 +526,7 @@ export class LaboratoryAggregationService {
         departmentName: 'Laboratory',
         departmentCode: 'LAB',
         status: labSummary.overallLaboratoryStatus === 'NO DUE' ? 'CLEARED' : (labSummary.overallLaboratoryStatus === 'DUE' ? 'DUE' : 'PENDING'),
-        approvalTimestamp: latestTimestamp,
+        approvalTimestamp: latestTimestamp || new Date(),
         reviewedByName: 'Designated Laboratory In-charge',
         displayOrder: 2
       };

@@ -506,6 +506,7 @@ export class NdcWorkflowService {
 
     // Recalculate NDC overall status
     await this.checkAndUpdateNdcStatus(clearance.ndcRequestId, officerUserId, reqObj);
+    import('../controllers/NdcController').then((m) => m.invalidateStudentStatusCache(clearance.studentId)).catch(() => {});
 
     // Asynchronously dispatch notification email to student's registered email address
     (async () => {
@@ -734,6 +735,7 @@ export class NdcWorkflowService {
 
     // Recalculate NDC overall status
     await this.checkAndUpdateNdcStatus(clearance.ndcRequestId, adminUserId, reqObj);
+    import('../controllers/NdcController').then((m) => m.invalidateStudentStatusCache(clearance.studentId)).catch(() => {});
 
     // Asynchronously dispatch notification email to student's registered email address
     (async () => {

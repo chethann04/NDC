@@ -351,6 +351,20 @@ export class NdcController {
   public static async getStudentNdcStatus(req: AuthRequest, res: Response): Promise<void> {
     try {
       let studentId = req.params.studentId || req.user?.associatedStudentId;
+      if (!studentId && req.user?.role === UserRole.STUDENT) {
+        const fallbackStudent = await prisma.student.findFirst({
+          where: {
+            OR: [
+              { userId: req.user.id || req.user._id },
+              { email: req.user.email }
+            ]
+          }
+        });
+        if (fallbackStudent) {
+          studentId = fallbackStudent.id;
+        }
+      }
+
       if (!studentId) {
         res.status(200).json({
           success: true,
@@ -474,10 +488,13 @@ export class NdcController {
       const aggregatedClearances = LaboratoryAggregationService.aggregateClearancesForPresentation(clearances);
 
       // Student progress evaluated at the aggregated category level
-      const totalCategories = aggregatedClearances.length;
-      const clearedCategories = aggregatedClearances.filter(
-        (c: any) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE'
-      ).length;
+      const totalCategories = aggregatedClearances.length > 0 ? aggregatedClearances.length : 5;
+      const isApproved = ndcRequest.status === 'APPROVED';
+      const clearedCategories = isApproved
+        ? totalCategories
+        : aggregatedClearances.filter(
+            (c: any) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE' || c.status === 'NO DUE'
+          ).length;
 
       // Auto-heal / Auto-generate certificate if all departments and laboratories are cleared
       const allRawSatisfied = clearances.length > 0 && clearances.every(
@@ -540,7 +557,7 @@ export class NdcController {
         progress: {
           total: totalCategories,
           cleared: clearedCategories,
-          percentage: totalCategories > 0 ? Math.round((clearedCategories / totalCategories) * 100) : 0
+          percentage: isApproved ? 100 : (totalCategories > 0 ? Math.round((clearedCategories / totalCategories) * 100) : 0)
         }
       };
 

@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 import { UserRole } from '../constants/roles';
 import { CertificateStatus } from '../constants/statuses';
 import { PdfService } from '../services/PdfService';
+import { LaboratoryAggregationService } from '../services/LaboratoryAggregationService';
 import { withId, withIds } from '../utils/formatters';
 
 export class TeachingDepartmentController {
@@ -280,6 +281,12 @@ export class TeachingDepartmentController {
 
         const certNo = reqItem?.certificate?.certificateNumber || (ndcStatus === 'APPROVED' ? 'Generated' : '-');
 
+        const isApproved = ndcStatus === 'APPROVED';
+        const effectiveTotalTasks = reqClearances.length > 0 ? reqClearances.length : 6;
+        const effectiveClearedTasks = isApproved
+          ? effectiveTotalTasks
+          : reqClearances.filter((c) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE').length;
+
         return {
           slNo: index + 1,
           id: student.id,
@@ -295,9 +302,9 @@ export class TeachingDepartmentController {
           departmentName: student.department?.name || 'Academic Dept',
           ndcStatus,
           progress: {
-            cleared: clearedTasks,
-            total: totalTasks,
-            percentage: totalTasks > 0 ? Math.round((clearedTasks / totalTasks) * 100) : 0
+            cleared: effectiveClearedTasks,
+            total: effectiveTotalTasks,
+            percentage: isApproved ? 100 : (effectiveTotalTasks > 0 ? Math.round((effectiveClearedTasks / effectiveTotalTasks) * 100) : 0)
           },
           duesCount: dueTasks.length,
           dueDepartment: dueDeptNames || '-',
@@ -558,15 +565,7 @@ export class TeachingDepartmentController {
         return;
       }
 
-      const clearanceItems = clearanceDocs
-        .filter((c: any) => c.status !== 'NOT_APPLICABLE')
-        .map((c: any) => ({
-          departmentName: c.department?.name || 'Department Desk',
-          departmentCode: c.department?.code || 'DEPT',
-          status: c.status || 'CLEARED',
-          approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
-          reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-        }));
+      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
 
       await PdfService.generateCertificatePdf(
         {

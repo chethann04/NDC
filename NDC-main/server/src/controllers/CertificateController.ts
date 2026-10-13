@@ -335,15 +335,7 @@ export class CertificateController {
         return;
       }
 
-      const clearanceItems = clearanceDocs
-        .filter((c: any) => c.status !== 'NOT_APPLICABLE')
-        .map((c: any) => ({
-          departmentName: c.department?.name || 'Department Desk',
-          departmentCode: c.department?.code || 'DEPT',
-          status: c.status || 'CLEARED',
-          approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
-          reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-        }));
+      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
 
       // Ensure upload directory exists
       const filename = `NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
@@ -468,15 +460,7 @@ export class CertificateController {
         orderBy: { createdAt: 'asc' }
       });
 
-      const clearanceItems = clearanceDocs
-        .filter((c: any) => c.status !== 'NOT_APPLICABLE')
-        .map((c: any) => ({
-          departmentName: c.department?.name || 'Department Desk',
-          departmentCode: c.department?.code || 'DEPT',
-          status: c.status || 'CLEARED',
-          approvalTimestamp: c.reviewedAt || c.updatedAt || certificate.issuedAt || new Date(),
-          reviewedByName: c.reviewedBy?.name || 'Clearance Officer'
-        }));
+      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
 
       // Force PDF re-rendering using latest template & active clearances
       await PdfService.generateCertificatePdf(

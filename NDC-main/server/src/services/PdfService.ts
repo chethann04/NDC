@@ -272,11 +272,17 @@ export class PdfService {
         const labItems = clearanceRows.filter(isLabItem);
         if (labItems.length > 0) {
           const nonLabItems = clearanceRows.filter((item) => !isLabItem(item));
-          let latestLabTimestamp: Date | string = certificateData.issuedAt;
+          let latestLabTimestamp: Date | string | null = null;
           for (const l of labItems) {
-            if (l.approvalTimestamp && new Date(l.approvalTimestamp) > new Date(latestLabTimestamp)) {
-              latestLabTimestamp = l.approvalTimestamp;
+            if (l.approvalTimestamp) {
+              const dt = new Date(l.approvalTimestamp);
+              if (!latestLabTimestamp || dt > new Date(latestLabTimestamp)) {
+                latestLabTimestamp = l.approvalTimestamp;
+              }
             }
+          }
+          if (!latestLabTimestamp) {
+            latestLabTimestamp = certificateData.issuedAt;
           }
 
           const unifiedLabItem: ClearanceItemPdf = {

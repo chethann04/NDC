@@ -7,15 +7,16 @@ interface Props {
 }
 
 export const ProgressRing: React.FC<Props> = ({ percentage, size = 120, strokeWidth = 10 }) => {
+  const safePercentage = Math.min(100, Math.max(0, Math.round(Number(percentage) || 0)));
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const strokeDashoffset = circumference - (safePercentage / 100) * circumference;
 
   const strokeColor =
-    percentage === 100
+    safePercentage === 100
       ? '#059669' // emerald
-      : percentage >= 50
-      ? '#0f172a' // black / slate-900
+      : safePercentage >= 50
+      ? '#0f172a' // slate-900
       : '#d97706'; // amber
 
   return (
@@ -43,7 +44,7 @@ export const ProgressRing: React.FC<Props> = ({ percentage, size = 120, strokeWi
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className="text-2xl font-black text-slate-900 tracking-tight">{percentage}%</span>
+        <span className="text-2xl font-black text-slate-900 tracking-tight">{safePercentage}%</span>
         <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Cleared</span>
       </div>
     </div>
