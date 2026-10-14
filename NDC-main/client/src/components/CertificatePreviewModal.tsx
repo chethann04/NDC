@@ -189,26 +189,30 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
                   <tbody className="divide-y divide-slate-100 text-slate-800">
                     {(clearances.length > 0 ? clearances : defaultDesks)
                       .filter((desk: any) => {
-                        if (desk.departmentId && desk.departmentId.requiresClearance === false) return false;
-                        if (desk.requiresClearance === false) return false;
-                        if (desk.departmentId?.code === 'ADM' || desk.code === 'ADM') return false;
+                        const code = (desk.departmentId?.code || desk.code || '').toUpperCase();
+                        if (code === 'ADM') return false;
+                        if (desk.departmentId && desk.departmentId.requiresClearance === false && code !== 'LAB') return false;
+                        if (desk.requiresClearance === false && code !== 'LAB') return false;
                         return true;
                       })
                       .map((desk: any, idx: number) => {
                       const deptTitle = desk.departmentId?.name || desk.name;
-                      const deptCode = desk.departmentId?.code || desk.code;
+                      const deptCode = (desk.departmentId?.code || desk.code || 'DEPT').toUpperCase();
                       const deskStatus = String(desk.status || 'PENDING').toUpperCase();
-                      const isCleared = deskStatus === 'CLEARED' || deskStatus === 'NOT_APPLICABLE' || deskStatus === 'APPROVED';
+                      const isNA = deskStatus === 'NOT_APPLICABLE' || deskStatus === 'EXEMPT' || deskStatus === 'N/A';
+                      const isCleared = deskStatus === 'CLEARED' || deskStatus === 'APPROVED';
                       const isDue = deskStatus === 'DUE' || deskStatus === 'BLOCKED';
                       const ts = desk.reviewedAt || desk.updatedAt || certificate.issuedAt || new Date();
-                      const formattedTs = desk.reviewedAt || isCleared ? new Date(ts).toLocaleString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      }) : 'Pending Review';
+                      const formattedTs = isNA && !desk.reviewedAt
+                        ? 'Exempt / Not Applicable'
+                        : (desk.reviewedAt || isCleared ? new Date(ts).toLocaleString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          }) : 'Pending Review');
 
                       return (
                         <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
@@ -216,7 +220,11 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
                           <td className="py-2 px-3 font-semibold text-slate-900">{deptTitle}</td>
                           <td className="py-2 px-3 mono-text font-bold text-blue-700">{deptCode}</td>
                           <td className="py-2 px-3">
-                            {isCleared ? (
+                            {isNA ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-bold">
+                                NOT APPLICABLE
+                              </span>
+                            ) : isCleared ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" /> NO DUES
                               </span>

@@ -534,22 +534,30 @@ export class TeachingDepartmentController {
       const fullPath = path.join(uploadsDir, filename);
 
       // Verify clearance tasks if available & ensure ZERO dues or holds
-      const clearanceDocs = certificate.ndcRequestId ? await prisma.ndcClearance.findMany({
-        where: {
-          ndcRequestId: certificate.ndcRequestId,
-          department: {
-            isActive: true,
-            requiresClearance: true
-          }
-        },
-        include: {
-          department: true,
-          reviewedBy: {
-            select: { name: true, role: true }
-          }
-        },
-        orderBy: { createdAt: 'asc' }
-      }) : [];
+      let reqId = certificate.ndcRequestId;
+      if (!reqId && student?.id) {
+        const foundReq = await prisma.ndcRequest.findFirst({
+          where: { studentId: student.id },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (foundReq) reqId = foundReq.id;
+      }
+
+      const clearanceDocs = reqId
+        ? await prisma.ndcClearance.findMany({
+            where: {
+              ndcRequestId: reqId
+            },
+            include: {
+              department: true,
+              lab: true,
+              reviewedBy: {
+                select: { name: true, role: true }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          })
+        : [];
 
       const hasUnresolved = clearanceDocs.some((c: any) =>
         c.status === 'DUE' ||
@@ -565,7 +573,19 @@ export class TeachingDepartmentController {
         return;
       }
 
-      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
+      const studentDeptInfo = student?.department ? {
+        name: student.department.name,
+        code: student.department.code,
+        hodName: student.department.hodName
+      } : (certificate.departmentName ? {
+        name: certificate.departmentName,
+        code: 'ACAD'
+      } : undefined);
+
+      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(
+        clearanceDocs,
+        studentDeptInfo
+      );
 
       await PdfService.generateCertificatePdf(
         {

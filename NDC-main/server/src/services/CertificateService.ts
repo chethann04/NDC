@@ -69,14 +69,10 @@ export class CertificateService {
       ? await prisma.clearanceDepartment.findUnique({ where: { id: student.departmentId } })
       : null;
 
-    // Strict Validation: Query all clearance tasks for active departments that require clearance
+    // Query all clearance tasks for this request
     const clearanceDocs = await prisma.ndcClearance.findMany({
       where: {
-        ndcRequestId: request.id,
-        department: {
-          isActive: true,
-          requiresClearance: true
-        }
+        ndcRequestId: request.id
       },
       include: {
         department: true,
@@ -110,8 +106,17 @@ export class CertificateService {
         })
       : null;
 
-    // Use centralized LaboratoryAggregationService to aggregate all labs into ONE "Laboratory — Cleared" entry
-    const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
+    const studentDeptInfo = department ? {
+      name: department.name,
+      code: department.code,
+      hodName: department.hodName
+    } : (student?.departmentName ? {
+      name: student.departmentName,
+      code: 'ACAD'
+    } : undefined);
+
+    // Use centralized LaboratoryAggregationService to aggregate labs, preserve hostel, and format all desks
+    const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs, studentDeptInfo);
 
     if (existingCert) {
       let activeCert = existingCert;

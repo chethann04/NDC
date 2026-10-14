@@ -305,22 +305,30 @@ export class CertificateController {
       };
 
       // Retrieve clearance tasks if available; check for any active dues/holds
-      const clearanceDocs = certificate.ndcRequestId ? await prisma.ndcClearance.findMany({
-        where: {
-          ndcRequestId: certificate.ndcRequestId,
-          department: {
-            isActive: true,
-            requiresClearance: true
-          }
-        },
-        include: {
-          department: true,
-          reviewedBy: {
-            select: { name: true, role: true }
-          }
-        },
-        orderBy: { createdAt: 'asc' }
-      }) : [];
+      let reqId = certificate.ndcRequestId;
+      if (!reqId && student?.id) {
+        const foundReq = await prisma.ndcRequest.findFirst({
+          where: { studentId: student.id },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (foundReq) reqId = foundReq.id;
+      }
+
+      const clearanceDocs = reqId
+        ? await prisma.ndcClearance.findMany({
+            where: {
+              ndcRequestId: reqId
+            },
+            include: {
+              department: true,
+              lab: true,
+              reviewedBy: {
+                select: { name: true, role: true }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          })
+        : [];
 
       const hasUnresolved = clearanceDocs.some((c: any) =>
         c.status === 'DUE' ||
@@ -336,7 +344,20 @@ export class CertificateController {
         return;
       }
 
-      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
+      const studentDeptInfo = student?.department ? {
+        name: student.department.name,
+        code: student.department.code,
+        hodName: student.department.hodName
+      } : {
+        name: effectiveStudent.departmentName,
+        code: 'ACAD',
+        hodName: effectiveStudent.hodName
+      };
+
+      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(
+        clearanceDocs,
+        studentDeptInfo
+      );
 
       // Ensure upload directory exists
       const filename = `NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
@@ -444,24 +465,44 @@ export class CertificateController {
         ? pdfPathStr
         : path.resolve(process.cwd(), pdfPathStr.replace(/^\//, ''));
 
-      const clearanceDocs = await prisma.ndcClearance.findMany({
-        where: {
-          ndcRequestId: certificate.ndcRequestId,
-          department: {
-            isActive: true,
-            requiresClearance: true
-          }
-        },
-        include: {
-          department: true,
-          reviewedBy: {
-            select: { name: true, role: true }
-          }
-        },
-        orderBy: { createdAt: 'asc' }
-      });
+      let reqId = certificate.ndcRequestId;
+      if (!reqId && student?.id) {
+        const foundReq = await prisma.ndcRequest.findFirst({
+          where: { studentId: student.id },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (foundReq) reqId = foundReq.id;
+      }
 
-      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(clearanceDocs);
+      const clearanceDocs = reqId
+        ? await prisma.ndcClearance.findMany({
+            where: {
+              ndcRequestId: reqId
+            },
+            include: {
+              department: true,
+              lab: true,
+              reviewedBy: {
+                select: { name: true, role: true }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          })
+        : [];
+
+      const studentDeptInfo = department ? {
+        name: department.name,
+        code: department.code,
+        hodName: department.hodName
+      } : (certificate.departmentName ? {
+        name: certificate.departmentName,
+        code: 'ACAD'
+      } : undefined);
+
+      const clearanceItems = LaboratoryAggregationService.getCertificateClearanceItems(
+        clearanceDocs,
+        studentDeptInfo
+      );
 
       // Force PDF re-rendering using latest template & active clearances
       await PdfService.generateCertificatePdf(

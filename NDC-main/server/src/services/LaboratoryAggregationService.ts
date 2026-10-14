@@ -486,64 +486,165 @@ export class LaboratoryAggregationService {
   /**
    * Produce the final itemized clearance list for the official Certificate PDF.
    * Strips all individual laboratories and injects exactly ONE "Laboratory — No Due" entry.
+   * Guarantees all requisite clearance desks are present (including Hostel with NOT_APPLICABLE status
+   * for day scholars, and the student's Academic Branch desk).
    */
-  public static getCertificateClearanceItems(clearanceDocs: any[]): any[] {
+  public static getCertificateClearanceItems(
+    clearanceDocs: any[],
+    studentDept?: { name?: string; code?: string; hodName?: string }
+  ): any[] {
     const labSummary = this.getLaboratoryClearanceSummary(clearanceDocs);
 
-    // Filter out NOT_APPLICABLE departments and legacy LAB
-    const nonLabClearances = clearanceDocs
-      .filter((c: any) => !this.isLaboratoryClearance(c) && (c.department?.code || c.departmentId?.code) !== 'LAB')
-      .filter((c: any) => c.status !== DepartmentClearanceStatus.NOT_APPLICABLE && c.status !== 'NOT_APPLICABLE');
+    // Identify pure college labs: Physics Lab, Chemistry Lab, or legacy LAB
+    const isPureCollegeLab = (c: any) => {
+      const code = (c.department?.code || c.departmentId?.code || '').toUpperCase().trim();
+      const name = (c.department?.name || c.departmentId?.name || '').toLowerCase().trim();
+      return (
+        code === 'PHY' ||
+        code === 'CHEM' ||
+        code === 'LAB' ||
+        code === 'PHY_LAB' ||
+        code === 'CHEM_LAB' ||
+        (name.includes('physics') && name.includes('lab')) ||
+        (name.includes('chemistry') && name.includes('lab'))
+      );
+    };
 
-    const result: any[] = [];
+    // Locate the student's Academic Branch clearance if present in clearanceDocs
+    const branchClearance = clearanceDocs.find(
+      (c: any) =>
+        c.department?.isAcademicBranch ||
+        (studentDept?.code && (c.department?.code || '').toUpperCase() === studentDept.code.toUpperCase()) ||
+        (studentDept?.name && (c.department?.name || '').toLowerCase() === studentDept.name.toLowerCase())
+    );
+
+    // Filter non-lab clearances (do NOT filter out NOT_APPLICABLE; hostel / exempt status must appear on certificate)
+    const nonLabClearances = clearanceDocs.filter((c: any) => {
+      if (isPureCollegeLab(c)) return false;
+      // Exclude branch clearance here so we can format and insert it explicitly with correct title & order
+      if (c === branchClearance) return false;
+      return true;
+    });
 
     // Map non-lab clearances to PDF format
     const nonLabRows = nonLabClearances.map((c: any) => ({
       departmentName: c.department?.name || 'Department Desk',
-      departmentCode: c.department?.code || 'DEPT',
-      status: c.status || 'CLEARED',
+      departmentCode: (c.department?.code || 'DEPT').toUpperCase(),
+      status: (c.status || 'CLEARED').toString().toUpperCase(),
       approvalTimestamp: c.reviewedAt || c.updatedAt || new Date(),
       reviewedByName: c.reviewedBy?.name || 'Clearance Officer',
       displayOrder: c.department?.displayOrder ?? 10
     }));
 
-    // If student had any applicable laboratories, insert exactly ONE Laboratory item
-    let labRow: any = null;
-    if (labSummary.applicableLabsCount > 0 || labSummary.clearedLabs > 0) {
-      const labDocs = clearanceDocs.filter(this.isLaboratoryClearance);
-      let latestTimestamp: Date | null = null;
-      for (const l of labDocs) {
-        const t = l.reviewedAt || l.updatedAt;
-        if (t) {
-          const dt = new Date(t);
-          if (!latestTimestamp || dt > latestTimestamp) {
-            latestTimestamp = dt;
-          }
+    // Guarantee Hostel is present on the certificate
+    // If student has a hostel clearance record (even with NOT_APPLICABLE status), it was mapped above.
+    // If student had no hostel record at all, inject an explicit "Hostel Warden / Administration" as NOT_APPLICABLE.
+    const hasHostel = nonLabRows.some(
+      (r: any) => r.departmentCode === 'HST' || r.departmentName.toLowerCase().includes('hostel')
+    );
+    if (!hasHostel) {
+      nonLabRows.push({
+        departmentName: 'Hostel Warden / Administration',
+        departmentCode: 'HST',
+        status: 'NOT_APPLICABLE',
+        approvalTimestamp: null,
+        reviewedByName: 'Hostel Administration',
+        displayOrder: 3
+      });
+    }
+
+    // Single unified Laboratory row (representing Physics Lab, Chemistry Lab, and Department Labs)
+    let latestLabTimestamp: Date | null = null;
+    const labDocs = clearanceDocs.filter(this.isLaboratoryClearance);
+    for (const l of labDocs) {
+      const t = l.reviewedAt || l.updatedAt;
+      if (t) {
+        const dt = new Date(t);
+        if (!latestLabTimestamp || dt > latestLabTimestamp) {
+          latestLabTimestamp = dt;
         }
       }
+    }
 
-      labRow = {
-        departmentName: 'Laboratory',
-        departmentCode: 'LAB',
-        status: labSummary.overallLaboratoryStatus === 'NO DUE' ? 'CLEARED' : (labSummary.overallLaboratoryStatus === 'DUE' ? 'DUE' : 'PENDING'),
-        approvalTimestamp: latestTimestamp || new Date(),
-        reviewedByName: 'Designated Laboratory In-charge',
-        displayOrder: 2
+    const labRow = {
+      departmentName: 'Laboratory',
+      departmentCode: 'LAB',
+      status:
+        labSummary.overallLaboratoryStatus === 'NO DUE'
+          ? 'CLEARED'
+          : labSummary.overallLaboratoryStatus === 'DUE'
+          ? 'DUE'
+          : 'PENDING',
+      approvalTimestamp: latestLabTimestamp || new Date(),
+      reviewedByName: 'Designated Laboratory In-charge',
+      displayOrder: 2
+    };
+
+    // Build the Academic Branch clearance row
+    let branchRow: any = null;
+    if (branchClearance) {
+      branchRow = {
+        departmentName:
+          branchClearance.department?.name || studentDept?.name || 'Academic Department',
+        departmentCode: (
+          branchClearance.department?.code || studentDept?.code || 'ACAD'
+        ).toUpperCase(),
+        status: (branchClearance.status || 'CLEARED').toString().toUpperCase(),
+        approvalTimestamp:
+          branchClearance.reviewedAt || branchClearance.updatedAt || new Date(),
+        reviewedByName:
+          branchClearance.reviewedBy?.name || studentDept?.hodName || 'Head of the Department',
+        displayOrder: 6
+      };
+    } else if (studentDept?.name) {
+      branchRow = {
+        departmentName: studentDept.name,
+        departmentCode: (studentDept.code || 'ACAD').toUpperCase(),
+        status: 'CLEARED',
+        approvalTimestamp: new Date(),
+        reviewedByName: studentDept.hodName || 'Head of the Department',
+        displayOrder: 6
       };
     }
 
-    let labInserted = false;
-    for (const row of nonLabRows) {
-      const code = (row.departmentCode || '').toUpperCase();
-      if (labRow && !labInserted && (code === 'HST' || code === 'SPT' || code === 'ACC' || code.length === 2)) {
-        result.push(labRow);
-        labInserted = true;
-      }
-      result.push(row);
+    // Assemble all certificate clearance rows
+    const allItems: any[] = [...nonLabRows, labRow];
+    if (branchRow) {
+      allItems.push(branchRow);
     }
 
-    if (labRow && !labInserted) {
-      result.push(labRow);
+    // Canonical institutional sort order:
+    // 1. Central Library (LIB)
+    // 2. Laboratory (LAB)
+    // 3. Hostel Warden / Administration (HST)
+    // 4. Physical Education / Sports Section (SPT)
+    // 5. Cash/Fee Section (ACC)
+    // 6. Academic Branch (branch code / ACAD)
+    // 7. ADM / College Office / others
+    const getCanonicalOrder = (item: any) => {
+      const code = (item.departmentCode || '').toUpperCase();
+      if (code === 'LIB') return 1;
+      if (code === 'LAB') return 2;
+      if (code === 'HST') return 3;
+      if (code === 'SPT') return 4;
+      if (code === 'ACC') return 5;
+      if (branchRow && item.departmentCode === branchRow.departmentCode) return 6;
+      if (studentDept?.code && code === studentDept.code.toUpperCase()) return 6;
+      if (code === 'ADM') return 7;
+      return item.displayOrder ?? 8;
+    };
+
+    allItems.sort((a, b) => getCanonicalOrder(a) - getCanonicalOrder(b));
+
+    // Deduplicate by departmentCode
+    const seenCodes = new Set<string>();
+    const result: any[] = [];
+    for (const item of allItems) {
+      const code = (item.departmentCode || '').toUpperCase();
+      if (!seenCodes.has(code)) {
+        seenCodes.add(code);
+        result.push(item);
+      }
     }
 
     return result;
