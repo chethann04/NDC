@@ -17,6 +17,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { ErrorAlert } from '../../components/ErrorAlert';
+import { clientCache } from '../../utils/clientCache';
 
 interface ClearanceItem {
   id: string;
@@ -147,6 +148,9 @@ export const DepartmentLabClearance: React.FC = () => {
         message: `Successfully cleared Department Lab for ${res.data?.cleared || selectedIds.size} students.`
       });
       setSelectedIds(new Set());
+      clientCache.invalidate('officer');
+      clientCache.invalidate('student_ndc_status');
+      clientCache.invalidate('admin_dashboard');
       await fetchClearances();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Bulk clear failed');
@@ -179,6 +183,9 @@ export const DepartmentLabClearance: React.FC = () => {
       });
 
       setSelectedItem(null);
+      clientCache.invalidate('officer');
+      clientCache.invalidate('student_ndc_status');
+      clientCache.invalidate('admin_dashboard');
       await fetchClearances();
     } catch (err: any) {
       setModalError(err.response?.data?.message || 'Failed to update clearance status.');

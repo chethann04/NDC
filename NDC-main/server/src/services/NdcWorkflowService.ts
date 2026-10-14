@@ -516,6 +516,11 @@ export class NdcWorkflowService {
           include: {
             department: true,
             lab: true,
+            student: {
+              include: {
+                user: { select: { email: true } }
+              }
+            },
             reviewedBy: { select: { id: true, name: true } },
             ndcRequest: {
               include: {
@@ -527,8 +532,7 @@ export class NdcWorkflowService {
                 clearances: {
                   where: {
                     department: {
-                      isActive: true,
-                      requiresClearance: true
+                      isActive: true
                     }
                   }
                 }
@@ -537,31 +541,44 @@ export class NdcWorkflowService {
           }
         });
 
-        const student = fullClearance?.ndcRequest?.student;
-        const targetEmail = student?.user?.email || student?.email;
+        const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
+        let targetEmail = student?.user?.email || student?.email;
+
+        if (!targetEmail || targetEmail.includes('@demo.ndc.local')) {
+          const registeredStudentUser = await prisma.user.findFirst({
+            where: {
+              role: 'STUDENT',
+              email: { not: { contains: 'demo.ndc.local' } }
+            },
+            select: { email: true }
+          });
+          if (registeredStudentUser?.email) {
+            targetEmail = registeredStudentUser.email;
+          }
+        }
 
         if (targetEmail && student) {
-          const reqClearances = fullClearance.ndcRequest?.clearances || [];
+          const reqClearances = fullClearance?.ndcRequest?.clearances || [];
           const clearedCount = reqClearances.filter(
             (c: any) => c.status === DepartmentClearanceStatus.CLEARED || c.status === DepartmentClearanceStatus.NOT_APPLICABLE
           ).length;
           const totalCount = reqClearances.length;
 
-          const sectionName = fullClearance.lab?.name
-            ? (fullClearance.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
-            : fullClearance.department?.name || 'Department Clearance Section';
+          const sectionName = fullClearance?.lab?.name
+            ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
+            : fullClearance?.department?.name || 'Department Clearance Section';
 
           await emailService.sendClearanceUpdateEmail({
             toEmail: targetEmail,
             studentName: student.fullName,
             usn: student.usn,
             departmentName: sectionName,
-            departmentCode: fullClearance.department?.code,
+            departmentCode: fullClearance?.department?.code,
             status: status,
             dueAmount: status === DepartmentClearanceStatus.DUE ? (dueAmount || 0) : 0,
             dueDetails: status === DepartmentClearanceStatus.DUE ? finalDueDetails : undefined,
             remarks: finalRemarks,
-            officerName: fullClearance.reviewedBy?.name,
+            officerName: fullClearance?.reviewedBy?.name,
             clearedCount,
             totalCount
           });
@@ -745,6 +762,11 @@ export class NdcWorkflowService {
           include: {
             department: true,
             lab: true,
+            student: {
+              include: {
+                user: { select: { email: true } }
+              }
+            },
             ndcRequest: {
               include: {
                 student: {
@@ -755,8 +777,7 @@ export class NdcWorkflowService {
                 clearances: {
                   where: {
                     department: {
-                      isActive: true,
-                      requiresClearance: true
+                      isActive: true
                     }
                   }
                 }
@@ -765,25 +786,38 @@ export class NdcWorkflowService {
           }
         });
 
-        const student = fullClearance?.ndcRequest?.student;
-        const targetEmail = student?.user?.email || student?.email;
+        const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
+        let targetEmail = student?.user?.email || student?.email;
+
+        if (!targetEmail || targetEmail.includes('@demo.ndc.local')) {
+          const registeredStudentUser = await prisma.user.findFirst({
+            where: {
+              role: 'STUDENT',
+              email: { not: { contains: 'demo.ndc.local' } }
+            },
+            select: { email: true }
+          });
+          if (registeredStudentUser?.email) {
+            targetEmail = registeredStudentUser.email;
+          }
+        }
 
         if (targetEmail && student) {
-          const reqClearances = fullClearance.ndcRequest?.clearances || [];
+          const reqClearances = fullClearance?.ndcRequest?.clearances || [];
           const clearedCount = reqClearances.filter(
             (c: any) => c.status === DepartmentClearanceStatus.CLEARED || c.status === DepartmentClearanceStatus.NOT_APPLICABLE
           ).length;
 
-          const sectionName = fullClearance.lab?.name
-            ? (fullClearance.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
-            : fullClearance.department?.name || 'Department Clearance Section';
+          const sectionName = fullClearance?.lab?.name
+            ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
+            : fullClearance?.department?.name || 'Department Clearance Section';
 
           await emailService.sendClearanceUpdateEmail({
             toEmail: targetEmail,
             studentName: student.fullName,
             usn: student.usn,
             departmentName: sectionName,
-            departmentCode: fullClearance.department?.code,
+            departmentCode: fullClearance?.department?.code,
             status: newStatus,
             remarks: `Admin Override: ${overrideReason || 'Administrative update'}`,
             officerName: 'System Administrator',

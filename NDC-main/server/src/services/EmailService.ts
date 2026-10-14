@@ -472,24 +472,35 @@ class EmailService {
     // Clean up extraneous quotes if needed
     const from = envFrom.replace(/^["']|["']$/g, '');
 
-    console.log(`[Email Notification] -> To: ${to} | Subject: "${subject}" | From: ${from}`);
+    // In demo / test environments, if student email is a mock domain (@demo.ndc.local),
+    // deliver to registered student user or fallback email so notifications land in the user's real inbox.
+    let recipient = to;
+    let finalSubject = subject;
+    if (to.includes('@demo.ndc.local') || to.includes('@example.com')) {
+      const registeredFallback = process.env.REGISTERED_STUDENT_EMAIL || 'chethuc809@gmail.com';
+      recipient = registeredFallback;
+      finalSubject = `[Student: ${to}] ${subject}`;
+      console.log(`[Email Notification]: Routed demo student email [${to}] -> registered student inbox [${recipient}]`);
+    }
+
+    console.log(`[Email Notification] -> To: ${recipient} | Subject: "${finalSubject}" | From: ${from}`);
 
     if (this.isConfigured && transporter) {
       try {
         const info = await transporter.sendMail({
           from,
-          to,
-          subject,
+          to: recipient,
+          subject: finalSubject,
           html
         });
-        console.log(`[Email Notification] -> Email sent successfully to ${to} (MessageId: ${info.messageId})`);
+        console.log(`[Email Notification] -> Email sent successfully to ${recipient} (MessageId: ${info.messageId})`);
         return true;
       } catch (err: any) {
-        console.error(`[Email Notification Error] -> Failed sending to ${to}:`, err.message || err);
+        console.error(`[Email Notification Error] -> Failed sending to ${recipient}:`, err.message || err);
         return false;
       }
     } else {
-      console.log(`[Email Notification (Dev Mode)]: SMTP credentials unconfigured. Mock email dispatched to ${to}`);
+      console.log(`[Email Notification (Dev Mode)]: SMTP credentials unconfigured. Mock email dispatched to ${recipient}`);
       return true;
     }
   }

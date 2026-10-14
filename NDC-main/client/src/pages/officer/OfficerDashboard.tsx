@@ -97,7 +97,11 @@ export const OfficerDashboard: React.FC = () => {
       'DEPT';
 
   useEffect(() => {
+    // SWR pattern: if we have cached stats, show immediately and refresh in background
     fetchDepartmentData(!kpiStats);
+    if (kpiStats) {
+      fetchDepartmentData(false);
+    }
   }, []);
 
   const fetchDepartmentData = async (showLoading = true) => {
@@ -112,11 +116,11 @@ export const OfficerDashboard: React.FC = () => {
     } catch (err) {
       console.error('Error fetching department data:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
-  if (loading) {
+  if (loading && !kpiStats) {
     return <div className="p-8 text-center text-slate-500 font-semibold">Loading {departmentName} overview...</div>;
   }
 
@@ -125,19 +129,29 @@ export const OfficerDashboard: React.FC = () => {
   const pendingCount = kpiStats?.PENDING ?? 0;
   const dueCount = kpiStats?.DUE ?? 0;
   const clearedCount = (kpiStats?.CLEARED ?? 0) + (kpiStats?.NOT_APPLICABLE ?? 0);
-  const completionPercentage = Math.min(100, Math.max(0, totalQueue > 0 ? Math.round((clearedCount / totalQueue) * 100) : 0));
+  const rawCompletion = totalQueue > 0 ? (clearedCount / totalQueue) * 100 : 0;
+  const completionPercentage = rawCompletion > 0 && rawCompletion < 1
+    ? rawCompletion.toFixed(1)
+    : Math.min(100, Math.max(0, Math.round(rawCompletion)));
 
   // Use fast server-aggregated Academic Branch breakdown
-  const branchBreakdown = (kpiStats?.byDepartment || []).map((dept: any) => ({
-    branch: dept.departmentName,
-    deptId: dept.departmentId,
-    deptCode: dept.departmentCode,
-    total: dept.total || 0,
-    cleared: dept.cleared || 0,
-    pending: dept.pending || 0,
-    due: dept.due || 0,
-    pct: Math.min(100, Math.max(0, dept.total > 0 ? Math.round(((dept.cleared || 0) / (dept.total || 1)) * 100) : 0))
-  }));
+  const branchBreakdown = (kpiStats?.byDepartment || []).map((dept: any) => {
+    const total = dept.total || 0;
+    const cleared = dept.cleared || 0;
+    const rawPct = total > 0 ? (cleared / total) * 100 : 0;
+    const pctDisplay = rawPct > 0 && rawPct < 1 ? `${rawPct.toFixed(1)}%` : `${Math.round(rawPct)}%`;
+    return {
+      branch: dept.departmentName,
+      deptId: dept.departmentId,
+      deptCode: dept.departmentCode,
+      total,
+      cleared,
+      pending: dept.pending || 0,
+      due: dept.due || 0,
+      pct: rawPct,
+      pctDisplay
+    };
+  });
 
   // Historical Comparison Stats (2025 vs 2026 Current)
   const previousYearStats = {
@@ -276,8 +290,8 @@ export const OfficerDashboard: React.FC = () => {
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="display-lg">{totalQueue}</div>
-          <div className="caption-text mt-1">Total Assigned Queue (2026)</div>
+          <div className="display-lg text-slate-900 font-extrabold">{totalQueue}</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">Total Assigned Queue (2026)</div>
         </div>
 
         <div className="stat-card">
@@ -286,8 +300,8 @@ export const OfficerDashboard: React.FC = () => {
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="display-lg text-amber-600">{pendingCount}</div>
-          <div className="caption-text mt-1">Pending Review</div>
+          <div className="display-lg text-amber-600 font-extrabold">{pendingCount}</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">Pending Review</div>
         </div>
 
         <div className="stat-card">
@@ -296,8 +310,8 @@ export const OfficerDashboard: React.FC = () => {
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <div className="display-lg text-rose-600">{dueCount}</div>
-          <div className="caption-text mt-1">Marked Due (Blocked)</div>
+          <div className="display-lg text-rose-600 font-extrabold">{dueCount}</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">Marked Due (Blocked)</div>
         </div>
 
         <div className="stat-card">
@@ -306,8 +320,8 @@ export const OfficerDashboard: React.FC = () => {
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="display-lg text-emerald-600">{clearedCount}</div>
-          <div className="caption-text mt-1">Cleared (No Dues)</div>
+          <div className="display-lg text-emerald-600 font-extrabold">{clearedCount}</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">Cleared (No Dues)</div>
         </div>
 
         <div className="stat-card">
@@ -316,8 +330,8 @@ export const OfficerDashboard: React.FC = () => {
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="display-lg text-blue-700">{completionPercentage}%</div>
-          <div className="caption-text mt-1">Completion Rate</div>
+          <div className="display-lg text-blue-700 font-extrabold">{completionPercentage}%</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">Completion Rate</div>
         </div>
       </div>
 
@@ -394,16 +408,16 @@ export const OfficerDashboard: React.FC = () => {
                     <Layers className="w-3.5 h-3.5 text-blue-600" />
                     <span>{item.branch}</span>
                   </div>
-                  <span className="font-mono text-blue-700">{item.pct}% Cleared</span>
+                  <span className="font-mono text-blue-700">{item.pctDisplay} Cleared</span>
                 </div>
 
                 {/* Progress bar */}
                 <div className="h-2 bg-slate-200/80 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
-                      item.pct >= 80 ? 'bg-emerald-600' : item.pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                      item.pct >= 80 ? 'bg-emerald-600' : item.pct >= 50 ? 'bg-amber-500' : 'bg-blue-600'
                     }`}
-                    style={{ width: `${item.pct}%` }}
+                    style={{ width: `${item.cleared > 0 ? Math.max(2, item.pct) : 0}%` }}
                   />
                 </div>
 

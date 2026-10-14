@@ -329,7 +329,7 @@ export const OfficerClearanceQueue: React.FC = () => {
       });
 
       setSelectedTask(null);
-      clientCache.invalidate('officer_queue');
+      clientCache.invalidate('officer');
       clientCache.invalidate('student_ndc_status');
       clientCache.invalidate('admin_dashboard');
       await Promise.all([fetchStats(), fetchClearances(true)]);
@@ -357,7 +357,7 @@ export const OfficerClearanceQueue: React.FC = () => {
       });
       setBatchModalOpen(false);
       setBatchTargetDept(null);
-      clientCache.invalidate('officer_queue');
+      clientCache.invalidate('officer');
       clientCache.invalidate('student_ndc_status');
       clientCache.invalidate('admin_dashboard');
       await Promise.all([fetchStats(), fetchClearances(true)]);
@@ -456,7 +456,7 @@ export const OfficerClearanceQueue: React.FC = () => {
         message: res.data.message
       });
       setSelectedIds(new Set());
-      clientCache.invalidate('officer_queue');
+      clientCache.invalidate('officer');
       clientCache.invalidate('student_ndc_status');
       clientCache.invalidate('admin_dashboard');
       await Promise.all([fetchStats(), fetchClearances(true)]);
