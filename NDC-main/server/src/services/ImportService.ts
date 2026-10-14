@@ -461,6 +461,7 @@ export class ImportService {
               role: UserRole.STUDENT as any,
               name: row.fullName,
               associatedStudentId: generatedId,
+              departmentId: row.departmentId!,
               isActive: true,
               mustChangePassword: true
             });
@@ -515,15 +516,12 @@ export class ImportService {
               })
             );
 
-            const existingUser = userMap.get(row.email);
-            if (existingUser && typeof existingUser === 'object' && existingUser.id) {
-              ops.push(
-                prisma.user.update({
-                  where: { id: existingUser.id },
-                  data: { email: row.email, name: row.fullName }
-                })
-              );
-            }
+            ops.push(
+              prisma.user.updateMany({
+                where: { associatedStudentId: existingStudent.id },
+                data: { email: row.email, name: row.fullName, departmentId: row.departmentId! }
+              })
+            );
 
             affectedStudentIdsInChunk.push(existingStudent.id);
           }

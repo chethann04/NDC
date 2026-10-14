@@ -542,20 +542,7 @@ export class NdcWorkflowService {
         });
 
         const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
-        let targetEmail = student?.user?.email || student?.email;
-
-        if (!targetEmail || targetEmail.includes('@demo.ndc.local')) {
-          const registeredStudentUser = await prisma.user.findFirst({
-            where: {
-              role: 'STUDENT',
-              email: { not: { contains: 'demo.ndc.local' } }
-            },
-            select: { email: true }
-          });
-          if (registeredStudentUser?.email) {
-            targetEmail = registeredStudentUser.email;
-          }
-        }
+        const targetEmail = student?.user?.email || student?.email;
 
         if (targetEmail && student) {
           const reqClearances = fullClearance?.ndcRequest?.clearances || [];
@@ -787,20 +774,7 @@ export class NdcWorkflowService {
         });
 
         const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
-        let targetEmail = student?.user?.email || student?.email;
-
-        if (!targetEmail || targetEmail.includes('@demo.ndc.local')) {
-          const registeredStudentUser = await prisma.user.findFirst({
-            where: {
-              role: 'STUDENT',
-              email: { not: { contains: 'demo.ndc.local' } }
-            },
-            select: { email: true }
-          });
-          if (registeredStudentUser?.email) {
-            targetEmail = registeredStudentUser.email;
-          }
-        }
+        const targetEmail = student?.user?.email || student?.email;
 
         if (targetEmail && student) {
           const reqClearances = fullClearance?.ndcRequest?.clearances || [];
