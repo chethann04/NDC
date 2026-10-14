@@ -39,8 +39,8 @@ class EmailService {
   private getTransporter(): Transporter | null {
     dotenv.config({ override: true });
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
+    const user = process.env.SMTP_USER || '4MC24IS022@gmail.com';
+    const pass = process.env.SMTP_PASS || 'ctvahxouinazbzui';
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
     const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
@@ -465,12 +465,10 @@ class EmailService {
   private async sendMail(to: string, subject: string, html: string): Promise<boolean> {
     const transporter = this.getTransporter();
     const userEmail = process.env.SMTP_USER || '4MC24IS022@gmail.com';
-    let envFrom = process.env.SMTP_FROM?.trim();
-    if (!envFrom || envFrom.includes('@ac.in.com') || envFrom.includes('your-email')) {
-      envFrom = `"MCE No Due Portal" <${userEmail}>`;
-    }
-    // Clean up extraneous quotes if needed
-    const from = envFrom.replace(/^["']|["']$/g, '');
+    const from = {
+      name: 'MCE No Due Portal',
+      address: userEmail
+    };
 
     // In demo / test environments, if student email is a mock domain (@demo.ndc.local),
     // deliver to registered student user or fallback email so notifications land in the user's real inbox.
@@ -483,12 +481,12 @@ class EmailService {
       console.log(`[Email Notification]: Routed demo student email [${to}] -> registered student inbox [${recipient}]`);
     }
 
-    console.log(`[Email Notification] -> To: ${recipient} | Subject: "${finalSubject}" | From: ${from}`);
+    console.log(`[Email Notification] -> To: ${recipient} | Subject: "${finalSubject}" | From: ${from.name} <${from.address}>`);
 
     if (this.isConfigured && transporter) {
       try {
         const info = await transporter.sendMail({
-          from,
+          from: `"${from.name}" <${from.address}>`,
           to: recipient,
           subject: finalSubject,
           html

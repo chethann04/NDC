@@ -19,6 +19,7 @@ router.get('/officer/stats', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN
 router.get('/officer/cleared-report/pdf', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.exportClearedReportPdf);
 
 router.put('/clearance/:clearanceId', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.processClearance);
+router.put('/clearances/:clearanceId', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.processClearance);
 router.post('/clearances/bulk-clear', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.bulkClearClearances);
 router.post('/officer/bulk-clear', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.bulkClearClearances);
 router.post('/officer/batch-clear', authorizeRoles(UserRole.SUPER_ADMIN, UserRole.DEPARTMENT_OFFICER, UserRole.HOD), NdcController.batchClearDepartment);

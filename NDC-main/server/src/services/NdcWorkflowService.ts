@@ -508,54 +508,54 @@ export class NdcWorkflowService {
     await this.checkAndUpdateNdcStatus(clearance.ndcRequestId, officerUserId, reqObj);
     import('../controllers/NdcController').then((m) => m.invalidateStudentStatusCache(clearance.studentId)).catch(() => {});
 
-    // Asynchronously dispatch notification email to student's registered email address
-    (async () => {
-      try {
-        const fullClearance = await prisma.ndcClearance.findUnique({
-          where: { id: clearanceId },
-          include: {
-            department: true,
-            lab: true,
-            student: {
-              include: {
-                user: { select: { email: true } }
-              }
-            },
-            reviewedBy: { select: { id: true, name: true } },
-            ndcRequest: {
-              include: {
-                student: {
-                  include: {
-                    user: { select: { email: true } }
-                  }
-                },
-                clearances: {
-                  where: {
-                    department: {
-                      isActive: true
-                    }
+    // Dispatch notification email to student's registered email address (bounded race to prevent serverless freezing)
+    try {
+      const fullClearance = await prisma.ndcClearance.findUnique({
+        where: { id: clearanceId },
+        include: {
+          department: true,
+          lab: true,
+          student: {
+            include: {
+              user: { select: { email: true } }
+            }
+          },
+          reviewedBy: { select: { id: true, name: true } },
+          ndcRequest: {
+            include: {
+              student: {
+                include: {
+                  user: { select: { email: true } }
+                }
+              },
+              clearances: {
+                where: {
+                  department: {
+                    isActive: true
                   }
                 }
               }
             }
           }
-        });
+        }
+      });
 
-        const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
-        const targetEmail = student?.user?.email || student?.email;
+      const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
+      const targetEmail = student?.user?.email || student?.email;
 
-        if (targetEmail && student) {
-          const reqClearances = fullClearance?.ndcRequest?.clearances || [];
-          const clearedCount = reqClearances.filter(
-            (c: any) => c.status === DepartmentClearanceStatus.CLEARED || c.status === DepartmentClearanceStatus.NOT_APPLICABLE
-          ).length;
-          const totalCount = reqClearances.length;
+      if (targetEmail && student) {
+        const reqClearances = fullClearance?.ndcRequest?.clearances || [];
+        const clearedCount = reqClearances.filter(
+          (c: any) => c.status === DepartmentClearanceStatus.CLEARED || c.status === DepartmentClearanceStatus.NOT_APPLICABLE
+        ).length;
+        const totalCount = reqClearances.length;
 
-          const sectionName = fullClearance?.lab?.name
-            ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
-            : fullClearance?.department?.name || 'Department Clearance Section';
+        const sectionName = fullClearance?.lab?.name
+          ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
+          : fullClearance?.department?.name || 'Department Clearance Section';
 
-          await emailService.sendClearanceUpdateEmail({
+        await Promise.race([
+          emailService.sendClearanceUpdateEmail({
             toEmail: targetEmail,
             studentName: student.fullName,
             usn: student.usn,
@@ -568,12 +568,14 @@ export class NdcWorkflowService {
             officerName: fullClearance?.reviewedBy?.name,
             clearedCount,
             totalCount
-          });
-        }
-      } catch (emailErr) {
-        console.warn('[NdcWorkflowService]: Failed to dispatch clearance update email:', emailErr);
+          }),
+          new Promise((resolve) => setTimeout(resolve, 5000))
+        ]);
+        console.log(`[NdcWorkflowService]: Clearance update email dispatch finished for ${targetEmail}`);
       }
-    })().catch(() => {});
+    } catch (emailErr) {
+      console.error('[NdcWorkflowService]: Failed to dispatch clearance update email:', emailErr);
+    }
 
     return withId(updated);
   }
@@ -741,52 +743,52 @@ export class NdcWorkflowService {
     await this.checkAndUpdateNdcStatus(clearance.ndcRequestId, adminUserId, reqObj);
     import('../controllers/NdcController').then((m) => m.invalidateStudentStatusCache(clearance.studentId)).catch(() => {});
 
-    // Asynchronously dispatch notification email to student's registered email address
-    (async () => {
-      try {
-        const fullClearance = await prisma.ndcClearance.findUnique({
-          where: { id: clearanceId },
-          include: {
-            department: true,
-            lab: true,
-            student: {
-              include: {
-                user: { select: { email: true } }
-              }
-            },
-            ndcRequest: {
-              include: {
-                student: {
-                  include: {
-                    user: { select: { email: true } }
-                  }
-                },
-                clearances: {
-                  where: {
-                    department: {
-                      isActive: true
-                    }
+    // Dispatch notification email to student's registered email address (bounded race to prevent serverless freezing)
+    try {
+      const fullClearance = await prisma.ndcClearance.findUnique({
+        where: { id: clearanceId },
+        include: {
+          department: true,
+          lab: true,
+          student: {
+            include: {
+              user: { select: { email: true } }
+            }
+          },
+          ndcRequest: {
+            include: {
+              student: {
+                include: {
+                  user: { select: { email: true } }
+                }
+              },
+              clearances: {
+                where: {
+                  department: {
+                    isActive: true
                   }
                 }
               }
             }
           }
-        });
+        }
+      });
 
-        const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
-        const targetEmail = student?.user?.email || student?.email;
+      const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
+      const targetEmail = student?.user?.email || student?.email;
 
-        if (targetEmail && student) {
-          const reqClearances = fullClearance?.ndcRequest?.clearances || [];
-          const clearedCount = reqClearances.filter(
-            (c: any) => c.status === DepartmentClearanceStatus.CLEARED || c.status === DepartmentClearanceStatus.NOT_APPLICABLE
-          ).length;
+      if (targetEmail && student) {
+        const reqClearances = fullClearance?.ndcRequest?.clearances || [];
+        const clearedCount = reqClearances.filter(
+          (c: any) => c.status === DepartmentClearanceStatus.CLEARED || c.status === DepartmentClearanceStatus.NOT_APPLICABLE
+        ).length;
 
-          const sectionName = fullClearance?.lab?.name
-            ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
-            : fullClearance?.department?.name || 'Department Clearance Section';
+        const sectionName = fullClearance?.lab?.name
+          ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
+          : fullClearance?.department?.name || 'Department Clearance Section';
 
-          await emailService.sendClearanceUpdateEmail({
+        await Promise.race([
+          emailService.sendClearanceUpdateEmail({
             toEmail: targetEmail,
             studentName: student.fullName,
             usn: student.usn,
@@ -797,12 +799,13 @@ export class NdcWorkflowService {
             officerName: 'System Administrator',
             clearedCount,
             totalCount: reqClearances.length
-          });
-        }
-      } catch (emailErr) {
-        console.warn('[NdcWorkflowService]: Admin override email dispatch warning:', emailErr);
+          }),
+          new Promise((resolve) => setTimeout(resolve, 5000))
+        ]);
       }
-    })().catch(() => {});
+    } catch (emailErr) {
+      console.error('[NdcWorkflowService]: Admin override email dispatch warning:', emailErr);
+    }
 
     return withId(updated);
   }

@@ -537,6 +537,28 @@ export class ImportService {
       if (autoInitiateClearances && workflowStudentIdsInChunk.length > 0) {
         await NdcWorkflowService.ensureStudentNdcRequestsBulk(workflowStudentIdsInChunk, reqObj);
       }
+
+      // Asynchronously dispatch registration notification emails to newly registered students
+      if (toInsert.length > 0) {
+        (async () => {
+          try {
+            const { emailService } = await import('./EmailService');
+            for (const row of toInsert) {
+              if (row.email && row.email.includes('@')) {
+                await emailService.sendStudentWelcomeEmail({
+                  toEmail: row.email,
+                  studentName: row.fullName,
+                  usn: row.usn,
+                  departmentName: row.detectedDepartmentName || row.departmentCodeOrName,
+                  batch: row.batch
+                }).catch((e) => console.warn(`[ImportService]: Failed to send welcome email to ${row.email}:`, e));
+              }
+            }
+          } catch (e) {
+            console.warn('[ImportService]: Welcome emails batch dispatch warning:', e);
+          }
+        })().catch(() => {});
+      }
     }
 
     try {

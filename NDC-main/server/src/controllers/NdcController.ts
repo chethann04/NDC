@@ -1373,12 +1373,12 @@ export class NdcController {
         NdcWorkflowService.checkAndUpdateNdcStatus(reqId, reviewerId, req).catch(() => { });
       }
 
-      // Asynchronously dispatch clearance update emails to students
-      (async () => {
-        for (const c of pendingClearances) {
+      // Dispatch clearance update emails to students with bounded timeout race
+      try {
+        const emailPromises = pendingClearances.map(async (c) => {
           const student = c.student;
           const targetEmail = student?.user?.email || student?.email;
-          if (!targetEmail) continue;
+          if (!targetEmail) return;
 
           const sectionName = c.lab?.name
             ? (c.department?.name ? `${c.department.name} - ${c.lab.name}` : c.lab.name)
@@ -1389,7 +1389,7 @@ export class NdcController {
             (rc: any) => rc.status === DepartmentClearanceStatus.CLEARED || rc.status === DepartmentClearanceStatus.NOT_APPLICABLE
           ).length;
 
-          await emailService.sendClearanceUpdateEmail({
+          return emailService.sendClearanceUpdateEmail({
             toEmail: targetEmail,
             studentName: student.fullName,
             usn: student.usn,
@@ -1400,9 +1400,16 @@ export class NdcController {
             officerName: req.user.name || req.user.email,
             clearedCount,
             totalCount: reqClearances.length
-          }).catch((err) => console.warn('[batchClear email warning]:', err));
-        }
-      })().catch(() => {});
+          });
+        });
+
+        await Promise.race([
+          Promise.allSettled(emailPromises),
+          new Promise((resolve) => setTimeout(resolve, 6000))
+        ]);
+      } catch (err) {
+        console.warn('[batchClear email error]:', err);
+      }
 
       await AuditService.log(
         req,
@@ -1621,12 +1628,12 @@ export class NdcController {
           }).catch((err) => console.warn('[bulkClear student notification warning]:', err));
         }
 
-        // 7. Asynchronously dispatch clearance update emails to students
-        (async () => {
-          for (const c of toClear) {
+        // 7. Dispatch clearance update emails to students with bounded timeout race
+        try {
+          const emailPromises = toClear.map(async (c) => {
             const student = c.student;
             const targetEmail = student?.user?.email || student?.email;
-            if (!targetEmail) continue;
+            if (!targetEmail) return;
 
             const sectionName = c.lab?.name
               ? (c.department?.name ? `${c.department.name} - ${c.lab.name}` : c.lab.name)
@@ -1637,7 +1644,7 @@ export class NdcController {
               (rc: any) => rc.status === DepartmentClearanceStatus.CLEARED || rc.status === DepartmentClearanceStatus.NOT_APPLICABLE
             ).length;
 
-            await emailService.sendClearanceUpdateEmail({
+            return emailService.sendClearanceUpdateEmail({
               toEmail: targetEmail,
               studentName: student.fullName,
               usn: student.usn,
@@ -1648,9 +1655,16 @@ export class NdcController {
               officerName: req.user.name || req.user.email,
               clearedCount,
               totalCount: reqClearances.length
-            }).catch((err) => console.warn('[bulkClear email warning]:', err));
-          }
-        })().catch(() => {});
+            });
+          });
+
+          await Promise.race([
+            Promise.allSettled(emailPromises),
+            new Promise((resolve) => setTimeout(resolve, 6000))
+          ]);
+        } catch (err) {
+          console.warn('[bulkClear email error]:', err);
+        }
       }
 
       res.status(200).json({
