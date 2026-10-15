@@ -13,6 +13,7 @@ import { withId, withIds } from '../utils/formatters';
 import { hashPassword } from '../utils/passwordUtils';
 import { getOrCreateDepartmentByUsn, normalizeUsnString } from '../utils/usnDepartmentResolver';
 import emailService from '../services/EmailService';
+import { extractOriginFromReq } from '../utils/urlHelper';
 
 export class StudentController {
   public static async getAllStudents(req: AuthRequest, res: Response): Promise<void> {
@@ -205,12 +206,14 @@ export class StudentController {
 
       // 5. Asynchronously dispatch student welcome email
       if (student.email && student.email.includes('@')) {
+        const clientUrl = extractOriginFromReq(req);
         emailService.sendStudentWelcomeEmail({
           toEmail: student.email,
           studentName: student.fullName,
           usn: student.usn,
           departmentName: (student.departmentName || deptResolution.name) ?? undefined,
-          batch: student.batch
+          batch: student.batch,
+          clientUrl
         }).catch((emailErr) => console.warn('[StudentController]: Failed to send welcome email:', emailErr));
       }
 

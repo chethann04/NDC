@@ -7,6 +7,7 @@ import { LaboratoryAggregationService } from './LaboratoryAggregationService';
 import { withId } from '../utils/formatters';
 import { departmentCache } from '../utils/departmentCache';
 import emailService from './EmailService';
+import { extractOriginFromReq } from '../utils/urlHelper';
 
 export class NdcWorkflowService {
   /**
@@ -555,6 +556,7 @@ export class NdcWorkflowService {
           : fullClearance?.department?.name || 'Department Clearance Section';
 
         const officerName = fullClearance?.reviewedBy?.name || reqObj?.user?.name || reqObj?.user?.email || 'Clearance Officer';
+        const clientUrl = extractOriginFromReq(reqObj);
 
         // Reliable dispatch via pooled SMTP transporter
         emailService.sendClearanceUpdateEmail({
@@ -569,7 +571,8 @@ export class NdcWorkflowService {
           remarks: finalRemarks,
           officerName,
           clearedCount,
-          totalCount
+          totalCount,
+          clientUrl
         }).then((sent) => {
           if (sent) {
             console.log(`[NdcWorkflowService]: Clearance update email successfully delivered to ${targetEmail} for ${student.usn}`);
@@ -792,6 +795,8 @@ export class NdcWorkflowService {
           ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
           : fullClearance?.department?.name || 'Department Clearance Section';
 
+        const clientUrl = extractOriginFromReq(reqObj);
+
         emailService.sendClearanceUpdateEmail({
           toEmail: targetEmail,
           studentName: student.fullName,
@@ -802,7 +807,8 @@ export class NdcWorkflowService {
           remarks: `Admin Override: ${overrideReason || 'Administrative update'}`,
           officerName: 'System Administrator',
           clearedCount,
-          totalCount: reqClearances.length
+          totalCount: reqClearances.length,
+          clientUrl
         }).then((sent) => {
           if (sent) {
             console.log(`[NdcWorkflowService]: Admin override email delivered to ${targetEmail} for ${student.usn}`);

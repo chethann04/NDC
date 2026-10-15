@@ -7,6 +7,7 @@ import { AuditService } from './AuditService';
 import { LaboratoryAggregationService } from './LaboratoryAggregationService';
 import { withId } from '../utils/formatters';
 import emailService from './EmailService';
+import { getClientBaseUrl, extractOriginFromReq } from '../utils/urlHelper';
 
 export class CertificateService {
   /**
@@ -247,13 +248,15 @@ export class CertificateService {
     const recipientEmail = student?.email || student?.user?.email;
     if (recipientEmail && student) {
       try {
-        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const reqOrigin = extractOriginFromReq(reqObj);
+        const clientUrl = getClientBaseUrl(reqOrigin);
         emailService.sendCertificateIssuedEmail({
           toEmail: recipientEmail,
           studentName: student.fullName,
           usn: student.usn,
           certificateNumber: certificate.certificateNumber,
           issuedAt: certificate.issuedAt,
+          clientUrl,
           downloadUrl: `${clientUrl}/student/dashboard`
         }).then((sent) => {
           if (sent) {

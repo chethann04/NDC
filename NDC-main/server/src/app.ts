@@ -20,6 +20,7 @@ import settingRoutes from './routes/settingRoutes';
 import teachingDepartmentRoutes from './routes/teachingDepartmentRoutes';
 import sectionLoginRoutes from './routes/sectionLoginRoutes';
 import emailService from './services/EmailService';
+import { setLastKnownClientOrigin, extractOriginFromReq } from './utils/urlHelper';
 
 import { sanitizeInput } from './middleware/sanitizeInput';
 import { generalApiLimiter } from './middleware/rateLimiter';
@@ -71,6 +72,8 @@ app.use(cookieParser());
 // Whitelisted CORS Configuration
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  process.env.APP_URL,
   'https://ndc-mce.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
@@ -87,9 +90,12 @@ app.use(
       const isAllowed =
         allowedOrigins.includes(origin) ||
         (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) ||
-        /\.vercel\.app$/.test(origin);
+        /\.vercel\.app$/.test(origin) ||
+        /\.netlify\.app$/.test(origin) ||
+        /\.onrender\.com$/.test(origin);
 
       if (isAllowed) {
+        setLastKnownClientOrigin(origin);
         callback(null, true);
       } else {
         callback(new Error('Blocked by CORS policy'));
@@ -101,6 +107,24 @@ app.use(
     exposedHeaders: ['Content-Disposition']
   })
 );
+
+// Dynamically track active client origin for notifications and outbound emails
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  const referer = req.get('referer');
+  let detectedOrigin = origin;
+  if (!detectedOrigin && referer) {
+    try {
+      detectedOrigin = new URL(referer).origin;
+    } catch {
+      // ignore
+    }
+  }
+  if (detectedOrigin) {
+    setLastKnownClientOrigin(detectedOrigin);
+  }
+  next();
+});
 
 // Normalize consecutive slashes in URLs (e.g. //api/v1 -> /api/v1)
 app.use((req, res, next) => {
@@ -171,6 +195,7 @@ app.get('/api/v1/health/send-test-email', authenticateToken, authorizeRoles(User
     return;
   }
 
+  const clientUrl = extractOriginFromReq(req);
   const success = await emailService.sendClearanceUpdateEmail({
     toEmail: targetEmail,
     studentName: 'Diagnostic Test Student',
@@ -179,7 +204,8 @@ app.get('/api/v1/health/send-test-email', authenticateToken, authorizeRoles(User
     status: 'CLEARED',
     remarks: 'Live test email dispatched from deployed server',
     clearedCount: 1,
-    totalCount: 6
+    totalCount: 6,
+    clientUrl
   });
 
   res.status(200).json({

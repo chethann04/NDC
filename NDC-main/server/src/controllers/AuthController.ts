@@ -6,6 +6,7 @@ import { AuditService } from '../services/AuditService';
 import { withId } from '../utils/formatters';
 import { hashPassword, comparePassword } from '../utils/passwordUtils';
 import emailService from '../services/EmailService';
+import { extractOriginFromReq } from '../utils/urlHelper';
 
 export class AuthController {
   public static async login(req: Request, res: Response): Promise<void> {
@@ -323,12 +324,14 @@ export class AuthController {
 
       // Asynchronously send welcome email to student
       if (finalEmail && finalEmail.includes('@')) {
+        const clientUrl = extractOriginFromReq(req);
         emailService.sendStudentWelcomeEmail({
           toEmail: finalEmail,
           studentName: student.fullName,
           usn: student.usn,
           departmentName: student.department?.name,
-          batch: student.batch
+          batch: student.batch,
+          clientUrl
         }).catch((emailErr) => console.warn('[AuthController]: Registration welcome email error:', emailErr));
       }
 

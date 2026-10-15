@@ -13,6 +13,7 @@ import { AuditService } from '../services/AuditService';
 import { LaboratoryAggregationService } from '../services/LaboratoryAggregationService';
 import { withId, withIds } from '../utils/formatters';
 import emailService from '../services/EmailService';
+import { extractOriginFromReq } from '../utils/urlHelper';
 
 interface CachedResponse {
   data: any;
@@ -1390,6 +1391,8 @@ export class NdcController {
             (rc: any) => rc.status === DepartmentClearanceStatus.CLEARED || rc.status === DepartmentClearanceStatus.NOT_APPLICABLE
           ).length;
 
+          const clientUrl = extractOriginFromReq(req);
+
           payloads.push({
             toEmail: targetEmail,
             studentName: student.fullName,
@@ -1400,7 +1403,8 @@ export class NdcController {
             remarks: remarks || 'Batch cleared by department clearance officer',
             officerName: req.user.name || req.user.email,
             clearedCount,
-            totalCount: reqClearances.length
+            totalCount: reqClearances.length,
+            clientUrl
           });
         }
 
@@ -1649,6 +1653,8 @@ export class NdcController {
               (rc: any) => rc.status === DepartmentClearanceStatus.CLEARED || rc.status === DepartmentClearanceStatus.NOT_APPLICABLE
             ).length;
 
+            const clientUrl = extractOriginFromReq(req);
+
             payloads.push({
               toEmail: targetEmail,
               studentName: student.fullName,
@@ -1659,7 +1665,8 @@ export class NdcController {
               remarks: defaultRemarks,
               officerName: req.user.name || req.user.email,
               clearedCount,
-              totalCount: reqClearances.length
+              totalCount: reqClearances.length,
+              clientUrl
             });
           }
 

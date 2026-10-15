@@ -1,5 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
+import { getClientBaseUrl } from '../utils/urlHelper';
 dotenv.config();
 
 export interface ClearanceEmailPayload {
@@ -15,6 +16,7 @@ export interface ClearanceEmailPayload {
   officerName?: string;
   clearedCount?: number;
   totalCount?: number;
+  clientUrl?: string;
 }
 
 export interface CertificateEmailPayload {
@@ -24,6 +26,7 @@ export interface CertificateEmailPayload {
   certificateNumber: string;
   issuedAt: Date;
   downloadUrl?: string;
+  clientUrl?: string;
 }
 
 class EmailService {
@@ -37,7 +40,7 @@ class EmailService {
   }
 
   private getTransporter(): Transporter | null {
-    dotenv.config({ override: true });
+    dotenv.config();
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const user = process.env.SMTP_USER || '4MC24IS022@gmail.com';
     const pass = process.env.SMTP_PASS || 'ctvahxouinazbzui';
@@ -155,7 +158,7 @@ class EmailService {
       statusSummaryDesc = 'Clearance for this institutional section is exempted for your enrollment category (e.g. Day Scholar Hostel Exemption).';
     }
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const clientUrl = getClientBaseUrl(payload.clientUrl);
     const dashboardUrl = `${clientUrl}/student-login`;
 
     const subject = `${subjectIcon} [NDC Update] ${departmentName}: ${statusLabel} - ${usn}`;
@@ -276,7 +279,7 @@ class EmailService {
       return false;
     }
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const clientUrl = getClientBaseUrl(payload.clientUrl);
     const dashboardUrl = `${clientUrl}/student/dashboard`;
     const finalDownloadUrl = downloadUrl || dashboardUrl;
 
@@ -348,11 +351,12 @@ class EmailService {
     usn: string;
     departmentName?: string;
     batch?: string;
+    clientUrl?: string;
   }): Promise<boolean> {
-    const { toEmail, studentName, usn, departmentName, batch } = payload;
+    const { toEmail, studentName, usn, departmentName, batch, clientUrl: preferredClientUrl } = payload;
     if (!toEmail || !toEmail.includes('@')) return false;
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const clientUrl = getClientBaseUrl(preferredClientUrl);
     const loginUrl = `${clientUrl}/student-login`;
 
     const subject = `🎓 [MCE Portal] Welcome to No Due Certificate Portal - ${usn}`;
