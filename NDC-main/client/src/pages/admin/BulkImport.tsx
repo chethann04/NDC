@@ -40,6 +40,7 @@ export const BulkImport: React.FC = () => {
   const [importResult, setImportResult] = useState<any>(null);
   const [error, setError] = useState<any>(null);
   const [showErrorTable, setShowErrorTable] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -123,15 +124,16 @@ export const BulkImport: React.FC = () => {
   };
 
   const handleConfirmImport = async () => {
-    if (!preview || !preview.rows || preview.rows.length === 0) return;
+    if (isSubmitting || !preview || !preview.rows || preview.rows.length === 0) return;
 
+    setIsSubmitting(true);
     setError(null);
     setStage('IMPORTING');
     setProgressPercent(0);
 
     const totalRows = preview.rows.length;
-    // Scale batch size dynamically: 25 to 500 records per batch
-    const BATCH_SIZE = Math.min(500, Math.max(25, Math.ceil(totalRows / 5)));
+    // Scale batch size dynamically: up to 1000 records per batch for fast high-throughput sync
+    const BATCH_SIZE = Math.min(1000, Math.max(50, Math.ceil(totalRows / 6)));
     const numBatches = Math.ceil(totalRows / BATCH_SIZE);
 
     let accumulatedImported = 0;
@@ -139,6 +141,7 @@ export const BulkImport: React.FC = () => {
     let accumulatedSkipped = 0;
     let accumulatedFailed = 0;
     const accumulatedErrors: any[] = [];
+    const importStartTime = Date.now();
 
     try {
       for (let i = 0; i < numBatches; i++) {
@@ -171,15 +174,17 @@ export const BulkImport: React.FC = () => {
         }
 
         const updatedPercent = Math.round((endIdx / totalRows) * 100);
+        const elapsedSec = Math.round((Date.now() - importStartTime) / 1000);
         setProgressPercent(updatedPercent);
         setProgressStatusText(
-          `Imported ${endIdx} of ${totalRows} students (${updatedPercent}%)... (${accumulatedImported} added, ${accumulatedUpdated} updated)`
+          `Synchronized ${endIdx} of ${totalRows} students (${updatedPercent}% in ${elapsedSec}s)... (${accumulatedImported} added, ${accumulatedUpdated} updated)`
         );
       }
 
+      const totalElapsedSec = ((Date.now() - importStartTime) / 1000).toFixed(1);
       setProgressPercent(100);
       setProgressStatusText(
-        `Import complete: ${accumulatedImported + accumulatedUpdated} student profiles synchronized successfully!`
+        `Import complete: ${accumulatedImported + accumulatedUpdated} student profiles synchronized in ${totalElapsedSec}s!`
       );
 
       setImportResult({
@@ -188,15 +193,28 @@ export const BulkImport: React.FC = () => {
         updated: accumulatedUpdated,
         skipped: accumulatedSkipped,
         failed: accumulatedFailed,
-        errorReport: accumulatedErrors
+        errorReport: accumulatedErrors,
+        elapsedSeconds: totalElapsedSec
       });
 
       setTimeout(() => {
         setStage('COMPLETED');
       }, 400);
     } catch (err: any) {
+      if (accumulatedImported > 0 || accumulatedUpdated > 0) {
+        setImportResult({
+          totalRows,
+          imported: accumulatedImported,
+          updated: accumulatedUpdated,
+          skipped: accumulatedSkipped,
+          failed: accumulatedFailed,
+          errorReport: accumulatedErrors
+        });
+      }
       setError(err);
       setStage('FAILED');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -505,10 +523,11 @@ export const BulkImport: React.FC = () => {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleConfirmImport}
-                disabled={preview.validRecords === 0}
-                className="btn btn-primary"
+                disabled={preview.validRecords === 0 || isSubmitting}
+                className="btn btn-primary flex items-center gap-2"
               >
-                Confirm Bulk Import
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Confirm Bulk Import</span>
               </button>
               <button onClick={handleReset} className="btn btn-secondary">
                 Cancel

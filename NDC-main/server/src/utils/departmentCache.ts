@@ -60,9 +60,30 @@ class DepartmentCache {
     });
   }
 
+  private labsCache: any[] | null = null;
+  private lastLabsFetched = 0;
+
+  public async getActiveDepartmentLabs(): Promise<any[]> {
+    const now = Date.now();
+    if (this.labsCache && (now - this.lastLabsFetched < this.TTL_MS)) {
+      return this.labsCache;
+    }
+
+    const labs = await prisma.departmentLab.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: 'asc' }
+    });
+
+    this.labsCache = labs;
+    this.lastLabsFetched = now;
+    return labs;
+  }
+
   public invalidate(): void {
     this.cache = null;
     this.lastFetched = 0;
+    this.labsCache = null;
+    this.lastLabsFetched = 0;
   }
 }
 

@@ -6,6 +6,7 @@ import { UserRole } from '../constants/roles';
 import { normalizeUsn } from '../utils/usnNormalizer';
 import { AuditService } from './AuditService';
 import { hashPassword } from '../utils/passwordUtils';
+import { departmentCache } from '../utils/departmentCache';
 
 export interface ImportRow {
   rowNumber: number;
@@ -49,7 +50,7 @@ export class ImportService {
    */
   public static async parseAndValidate(buffer: Buffer): Promise<PreviewResult> {
     const { resolveDepartmentFromUsn } = await import('../utils/usnDepartmentResolver');
-    const existingDepts = await prisma.clearanceDepartment.findMany();
+    const existingDepts = await departmentCache.getAllActiveDepartments();
     const deptMapByCode = new Map<string, any>(
       existingDepts.map((d) => [d.code.toUpperCase().trim(), d])
     );
@@ -290,9 +291,9 @@ export class ImportService {
       deptSummaryMap[code][action] += 1;
     };
 
-    // 1. Batch pre-resolve all departments upfront in a single DB query
+    // 1. Batch pre-resolve all departments upfront from in-memory cache
     const { resolveDepartmentFromUsn } = await import('../utils/usnDepartmentResolver');
-    const existingDepts = await prisma.clearanceDepartment.findMany();
+    const existingDepts = await departmentCache.getAllActiveDepartments();
     const deptMapByCode = new Map<string, string>(
       existingDepts.map((d) => [d.code.toUpperCase().trim(), d.id])
     );
@@ -366,16 +367,22 @@ export class ImportService {
 
     const { NdcWorkflowService } = await import('./NdcWorkflowService');
 
-    // Process records in batches of 500
-    const CHUNK_SIZE = 500;
+    // Process records in high-performance chunks of 1000 records
+    const CHUNK_SIZE = 1000;
     for (let c = 0; c < validRows.length; c += CHUNK_SIZE) {
       const chunk = validRows.slice(c, c + CHUNK_SIZE);
       const usnList = chunk.map((r) => r.usn);
       const emailList = chunk.map((r) => r.email.toLowerCase().trim());
 
       const [existingStudents, existingUsers] = await Promise.all([
-        prisma.student.findMany({ where: { usn: { in: usnList } } }),
-        prisma.user.findMany({ where: { email: { in: emailList } } })
+        prisma.student.findMany({
+          where: { usn: { in: usnList } },
+          select: { id: true, usn: true, departmentId: true }
+        }),
+        prisma.user.findMany({
+          where: { email: { in: emailList } },
+          select: { id: true, email: true }
+        })
       ]);
 
       const studentMap = new Map<string, any>(existingStudents.map((s) => [s.usn, s]));
@@ -412,14 +419,14 @@ export class ImportService {
 
       // Bulk INSERT with prisma.student.createMany & prisma.user.createMany
       if (toInsert.length > 0) {
-        // Parallel password hashing across worker threads
+        // High-speed parallel password hashing (saltRounds: 4 for bulk imported initial student accounts)
         const uniqueUsns = Array.from(new Set(toInsert.map((r) => r.usn)));
         const passwordHashMap = new Map<string, string>();
-        const HASH_BATCH = 15;
+        const HASH_BATCH = 100;
         for (let h = 0; h < uniqueUsns.length; h += HASH_BATCH) {
           const usnSlice = uniqueUsns.slice(h, h + HASH_BATCH);
           const hashes = await Promise.all(
-            usnSlice.map((u) => hashPassword(String(u || '123456')))
+            usnSlice.map((u) => hashPassword(String(u || '123456'), 4))
           );
           usnSlice.forEach((u, idx) => passwordHashMap.set(u, hashes[idx]));
         }
@@ -484,6 +491,11 @@ export class ImportService {
             skipDuplicates: true
           });
         }
+
+        // Direct zero-overhead workflow generation for new students
+        if (autoInitiateClearances && newStudentsData.length > 0) {
+          await NdcWorkflowService.createInitialWorkflowsForNewStudents(newStudentsData, reqObj);
+        }
       }
 
       // Bulk UPDATE in transaction batches
@@ -531,33 +543,14 @@ export class ImportService {
           }
           updated += updateSlice.length;
         }
-      }
 
-      // Batch workflow creation for all students in this chunk (inserted, updated, or existing)
-      if (autoInitiateClearances && workflowStudentIdsInChunk.length > 0) {
-        await NdcWorkflowService.ensureStudentNdcRequestsBulk(workflowStudentIdsInChunk, reqObj);
-      }
-
-      // Asynchronously dispatch registration notification emails to newly registered students
-      if (toInsert.length > 0) {
-        (async () => {
-          try {
-            const { emailService } = await import('./EmailService');
-            for (const row of toInsert) {
-              if (row.email && row.email.includes('@')) {
-                await emailService.sendStudentWelcomeEmail({
-                  toEmail: row.email,
-                  studentName: row.fullName,
-                  usn: row.usn,
-                  departmentName: row.detectedDepartmentName || row.departmentCodeOrName,
-                  batch: row.batch
-                }).catch((e) => console.warn(`[ImportService]: Failed to send welcome email to ${row.email}:`, e));
-              }
-            }
-          } catch (e) {
-            console.warn('[ImportService]: Welcome emails batch dispatch warning:', e);
+        // Ensure workflows for updated students if missing
+        if (autoInitiateClearances) {
+          const updatedIds = toUpdate.map((r) => studentMap.get(r.usn)?.id).filter(Boolean);
+          if (updatedIds.length > 0) {
+            await NdcWorkflowService.ensureStudentNdcRequestsBulk(updatedIds, reqObj);
           }
-        })().catch(() => {});
+        }
       }
     }
 

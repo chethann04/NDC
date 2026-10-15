@@ -237,6 +237,98 @@ export class NdcWorkflowService {
   }
 
   /**
+   * High performance bulk workflow generation for newly imported students.
+   * Directly constructs NDC Requests and Clearances in-memory and executes batch createMany,
+   * completely avoiding redundant SELECT, COUNT, or DELETE round-trips.
+   */
+  public static async createInitialWorkflowsForNewStudents(
+    newStudents: Array<{ id: string; departmentId: string }>,
+    reqObj?: any
+  ): Promise<void> {
+    if (!newStudents || newStudents.length === 0) return;
+
+    const [allDepts, allLabs] = await Promise.all([
+      departmentCache.getAllActiveDepartments(),
+      departmentCache.getActiveDepartmentLabs()
+    ]);
+
+    const targetGeneralDepts = allDepts.filter(
+      (d) => d.requiresClearance && !d.isAcademicBranch
+    );
+
+    const labsByDeptId = new Map<string, any[]>();
+    allLabs.forEach((l) => {
+      const arr = labsByDeptId.get(l.departmentId) || [];
+      arr.push(l);
+      labsByDeptId.set(l.departmentId, arr);
+    });
+
+    const currentYear = new Date().getFullYear();
+    const now = new Date();
+    const timeHex = Date.now().toString(36).toUpperCase();
+
+    const newRequests: any[] = [];
+    const newClearances: any[] = [];
+
+    for (let idx = 0; idx < newStudents.length; idx++) {
+      const s = newStudents[idx];
+      const requestId = crypto.randomUUID();
+      const randSuffix = Math.floor(1000 + Math.random() * 9000);
+      const requestNumber = `NDC-${currentYear}-${timeHex}-${String(idx + 1).padStart(5, '0')}-${randSuffix}`;
+
+      newRequests.push({
+        id: requestId,
+        requestNumber,
+        studentId: s.id,
+        status: NdcRequestStatus.IN_PROGRESS as any,
+        submittedAt: now
+      });
+
+      // 1. Clearances for general college clearance desks (Library, Hostel, Sports, Accounts, Labs, etc.)
+      for (const dept of targetGeneralDepts) {
+        newClearances.push({
+          id: crypto.randomUUID(),
+          ndcRequestId: requestId,
+          studentId: s.id,
+          departmentId: dept.id,
+          labId: null,
+          status: DepartmentClearanceStatus.PENDING as any
+        });
+      }
+
+      // 2. Clearance for student's academic branch lab (at most 1 lab per branch)
+      const branchLabs = labsByDeptId.get(s.departmentId) || [];
+      if (branchLabs.length > 0) {
+        newClearances.push({
+          id: crypto.randomUUID(),
+          ndcRequestId: requestId,
+          studentId: s.id,
+          departmentId: s.departmentId,
+          labId: branchLabs[0].id,
+          status: DepartmentClearanceStatus.PENDING as any
+        });
+      }
+    }
+
+    if (newRequests.length > 0) {
+      await prisma.ndcRequest.createMany({
+        data: newRequests,
+        skipDuplicates: true
+      });
+    }
+
+    if (newClearances.length > 0) {
+      const CLEARANCE_CHUNK = 5000;
+      for (let k = 0; k < newClearances.length; k += CLEARANCE_CHUNK) {
+        await prisma.ndcClearance.createMany({
+          data: newClearances.slice(k, k + CLEARANCE_CHUNK),
+          skipDuplicates: true
+        });
+      }
+    }
+  }
+
+  /**
    * High performance bulk batch processing for student NDC Requests & Clearances.
    */
   public static async ensureStudentNdcRequestsBulk(studentIds: string[], reqObj?: any): Promise<void> {
@@ -244,59 +336,47 @@ export class NdcWorkflowService {
 
     // 1. Fetch active students & their departmentIds in 1 query
     const students = await prisma.student.findMany({
-      where: { id: { in: studentIds }, isActive: true }
+      where: { id: { in: studentIds }, isActive: true },
+      select: { id: true, departmentId: true }
     });
     if (!students.length) return;
 
-    // 2. Fetch all active general clearance departments ONCE
-    const generalDepartments = await prisma.clearanceDepartment.findMany({
-      where: { isActive: true, requiresClearance: true, isAcademicBranch: false },
-      orderBy: { displayOrder: 'asc' }
-    });
+    // 2. Fetch all active general clearance departments from cache ONCE
+    const allActiveDepts = await departmentCache.getAllActiveDepartments();
+    const generalDepartments = allActiveDepts.filter((d) => d.requiresClearance && !d.isAcademicBranch);
 
-    // 3. Fetch academic branch departments for these students in 1 query
+    // 3. Fetch academic branch departments for these students from cache
     const deptIds = Array.from(new Set(students.map((s) => s.departmentId).filter(Boolean)));
-    const branchDepts = await prisma.clearanceDepartment.findMany({
-      where: { id: { in: deptIds }, isActive: true, requiresClearance: true }
-    });
-    const branchDeptMap = new Map(branchDepts.map((d) => [d.id, d]));
+    const branchDeptMap = new Map(allActiveDepts.filter((d) => deptIds.includes(d.id) && d.requiresClearance).map((d) => [d.id, d]));
 
     // 4. Fetch existing NDC requests for these students in 1 query
     const existingRequests = await prisma.ndcRequest.findMany({
-      where: { studentId: { in: students.map((s) => s.id) } }
+      where: { studentId: { in: students.map((s) => s.id) } },
+      select: { id: true, studentId: true }
     });
-    const requestMap = new Map(existingRequests.map((r) => [r.studentId, r]));
+    const requestMap = new Map<string, any>(existingRequests.map((r) => [r.studentId, r]));
 
     // Create missing requests
     const currentYear = new Date().getFullYear();
-    const latestReq = await prisma.ndcRequest.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { requestNumber: true }
-    });
-
-    let seq = 0;
-    if (latestReq && latestReq.requestNumber) {
-      const match = latestReq.requestNumber.match(/\d+$/);
-      if (match) seq = parseInt(match[0], 10);
-    }
-    if (seq === 0) {
-      seq = await prisma.ndcRequest.count();
-    }
-
+    const timeHex = Date.now().toString(36).toUpperCase();
     const newRequestsData: any[] = [];
     const studentsNeedingRequest = students.filter((s) => !requestMap.has(s.id));
 
+    let localIdx = 0;
     for (const s of studentsNeedingRequest) {
-      seq++;
+      localIdx++;
+      const reqId = crypto.randomUUID();
       const randSuffix = Math.floor(1000 + Math.random() * 9000);
-      const requestNumber = `NDC-${currentYear}-${String(seq).padStart(6, '0')}-${randSuffix}`;
-      newRequestsData.push({
-        id: crypto.randomUUID(),
+      const requestNumber = `NDC-${currentYear}-${timeHex}-${String(localIdx).padStart(5, '0')}-${randSuffix}`;
+      const reqRecord = {
+        id: reqId,
         requestNumber,
         studentId: s.id,
         status: NdcRequestStatus.IN_PROGRESS as any,
         submittedAt: new Date()
-      });
+      };
+      newRequestsData.push(reqRecord);
+      requestMap.set(s.id, reqRecord);
     }
 
     if (newRequestsData.length > 0) {
@@ -304,16 +384,12 @@ export class NdcWorkflowService {
         data: newRequestsData,
         skipDuplicates: true
       });
-
-      // Re-fetch all requests for these students to get generated IDs
-      const allRequests = await prisma.ndcRequest.findMany({
-        where: { studentId: { in: students.map((s) => s.id) } }
-      });
-      allRequests.forEach((r) => requestMap.set(r.studentId, r));
     }
 
     // 5. Clean up any legacy branch desk clearances (labId: null for academic branches)
     const requestIds = Array.from(requestMap.values()).map((r) => r.id);
+    if (requestIds.length === 0) return;
+
     await prisma.ndcClearance.deleteMany({
       where: {
         ndcRequestId: { in: requestIds },
@@ -324,49 +400,21 @@ export class NdcWorkflowService {
 
     // Fetch existing clearances for all these requests in 1 query
     const existingClearances = await prisma.ndcClearance.findMany({
-      where: { ndcRequestId: { in: requestIds } }
+      where: { ndcRequestId: { in: requestIds } },
+      select: { ndcRequestId: true, departmentId: true, labId: true }
     });
     const existingClearanceSet = new Set(
       existingClearances.map((c) => `${c.ndcRequestId}_${c.departmentId}_${c.labId || 'desk'}`)
     );
 
-    // Fetch all active department labs for these branches
-    const allDeptLabs = await prisma.departmentLab.findMany({
-      where: { departmentId: { in: deptIds }, isActive: true },
-      orderBy: { displayOrder: 'asc' }
-    });
+    // Fetch all active department labs from cache
+    const allDeptLabs = await departmentCache.getActiveDepartmentLabs();
     const labsByDeptId = new Map<string, any[]>();
     allDeptLabs.forEach((l) => {
       const arr = labsByDeptId.get(l.departmentId) || [];
       arr.push(l);
       labsByDeptId.set(l.departmentId, arr);
     });
-
-    // Auto-provision branch department lab if missing
-    for (const dId of deptIds) {
-      if (!labsByDeptId.has(dId) || (labsByDeptId.get(dId) || []).length === 0) {
-        const branchDept = branchDeptMap.get(dId);
-        if (branchDept && branchDept.isAcademicBranch) {
-          try {
-            const newLab = await prisma.departmentLab.upsert({
-              where: { departmentId: dId },
-              update: { isActive: true },
-              create: {
-                departmentId: dId,
-                code: `${branchDept.code.toUpperCase()}-LAB`,
-                name: `${branchDept.name} Lab`,
-                isActive: true,
-                displayOrder: 1
-              }
-            });
-            labsByDeptId.set(dId, [newLab]);
-          } catch {
-            const fetched = await prisma.departmentLab.findFirst({ where: { departmentId: dId } });
-            if (fetched) labsByDeptId.set(dId, [fetched]);
-          }
-        }
-      }
-    }
 
     const newClearances: any[] = [];
     for (const s of students) {
@@ -409,10 +457,13 @@ export class NdcWorkflowService {
     }
 
     if (newClearances.length > 0) {
-      await prisma.ndcClearance.createMany({
-        data: newClearances,
-        skipDuplicates: true
-      });
+      const CLEARANCE_CHUNK = 5000;
+      for (let k = 0; k < newClearances.length; k += CLEARANCE_CHUNK) {
+        await prisma.ndcClearance.createMany({
+          data: newClearances.slice(k, k + CLEARANCE_CHUNK),
+          skipDuplicates: true
+        });
+      }
     }
   }
 
