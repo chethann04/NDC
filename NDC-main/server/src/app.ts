@@ -199,26 +199,29 @@ const handleSendTestEmail = async (req: any, res: any) => {
   }
 
   const clientUrl = extractOriginFromReq(req);
-  const success = await emailService.sendClearanceUpdateEmail({
-    toEmail: targetEmail,
-    studentName: 'Diagnostic Test Student',
-    usn: '4MC24IS022',
-    departmentName: 'Central Library',
-    status: 'CLEARED',
-    remarks: 'Live test email dispatched from deployed server via Resend HTTPS API',
-    clearedCount: 1,
-    totalCount: 6,
-    clientUrl
+  const sendRes = await emailService.sendMailDetailed({
+    to: targetEmail,
+    subject: `✓ [NDC Update] Central Library: Cleared (No Due) - 4MC24IS022`,
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px; background: #f0fdf4; border-radius: 8px; color: #1e293b;">
+        <h2 style="color: #047857;">MCE No Due Portal: Live Resend Verification</h2>
+        <p>Congratulations! This test clearance update confirms your Resend integration is actively working and delivering on Render.</p>
+        <p><strong>Target:</strong> ${targetEmail}</p>
+        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+      </div>
+    `
   });
 
   res.status(200).json({
     attempted: true,
-    sent: success,
+    sent: sendRes.success,
     sentTo: targetEmail,
+    messageId: sendRes.messageId,
+    error: sendRes.error,
     provider: 'Resend',
-    notice: success
+    notice: sendRes.success
       ? 'Email successfully accepted by Resend! Check your inbox or Resend dashboard.'
-      : 'Email failed to send. Verify your RESEND_API_KEY and EMAIL_FROM configuration in Render.'
+      : `Email rejected by Resend: ${sendRes.error}`
   });
 };
 
