@@ -1,20 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
+import { useUiStore } from '../store/useUiStore';
 import {
   LogOut,
-  Search,
   ChevronRight,
   ShieldCheck,
   ChevronDown,
-  Sparkles,
-  Command,
-  Database,
-  KeyRound
+  KeyRound,
+  Menu
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuthStore();
+  const { toggleMobileMenu } = useUiStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -46,6 +45,7 @@ export const Navbar: React.FC = () => {
     if (path.includes('/admin/certificates')) return ['Admin', 'Certificates'];
     if (path.includes('/admin/reports')) return ['Admin', 'Reports'];
     if (path.includes('/admin/audit-logs')) return ['Admin', 'Audit Logs'];
+    if (path.includes('/admin/section-logins')) return ['Admin', 'Section Logins'];
     if (path.includes('/admin/settings')) return ['Admin', 'Settings'];
     if (path.includes('/officer/students')) return ['Cash/Fee Section', 'Manage Students'];
     if (path.includes('/officer/import')) return ['Cash/Fee Section', 'Import Students'];
@@ -71,16 +71,29 @@ export const Navbar: React.FC = () => {
     : 'U';
 
   return (
-    <header className="h-14 px-6 bg-white border-b border-zinc-200/70 sticky top-0 z-20 flex items-center justify-between">
-      {/* Breadcrumb path */}
-      <div className="flex items-center gap-2 text-xs">
-        <span className="font-medium text-zinc-400">{section}</span>
-        <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
-        <span className="font-semibold text-zinc-900">{page}</span>
+    <header className="h-14 px-3 sm:px-6 bg-white border-b border-zinc-200/70 sticky top-0 z-20 flex items-center justify-between">
+      {/* Mobile Hamburger + Breadcrumb path */}
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        {/* Mobile Hamburger Button */}
+        <button
+          type="button"
+          onClick={toggleMobileMenu}
+          className="lg:hidden p-1.5 -ml-1 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Breadcrumb Path */}
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs truncate">
+          <span className="hidden sm:inline font-medium text-zinc-400">{section}</span>
+          <ChevronRight className="hidden sm:inline w-3.5 h-3.5 text-zinc-300" />
+          <span className="font-semibold text-zinc-900 truncate">{page}</span>
+        </div>
       </div>
 
       {/* Action Controls & Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
         {/* Verification Link for Staff */}
         {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HOD' || user?.role === 'DEPARTMENT_OFFICER') && (
           <Link
@@ -98,6 +111,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="flex items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer focus:outline-none"
+              aria-label="User profile menu"
             >
               <div className="w-7 h-7 rounded-md bg-zinc-900 text-white font-semibold text-xs flex items-center justify-center">
                 {userInitials}
@@ -111,7 +125,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             {userMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-zinc-200 rounded-xl shadow-lg p-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="absolute right-0 top-full mt-2 w-52 max-w-[calc(100vw-1.5rem)] bg-white border border-zinc-200 rounded-xl shadow-lg p-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                 <div className="px-3 py-2 border-b border-zinc-100">
                   <p className="text-xs font-semibold text-zinc-900 truncate">{user.name}</p>
                   <p className="text-[11px] text-zinc-400 truncate">{user.email}</p>
@@ -134,7 +148,7 @@ export const Navbar: React.FC = () => {
                 <div className="pt-1">
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors text-left cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign Out</span>

@@ -411,7 +411,7 @@ export const StudentManagement: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {students.length > 0 && (
             <>
               <button
@@ -419,10 +419,10 @@ export const StudentManagement: React.FC = () => {
                   setBatchUpdateAll(true);
                   setIsBatchModalOpen(true);
                 }}
-                className="btn btn-secondary text-blue-700 border-blue-200 hover:bg-blue-50"
+                className="btn btn-secondary text-blue-700 border-blue-200 hover:bg-blue-50 text-xs"
               >
                 <Calendar className="w-3.5 h-3.5" />
-                Change Batch for All ({pagination.total || students.length})
+                <span>Change Batch for All ({pagination.total || students.length})</span>
               </button>
               <button
                 onClick={() => {
@@ -430,16 +430,16 @@ export const StudentManagement: React.FC = () => {
                   setBulkDeleteRemarks('');
                   setIsBulkDeleteModalOpen(true);
                 }}
-                className="btn btn-secondary text-rose-600 border-rose-200 hover:bg-rose-50"
+                className="btn btn-secondary text-rose-600 border-rose-200 hover:bg-rose-50 text-xs"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Delete All ({pagination.total || students.length})
+                <span>Delete All ({pagination.total || students.length})</span>
               </button>
             </>
           )}
-          <button onClick={() => handleOpenModal()} className="btn btn-primary">
+          <button onClick={() => handleOpenModal()} className="btn btn-primary text-xs">
             <UserPlus className="w-3.5 h-3.5" />
-            Add Single Student
+            <span>Add Single Student</span>
           </button>
         </div>
       </div>
@@ -481,8 +481,8 @@ export const StudentManagement: React.FC = () => {
 
       {/* Table Container */}
       <div className="table-wrap">
-        <div className="filter-bar">
-          <div className="relative flex-1 max-w-sm">
+        <div className="filter-bar flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 w-full sm:max-w-sm">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -492,7 +492,7 @@ export const StudentManagement: React.FC = () => {
                 setPage(1);
               }}
               placeholder="Search USN, student name, or email…"
-              className="input pl-9 text-xs"
+              className="input pl-9 text-xs w-full"
             />
           </div>
 
@@ -503,7 +503,7 @@ export const StudentManagement: React.FC = () => {
               setDeptFilter(e.target.value);
               setPage(1);
             }}
-            className="select w-56 text-xs font-semibold"
+            className="select w-full sm:w-56 text-xs font-semibold"
           >
             <option value="">All Academic Departments</option>
             {departments.map((d) => (

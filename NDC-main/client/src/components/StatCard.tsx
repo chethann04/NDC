@@ -19,13 +19,13 @@ export const StatCard: React.FC<Props> = ({ title, value, subtitle, icon, color 
   };
 
   return (
-    <div className="bg-white rounded-xl p-5 border border-zinc-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex items-center justify-between">
-      <div>
-        <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">{title}</p>
-        <h3 className="text-2xl font-bold text-zinc-900 mt-1">{value}</h3>
-        {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
+    <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-zinc-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex items-center justify-between min-w-0">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] sm:text-[11px] font-semibold text-zinc-400 uppercase tracking-wider truncate">{title}</p>
+        <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 mt-0.5 sm:mt-1 truncate">{value}</h3>
+        {subtitle && <p className="text-[11px] sm:text-xs text-zinc-500 mt-0.5 sm:mt-1 truncate">{subtitle}</p>}
       </div>
-      <div className={`p-3 rounded-xl border ${colorMap[color]}`}>
+      <div className={`p-2.5 sm:p-3 rounded-xl border ${colorMap[color]} shrink-0 ml-2`}>
         {icon}
       </div>
     </div>

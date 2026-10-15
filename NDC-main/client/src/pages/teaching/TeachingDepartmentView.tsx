@@ -208,7 +208,7 @@ export const TeachingDepartmentView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0 self-end md:self-center">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start md:self-center">
             {allBranches && allBranches.length > 1 && (
               <div className="relative" ref={branchMenuRef}>
                 <button

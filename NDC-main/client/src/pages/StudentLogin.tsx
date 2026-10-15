@@ -95,7 +95,7 @@ export const StudentLogin: React.FC = () => {
       />
       <div className="fixed inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/70 backdrop-blur-[1px]" />
 
-      <div className="relative z-10 w-full max-w-[420px] bg-white/85 sm:bg-white/90 backdrop-blur-2xl border border-white/90 rounded-3xl shadow-[0_25px_60px_-10px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.8),inset_0_1px_2px_rgba(255,255,255,1)] p-7 sm:p-9 text-center relative overflow-hidden">
+      <div className="relative z-10 w-full max-w-[420px] bg-white/85 sm:bg-white/90 backdrop-blur-2xl border border-white/90 rounded-3xl shadow-[0_25px_60px_-10px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.8),inset_0_1px_2px_rgba(255,255,255,1)] p-5 sm:p-9 text-center relative overflow-hidden">
         {/* Decorative Top Accent Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500" />
 

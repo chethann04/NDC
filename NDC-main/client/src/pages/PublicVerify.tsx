@@ -70,7 +70,7 @@ export const PublicVerify: React.FC = () => {
       <div className="absolute top-[-10%] right-[-10%] w-[450px] h-[450px] rounded-full bg-indigo-200/30 blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[450px] h-[450px] rounded-full bg-sky-200/30 blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-lg bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-soft-xl p-8 sm:p-10 relative z-10">
+      <div className="w-full max-w-lg bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-soft-xl p-5 sm:p-10 relative z-10">
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-2xl p-2 shadow-soft-xs border border-indigo-100/80 mx-auto mb-3 flex items-center justify-center">
             <img src="/mce_logo.png" alt="MCE Logo" className="w-full h-full object-contain drop-shadow-sm" />

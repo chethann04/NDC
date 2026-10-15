@@ -217,8 +217,8 @@ export const NdcMonitor: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full min-w-[280px]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1 w-full min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -238,7 +238,7 @@ export const NdcMonitor: React.FC = () => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="select text-xs font-semibold shrink-0"
+          className="select text-xs font-semibold shrink-0 w-full sm:w-auto"
         >
           <option value="">All Statuses</option>
           <option value="IN_PROGRESS">In Progress</option>

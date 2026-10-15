@@ -208,7 +208,7 @@ export const ChemistryLabClearance: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
             <button
               onClick={() => fetchClearances()}
               disabled={loading}

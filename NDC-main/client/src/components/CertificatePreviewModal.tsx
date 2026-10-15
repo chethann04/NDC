@@ -78,37 +78,37 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+        className="relative w-full max-w-2xl max-h-[92vh] max-h-[92dvh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Toolbar Header */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-sm text-slate-800">
-              No Due Certificate Preview — <span className="font-mono text-blue-700">{certificate.certificateNumber || 'Preview'}</span>
+        <div className="flex items-center justify-between px-3.5 sm:px-6 py-3 sm:py-3.5 border-b border-slate-200 bg-slate-50 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Award className="w-5 h-5 text-blue-600 shrink-0" />
+            <h3 className="font-bold text-xs sm:text-sm text-slate-800 truncate">
+              No Due Certificate — <span className="font-mono text-blue-700">{certificate.certificateNumber || 'Preview'}</span>
             </h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={handleDownload}
               disabled={downloading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
             >
               {downloading ? (
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Download className="w-3.5 h-3.5" />
               )}
-              {downloading ? 'Downloading...' : 'Download PDF'}
+              <span className="hidden sm:inline">{downloading ? 'Downloading...' : 'Download PDF'}</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
               aria-label="Close modal"
             >
               <X className="w-4 h-4" />
@@ -117,8 +117,8 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
         </div>
 
         {/* Certificate Paper Canvas */}
-        <div className="overflow-y-auto p-6 bg-slate-100 flex justify-center">
-          <div className="w-full bg-white border-2 border-slate-300 rounded-xl p-8 shadow-sm space-y-6 relative">
+        <div className="overflow-y-auto p-2.5 sm:p-6 bg-slate-100 flex justify-center">
+          <div className="w-full bg-white border-2 border-slate-300 rounded-xl p-4 sm:p-8 shadow-sm space-y-4 sm:space-y-6 relative">
             {/* Header with College Emblem / Typography */}
             <div className="text-center border-b-2 border-slate-900 pb-5 space-y-1">
               <span className="caption-text font-bold tracking-widest text-slate-500 uppercase">Government of Karnataka · Autonomous Institution</span>

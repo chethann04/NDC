@@ -191,7 +191,7 @@ export const CertificateManagement: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => handleExport('xlsx')}
             className="btn btn-secondary inline-flex items-center gap-2 text-xs font-bold"
@@ -212,7 +212,7 @@ export const CertificateManagement: React.FC = () => {
       </div>
 
       {/* Submission Status Pill Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <button
           onClick={() => setSubmissionFilter('')}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${

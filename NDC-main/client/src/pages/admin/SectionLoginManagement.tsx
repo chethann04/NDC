@@ -607,12 +607,12 @@ export const SectionLoginManagement: React.FC = () => {
             )}
           </div>
 
-          {/* Section Category Dropdown */}
-          <div className="flex items-center gap-2">
+          {/* Filter Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold focus:outline-none focus:border-zinc-900 shadow-xs"
+              className="flex-1 sm:flex-initial min-w-[140px] px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold focus:outline-none focus:border-zinc-900 shadow-xs"
             >
               <option value="ALL">All Categories</option>
               <option value="COLLEGE_LAB">🔬 College Labs (Physics / Chemistry)</option>
@@ -626,7 +626,7 @@ export const SectionLoginManagement: React.FC = () => {
             <select
               value={selectedDeptFilter}
               onChange={(e) => setSelectedDeptFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold focus:outline-none focus:border-zinc-900 shadow-xs"
+              className="flex-1 sm:flex-initial min-w-[130px] px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold focus:outline-none focus:border-zinc-900 shadow-xs"
             >
               <option value="ALL">All Departments</option>
               {departments.map((d) => (
@@ -640,7 +640,7 @@ export const SectionLoginManagement: React.FC = () => {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold focus:outline-none focus:border-zinc-900 shadow-xs"
+              className="flex-1 sm:flex-initial min-w-[110px] px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold focus:outline-none focus:border-zinc-900 shadow-xs"
             >
               <option value="ALL">All Status</option>
               <option value="ACTIVE">Active Only</option>

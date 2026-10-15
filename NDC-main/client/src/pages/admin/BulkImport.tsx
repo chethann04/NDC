@@ -243,13 +243,13 @@ export const BulkImport: React.FC = () => {
           <p className="caption-text mt-1">Bulk ingest and sync student rosters via Excel (.xlsx / .xls) or CSV</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link
             to={user?.role === 'DEPARTMENT_OFFICER' ? '/officer/students' : '/admin/students'}
             className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50"
           >
             <UserPlus className="w-3.5 h-3.5 text-blue-600" />
-            Single Student Entry
+            <span>Single Student Entry</span>
           </Link>
           <a
             href={getApiUrl('/api/v1/students/template')}
@@ -259,7 +259,7 @@ export const BulkImport: React.FC = () => {
             className="btn btn-secondary text-xs"
           >
             <Download className="w-3.5 h-3.5" />
-            Download Sample Template
+            <span>Download Sample Template</span>
           </a>
         </div>
       </div>
