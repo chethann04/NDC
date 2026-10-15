@@ -12,16 +12,32 @@
 
 let lastKnownClientOrigin: string | null = null;
 
+const isValidProductionOrigin = (urlStr: string): boolean => {
+  try {
+    const parsed = new URL(urlStr);
+    const host = parsed.hostname.toLowerCase();
+    const configuredClient = (process.env.CLIENT_URL || process.env.FRONTEND_URL || '').toLowerCase();
+    if (configuredClient && configuredClient.includes(host)) return true;
+    return (
+      host.endsWith('.vercel.app') ||
+      host.endsWith('.onrender.com') ||
+      host === 'ndc-mce.vercel.app' ||
+      host.endsWith('mce.ac.in')
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const setLastKnownClientOrigin = (origin?: string | null): void => {
   if (!origin) return;
   try {
     const clean = origin.trim().replace(/\/+$/, '');
-    // Ignore localhost and loopback when tracking deployed origin
-    if (
-      clean.startsWith('http://') ||
-      clean.startsWith('https://')
-    ) {
-      if (!clean.includes('localhost') && !clean.includes('127.0.0.1')) {
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (!isProduction) {
+        lastKnownClientOrigin = clean;
+      } else if (isValidProductionOrigin(clean)) {
         lastKnownClientOrigin = clean;
       }
     }
@@ -35,14 +51,17 @@ export const getLastKnownClientOrigin = (): string | null => {
 };
 
 export const getClientBaseUrl = (preferredUrl?: string | null): string => {
-  // 1. Explicit preferred URL (e.g. from current request header)
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // 1. Explicit preferred URL (e.g. from current request header) - strictly validated
   if (preferredUrl) {
     const cleanPreferred = preferredUrl.trim().replace(/\/+$/, '');
     if (cleanPreferred.startsWith('http://') || cleanPreferred.startsWith('https://')) {
-      // In production, only prefer localhost if there is no other deployed origin available
-      const isProduction = process.env.NODE_ENV === 'production';
       const isLocalhost = cleanPreferred.includes('localhost') || cleanPreferred.includes('127.0.0.1');
-      if (!isProduction || !isLocalhost) {
+      if (!isProduction && isLocalhost) {
+        return cleanPreferred;
+      }
+      if (isValidProductionOrigin(cleanPreferred)) {
         return cleanPreferred;
       }
     }
@@ -54,8 +73,6 @@ export const getClientBaseUrl = (preferredUrl?: string | null): string => {
     process.env.FRONTEND_URL ||
     process.env.APP_URL
   )?.trim().replace(/\/+$/, '');
-
-  const isProduction = process.env.NODE_ENV === 'production';
 
   if (envUrl) {
     const isLocalhost = envUrl.includes('localhost') || envUrl.includes('127.0.0.1');
@@ -107,4 +124,20 @@ export const extractOriginFromReq = (req?: any): string | undefined => {
     // ignore
   }
   return undefined;
+};
+
+export const getProductionClientUrl = (preferredUrl?: string | null): string => {
+  return getClientBaseUrl(preferredUrl);
+};
+
+export const getProductionLoginUrl = (preferredUrl?: string | null): string => {
+  return `${getClientBaseUrl(preferredUrl)}/student-login`;
+};
+
+export const getProductionDashboardUrl = (preferredUrl?: string | null): string => {
+  return `${getClientBaseUrl(preferredUrl)}/student/dashboard`;
+};
+
+export const getProductionCertificateUrl = (certId: string, preferredUrl?: string | null): string => {
+  return `${getClientBaseUrl(preferredUrl)}/verify?certId=${encodeURIComponent(certId)}`;
 };

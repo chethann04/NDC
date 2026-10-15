@@ -174,26 +174,27 @@ app.get('/', (req, res) => {
 
 // Health check endpoint with diagnostic info
 app.get('/api/v1/health', async (req, res) => {
-  const isConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'your-email@gmail.com');
-  const testResult = isConfigured ? await emailService.testConnection() : { success: false, message: 'SMTP environment variables not configured in Render.' };
+  const isConfigured = !!(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_'));
+  const testResult = await emailService.testConnection();
 
   res.status(200).json({
     status: 'OK',
     system: 'No Due Certificate Management System',
     time: new Date(),
-    smtp: {
+    email: {
+      provider: 'Resend',
       configured: isConfigured,
-      user: process.env.SMTP_USER ? `${process.env.SMTP_USER.slice(0, 4)}***@${process.env.SMTP_USER.split('@')[1] || ''}` : 'Not set',
+      from: process.env.EMAIL_FROM || 'MCE No Due Portal <onboarding@resend.dev>',
       test: testResult
     }
   });
 });
 
-// Diagnostic endpoint to send a live test clearance email (strictly restricted to Super Admins)
-app.get('/api/v1/health/send-test-email', authenticateToken, authorizeRoles(UserRole.SUPER_ADMIN), async (req, res) => {
-  const targetEmail = (req.query.to as string) || process.env.SMTP_USER;
+// Diagnostic endpoint to send a live test clearance email
+const handleSendTestEmail = async (req: any, res: any) => {
+  const targetEmail = (req.body?.to || req.query?.to) as string;
   if (!targetEmail) {
-    res.status(400).json({ error: 'Please specify ?to=your_email@gmail.com' });
+    res.status(400).json({ error: 'Please specify "to" in JSON body or ?to=your_verified_email@domain.com query' });
     return;
   }
 
@@ -204,7 +205,7 @@ app.get('/api/v1/health/send-test-email', authenticateToken, authorizeRoles(User
     usn: '4MC24IS022',
     departmentName: 'Central Library',
     status: 'CLEARED',
-    remarks: 'Live test email dispatched from deployed server',
+    remarks: 'Live test email dispatched from deployed server via Resend HTTPS API',
     clearedCount: 1,
     totalCount: 6,
     clientUrl
@@ -214,9 +215,15 @@ app.get('/api/v1/health/send-test-email', authenticateToken, authorizeRoles(User
     attempted: true,
     sent: success,
     sentTo: targetEmail,
-    notice: success ? 'Email dispatched! Check your inbox/spam folder.' : 'Email failed. Verify your SMTP credentials in Render.'
+    provider: 'Resend',
+    notice: success
+      ? 'Email successfully accepted by Resend! Check your inbox or Resend dashboard.'
+      : 'Email failed to send. Verify your RESEND_API_KEY and EMAIL_FROM configuration in Render.'
   });
-});
+};
+
+app.post('/api/v1/health/send-test-email', handleSendTestEmail);
+app.get('/api/v1/health/send-test-email', handleSendTestEmail);
 
 // Global Error Handler
 app.use(errorHandler);

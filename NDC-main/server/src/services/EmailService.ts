@@ -1,6 +1,7 @@
-import nodemailer, { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import dotenv from 'dotenv';
 import { getClientBaseUrl } from '../utils/urlHelper';
+
 dotenv.config();
 
 export interface ClearanceEmailPayload {
@@ -29,6 +30,10 @@ export interface CertificateEmailPayload {
   clientUrl?: string;
 }
 
+/**
+ * Identifies synthetic, load-test, or RFC 2606 reserved domains
+ * that must be skipped from delivery to avoid wasted credits and provider errors.
+ */
 export const isSyntheticOrTestEmail = (email: string): boolean => {
   if (!email || !email.includes('@')) return true;
   const lower = email.toLowerCase().trim();
@@ -42,80 +47,242 @@ export const isSyntheticOrTestEmail = (email: string): boolean => {
     domain === 'example.org' ||
     domain === 'example.net' ||
     lower.includes('@loadtest.invalid') ||
-    lower.includes('@demo.ndc.local')
+    lower.includes('@demo.ndc.local') ||
+    lower.includes('@benchmark.test')
   );
 };
 
+export interface SendMailDetailedResult {
+  success: boolean;
+  messageId?: string;
+  skipped?: boolean;
+  error?: string;
+  rateLimited?: boolean;
+  retryCount?: number;
+}
+
+export type SendMailResult = SendMailDetailedResult;
+
 class EmailService {
-  private transporter: Transporter | null = null;
-  private isConfigured: boolean = false;
-  private lastUser: string | null = null;
-  private lastPass: string | null = null;
+  private resendClient: Resend | null = null;
+  private mockClient: any = null;
+  private _isConfigured: boolean = false;
+  private currentApiKey: string | null = null;
 
   constructor() {
-    this.getTransporter();
+    this.initClient();
   }
 
-  private getTransporter(): Transporter | null {
-    dotenv.config();
-    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-    const port = parseInt(process.env.SMTP_PORT || '587', 10);
-    const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+  /**
+   * Check if Resend email service is configured and ready.
+   */
+  public isConfigured(): boolean {
+    if (this.mockClient) return true;
+    this.initClient();
+    return this._isConfigured;
+  }
 
-    if (!user || !pass || user.includes('your-email')) {
-      this.isConfigured = false;
-      this.transporter = null;
+  /**
+   * Inject a mock Resend client for automated unit and integration tests.
+   * Ensures tests never trigger real emails or require live credentials.
+   */
+  public setMockClient(client: any): void {
+    this.mockClient = client;
+    this._isConfigured = !!client;
+  }
+
+  /**
+   * Reset mock client to default runtime state.
+   */
+  public clearMockClient(): void {
+    this.mockClient = null;
+    this.initClient();
+  }
+
+  /**
+   * Initialize or refresh the Resend SDK instance from environment variables.
+   */
+  private initClient(): Resend | null {
+    if (this.mockClient) return this.mockClient;
+
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+
+    if (!apiKey || !apiKey.startsWith('re_') || apiKey.includes('your-resend-api-key') || apiKey.includes('placeholder')) {
+      this._isConfigured = false;
+      this.resendClient = null;
+      this.currentApiKey = null;
       return null;
     }
 
-    if (!this.transporter || this.lastUser !== user || this.lastPass !== pass) {
+    if (!this.resendClient || this.currentApiKey !== apiKey) {
       try {
-        const cleanUser = user.trim();
-        const cleanPass = pass.trim().replace(/\s+/g, '');
-
-        const transportConfig: any = {
-          host: host || 'smtp.gmail.com',
-          port: port || 587,
-          secure: secure || port === 465,
-          auth: { user: cleanUser, pass: cleanPass },
-          pool: true,
-          maxConnections: 3,
-          maxMessages: 100,
-          rateLimit: 5,
-          connectionTimeout: 10000,
-          greetingTimeout: 5000,
-          socketTimeout: 15000,
-          tls: { rejectUnauthorized: true }
-        };
-
-        this.transporter = nodemailer.createTransport(transportConfig);
-        this.lastUser = user;
-        this.lastPass = pass;
-        this.isConfigured = true;
-        console.log(`[EmailService]: Persistent pooled SMTP transporter initialized with host: ${host}, user: ${cleanUser}`);
-      } catch (err) {
-        console.warn('[EmailService]: Failed to initialize SMTP transporter:', err);
-        this.transporter = null;
-        this.isConfigured = false;
+        this.resendClient = new Resend(apiKey);
+        this.currentApiKey = apiKey;
+        this._isConfigured = true;
+        const masked = `${apiKey.slice(0, 5)}***${apiKey.slice(-4)}`;
+        console.log(`[EmailService]: Resend HTTPS client initialized with API key (${masked})`);
+      } catch (err: any) {
+        console.warn('[EmailService]: Failed to initialize Resend client:', err?.message || err);
+        this.resendClient = null;
+        this._isConfigured = false;
       }
     }
 
-    return this.transporter;
+    return this.resendClient;
   }
 
-  public async testConnection(): Promise<{ success: boolean; message: string }> {
-    const transporter = this.getTransporter();
-    if (!transporter) {
-      return { success: false, message: 'SMTP credentials not configured in environment.' };
+  /**
+   * Verify Resend API configuration and credentials.
+   * Queries Resend API key status or domain settings without sending an email.
+   */
+  public async testConnection(): Promise<{ success: boolean; message: string; provider: string; mode?: string }> {
+    if (this.mockClient) {
+      return { success: true, message: 'Mock Resend client active for tests.', provider: 'Resend (Mock)', mode: 'mock' };
     }
+
+    const client = this.initClient();
+    if (!client || !this._isConfigured) {
+      return {
+        success: false,
+        provider: 'Resend',
+        message: 'RESEND_API_KEY environment variable is not configured or invalid (must start with "re_").',
+        mode: 'unconfigured'
+      };
+    }
+
     try {
-      await transporter.verify();
-      return { success: true, message: `SMTP connection verified successfully with ${process.env.SMTP_USER}.` };
+      const result = await client.apiKeys.list();
+      if (result.error) {
+        return {
+          success: false,
+          provider: 'Resend',
+          message: result.error.message || 'Resend API authentication failed.',
+          mode: 'error'
+        };
+      }
+      return {
+        success: true,
+        provider: 'Resend',
+        message: 'Resend HTTPS API connection and API key verified successfully.',
+        mode: 'live'
+      };
     } catch (err: any) {
-      return { success: false, message: err.message || 'SMTP verification failed.' };
+      return {
+        success: false,
+        provider: 'Resend',
+        message: err.message || 'Resend API connection test failed.',
+        mode: 'exception'
+      };
     }
+  }
+
+  /**
+   * Core email dispatch method using Resend HTTPS API.
+   * Includes rate-limit retry with exponential backoff and synthetic address skipping.
+   */
+  public async sendMailDetailed(
+    toOrOptions: string | { to: string; subject: string; html: string; text?: string; headers?: Record<string, string> },
+    subjectParam?: string,
+    htmlParam?: string,
+    headersParam?: Record<string, string>
+  ): Promise<SendMailDetailedResult> {
+    let to: string;
+    let subject: string;
+    let html: string;
+    let text: string | undefined;
+    let headers: Record<string, string> | undefined;
+
+    if (typeof toOrOptions === 'object' && toOrOptions !== null) {
+      to = toOrOptions.to;
+      subject = toOrOptions.subject;
+      html = toOrOptions.html;
+      text = toOrOptions.text;
+      headers = toOrOptions.headers;
+    } else {
+      to = toOrOptions;
+      subject = subjectParam || '';
+      html = htmlParam || '';
+      headers = headersParam;
+    }
+
+    if (!to || !to.includes('@')) {
+      return { success: false, error: 'INVALID_RECIPIENT_ADDRESS' };
+    }
+
+    const recipient = to.trim();
+
+    // Skip synthetic/test domains without making HTTPS requests
+    if (isSyntheticOrTestEmail(recipient)) {
+      console.log(`[EmailService]: Skipped email dispatch to synthetic test address [${recipient}].`);
+      return { success: true, skipped: true, messageId: `mock-skipped-synthetic-${Date.now()}` };
+    }
+
+    const client = this.mockClient || this.initClient();
+    if (!client || (!this._isConfigured && !this.mockClient)) {
+      console.warn(`[EmailService]: RESEND_API_KEY unconfigured. Email to [${recipient}] was not dispatched.`);
+      return { success: false, error: 'RESEND_API_KEY_UNCONFIGURED' };
+    }
+
+    const fromAddress = process.env.EMAIL_FROM || 'MCE No Due Portal <onboarding@resend.dev>';
+
+    // Bounded retry loop for transient rate-limit errors (HTTP 429)
+    let attempt = 0;
+    const maxAttempts = 2;
+    let lastErrorMsg = 'Unknown dispatch failure';
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        const payload: any = {
+          from: fromAddress,
+          to: [recipient],
+          subject,
+          html
+        };
+        if (text) payload.text = text;
+        if (headers) payload.headers = headers;
+
+        const response = await client.emails.send(payload);
+
+        if (response.error) {
+          lastErrorMsg = response.error.message || response.error.name || 'Resend API error';
+          const isRateLimit =
+            response.error.name === 'rate_limit_exceeded' ||
+            response.error.message?.toLowerCase().includes('rate limit');
+
+          if (isRateLimit && attempt < maxAttempts) {
+            console.warn(`[EmailService]: Resend rate limit exceeded for ${recipient}. Backing off for 650ms (attempt ${attempt}/${maxAttempts})...`);
+            await new Promise((r) => setTimeout(r, 650));
+            continue;
+          }
+
+          console.error(`[EmailService Error]: Resend rejected email to [${recipient}]:`, lastErrorMsg);
+          return { success: false, error: lastErrorMsg, rateLimited: isRateLimit, retryCount: attempt - 1 };
+        }
+
+        if (response.data && response.data.id) {
+          console.log(`[Email Notification] -> Email accepted by Resend for ${recipient} (MessageId: ${response.data.id})`);
+          return { success: true, messageId: response.data.id, skipped: false, retryCount: attempt - 1 };
+        }
+      } catch (err: any) {
+        lastErrorMsg = err?.message || 'Network error communicating with Resend HTTPS API';
+        console.error(`[EmailService Exception] -> Failed sending to ${recipient}:`, lastErrorMsg);
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 650));
+          continue;
+        }
+      }
+    }
+
+    return { success: false, error: lastErrorMsg, retryCount: attempt - 1 };
+  }
+
+  /**
+   * Compatibility wrapper returning boolean success for existing callers.
+   */
+  public async sendMail(to: string, subject: string, html: string): Promise<boolean> {
+    const res = await this.sendMailDetailed(to, subject, html);
+    return res.success && !res.error;
   }
 
   /**
@@ -271,26 +438,37 @@ class EmailService {
   }
 
   /**
-   * Dispatch a batch of clearance update emails sequentially through the pooled SMTP connection.
-   * Runs in the background without overwhelming SMTP server rate limits.
+   * Dispatch a batch of clearance update emails sequentially through Resend HTTPS API.
+   * Throttled with 550ms intervals to remain well within Resend free tier limits (2 req/s).
    */
-  public async sendClearanceUpdateEmailsBatch(payloads: ClearanceEmailPayload[]): Promise<{ total: number; sent: number; failed: number }> {
+  public async sendClearanceUpdateEmailsBatch(
+    payloads: ClearanceEmailPayload[]
+  ): Promise<{ total: number; sent: number; failed: number; skipped: number }> {
     let sent = 0;
     let failed = 0;
+    let skipped = 0;
+
     for (const p of payloads) {
       try {
+        if (isSyntheticOrTestEmail(p.toEmail)) {
+          skipped++;
+          continue;
+        }
+
         const ok = await this.sendClearanceUpdateEmail(p);
         if (ok) sent++;
         else failed++;
-        // Small delay to remain well within Gmail rate limits
-        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // Rate-limit throttle for Resend API
+        await new Promise((resolve) => setTimeout(resolve, 550));
       } catch (err) {
         failed++;
         console.warn(`[EmailService]: Failed to dispatch batch email for USN ${p.usn}:`, err);
       }
     }
-    console.log(`[EmailService]: Batch clearance dispatch completed: ${sent} sent, ${failed} failed out of ${payloads.length}`);
-    return { total: payloads.length, sent, failed };
+
+    console.log(`[EmailService]: Batch clearance dispatch completed: ${sent} sent, ${failed} failed, ${skipped} skipped out of ${payloads.length}`);
+    return { total: payloads.length, sent, failed, skipped };
   }
 
   /**
@@ -304,9 +482,14 @@ class EmailService {
       return false;
     }
 
+    if (isSyntheticOrTestEmail(toEmail)) {
+      console.log(`[EmailService]: Skipped certificate email for synthetic test address [${toEmail}].`);
+      return true;
+    }
+
     const clientUrl = getClientBaseUrl(payload.clientUrl);
-    const dashboardUrl = `${clientUrl}/student/dashboard`;
-    const finalDownloadUrl = downloadUrl || dashboardUrl;
+    const verifyUrl = `${clientUrl}/verify?certId=${encodeURIComponent(certificateNumber)}`;
+    const finalDownloadUrl = downloadUrl || verifyUrl;
 
     const subject = `🎓 [NDC Complete] No Due Certificate Issued: ${certificateNumber} - ${usn}`;
 
@@ -354,6 +537,9 @@ class EmailService {
             <a href="${finalDownloadUrl}" style="display: inline-block; background-color: #059669; color: #ffffff; text-decoration: none; padding: 14px 28px; font-size: 14px; font-weight: 800; border-radius: 10px; box-shadow: 0 4px 6px rgba(5,150,105,0.25);">
               Download Official Certificate PDF
             </a>
+            <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">
+              Or verify online at: <a href="${verifyUrl}" style="color: #059669; font-weight: 600; text-decoration: underline;">${verifyUrl}</a>
+            </p>
           </div>
         </div>
 
@@ -551,52 +737,6 @@ class EmailService {
     `;
 
     return this.sendMail(toEmail, subject, htmlContent);
-  }
-
-  public async sendMailDetailed(
-    to: string,
-    subject: string,
-    html: string
-  ): Promise<{ success: boolean; skipped?: boolean; error?: string; messageId?: string }> {
-    if (!to || !to.includes('@')) {
-      return { success: false, error: 'INVALID_RECIPIENT_ADDRESS' };
-    }
-
-    if (isSyntheticOrTestEmail(to)) {
-      console.log(`[EmailService]: Skipped email dispatch to synthetic test address [${to}].`);
-      return { success: true, skipped: true };
-    }
-
-    const transporter = this.getTransporter();
-    const userEmail = process.env.SMTP_USER;
-    if (!this.isConfigured || !transporter || !userEmail) {
-      console.warn(`[EmailService]: SMTP credentials unconfigured in environment. Email to [${to}] was not dispatched.`);
-      return { success: false, error: 'SMTP_UNCONFIGURED' };
-    }
-
-    const from = {
-      name: process.env.SMTP_FROM_NAME || 'MCE No Due Portal',
-      address: userEmail
-    };
-
-    try {
-      const info = await transporter.sendMail({
-        from: `"${from.name}" <${from.address}>`,
-        to,
-        subject,
-        html
-      });
-      console.log(`[Email Notification] -> Email accepted by SMTP provider for ${to} (MessageId: ${info.messageId})`);
-      return { success: true, messageId: info.messageId };
-    } catch (err: any) {
-      console.error(`[Email Notification Error] -> Failed sending to ${to}:`, err.message || err);
-      return { success: false, error: err.message || 'SMTP_SEND_FAILED' };
-    }
-  }
-
-  private async sendMail(to: string, subject: string, html: string): Promise<boolean> {
-    const res = await this.sendMailDetailed(to, subject, html);
-    return res.success && !res.error;
   }
 }
 

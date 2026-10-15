@@ -369,8 +369,8 @@ export class BackgroundJobService {
               batch: row.batch,
               clientUrl
             });
-            // Small throttle to be courteous to SMTP provider
-            await new Promise((resolve) => setTimeout(resolve, 250));
+            // Throttle with 550ms delay to adhere strictly to Resend rate limits (2 req/s on free tier)
+            await new Promise((resolve) => setTimeout(resolve, 550));
           } catch (emailErr) {
             console.warn(`[BackgroundJobService]: Error sending welcome email to ${row.email}:`, emailErr);
           }

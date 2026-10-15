@@ -609,7 +609,7 @@ export class NdcWorkflowService {
         const officerName = fullClearance?.reviewedBy?.name || reqObj?.user?.name || reqObj?.user?.email || 'Clearance Officer';
         const clientUrl = extractOriginFromReq(reqObj);
 
-        // Reliable dispatch via pooled SMTP transporter
+        // Reliable asynchronous dispatch via Resend HTTPS API
         emailService.sendClearanceUpdateEmail({
           toEmail: targetEmail,
           studentName: student.fullName,
