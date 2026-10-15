@@ -54,26 +54,24 @@ class EmailService {
       try {
         const cleanUser = user.trim();
         const cleanPass = pass.trim().replace(/\s+/g, '');
-        const isGmail = host.includes('gmail') || cleanUser.endsWith('@gmail.com');
 
-        const transportConfig: any = isGmail
-          ? {
-              service: 'gmail',
-              auth: { user: cleanUser, pass: cleanPass }
-            }
-          : {
-              host,
-              port,
-              secure,
-              auth: { user: cleanUser, pass: cleanPass },
-              tls: { rejectUnauthorized: false }
-            };
+        const transportConfig: any = {
+          host: host || 'smtp.gmail.com',
+          port: port || 587,
+          secure: secure || port === 465,
+          auth: { user: cleanUser, pass: cleanPass },
+          pool: true,
+          maxConnections: 3,
+          maxMessages: 100,
+          rateLimit: 5,
+          tls: { rejectUnauthorized: false }
+        };
 
         this.transporter = nodemailer.createTransport(transportConfig);
         this.lastUser = user;
         this.lastPass = pass;
         this.isConfigured = true;
-        console.log(`[EmailService]: SMTP transporter initialized with host: ${host}, user: ${cleanUser}`);
+        console.log(`[EmailService]: Persistent pooled SMTP transporter initialized with host: ${host}, user: ${cleanUser}`);
       } catch (err) {
         console.warn('[EmailService]: Failed to initialize SMTP transporter:', err);
         this.transporter = null;
@@ -121,24 +119,46 @@ class EmailService {
       return false;
     }
 
-    const normalizedStatus = status.toUpperCase();
-    const isCleared = normalizedStatus === 'CLEARED' || normalizedStatus === 'NOT_APPLICABLE';
+    const normalizedStatus = (status || '').toUpperCase();
+    const isCleared = normalizedStatus === 'CLEARED';
     const isDue = normalizedStatus === 'DUE';
-    const statusLabel = isCleared
-      ? (normalizedStatus === 'NOT_APPLICABLE' ? 'Not Applicable / Exempt' : 'Cleared (No Due)')
-      : isDue
-      ? 'Outstanding Due'
-      : normalizedStatus === 'ON_HOLD'
-      ? 'On Hold'
-      : 'Pending Review';
+    const isOnHold = normalizedStatus === 'ON_HOLD';
+    const isNa = normalizedStatus === 'NOT_APPLICABLE';
 
-    const statusBadgeColor = isCleared ? '#10b981' : isDue ? '#ef4444' : '#f59e0b';
-    const statusBadgeBg = isCleared ? '#ecfdf5' : isDue ? '#fef2f2' : '#fffbeb';
+    let statusLabel = 'Cleared (No Due)';
+    let statusBadgeColor = '#059669';
+    let statusBadgeBg = '#ecfdf5';
+    let subjectIcon = '✓';
+    let statusSummaryTitle = 'Clearance Approved';
+    let statusSummaryDesc = 'Your institutional clearance for this section has been approved with no outstanding dues.';
+
+    if (isDue) {
+      statusLabel = 'Outstanding Due';
+      statusBadgeColor = '#dc2626';
+      statusBadgeBg = '#fef2f2';
+      subjectIcon = '⚠';
+      statusSummaryTitle = 'Action Required: Outstanding Due Recorded';
+      statusSummaryDesc = 'An outstanding due has been recorded by the clearance desk. Please settle this due to proceed with your No Due Certificate.';
+    } else if (isOnHold) {
+      statusLabel = 'Clearance On Hold';
+      statusBadgeColor = '#d97706';
+      statusBadgeBg = '#fffbeb';
+      subjectIcon = '⏳';
+      statusSummaryTitle = 'Notice: Clearance Put On Hold';
+      statusSummaryDesc = 'Your clearance is temporarily on hold pending physical verification, library book return, or fee reconciliation.';
+    } else if (isNa) {
+      statusLabel = 'Not Applicable / Exempt';
+      statusBadgeColor = '#4f46e5';
+      statusBadgeBg = '#eef2ff';
+      subjectIcon = 'ℹ';
+      statusSummaryTitle = 'Section Clearance Exempted';
+      statusSummaryDesc = 'Clearance for this institutional section is exempted for your enrollment category (e.g. Day Scholar Hostel Exemption).';
+    }
 
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const dashboardUrl = `${clientUrl}/student/dashboard`;
+    const dashboardUrl = `${clientUrl}/student-login`;
 
-    const subject = `[NDC Update] ${departmentName}: ${statusLabel} - ${usn}`;
+    const subject = `${subjectIcon} [NDC Update] ${departmentName}: ${statusLabel} - ${usn}`;
 
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #f8fafc; border-radius: 16px; color: #1e293b;">
@@ -151,26 +171,40 @@ class EmailService {
           <div style="margin-bottom: 20px;">
             <p style="margin: 0; font-size: 14px; color: #64748b;">Dear <strong>${studentName}</strong> (${usn}),</p>
             <p style="margin: 8px 0 0; font-size: 14px; color: #334155; line-height: 1.5;">
-              A department section officer has updated your institutional clearance record:
+              A clearance section officer has updated your institutional clearance record:
             </p>
           </div>
 
-          <div style="background-color: #f1f5f9; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 10px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <span style="font-size: 13px; font-weight: 700; color: #0f172a;">${departmentName} ${departmentCode ? `(${departmentCode})` : ''}</span>
-              <span style="display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 9999px; color: ${statusBadgeColor}; background-color: ${statusBadgeBg}; text-transform: uppercase;">
+              <span style="font-size: 14px; font-weight: 700; color: #0f172a;">${departmentName} ${departmentCode ? `(${departmentCode})` : ''}</span>
+              <span style="display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 9999px; color: ${statusBadgeColor}; background-color: ${statusBadgeBg}; text-transform: uppercase; border: 1px solid ${statusBadgeColor}22;">
                 ${statusLabel}
               </span>
             </div>
 
+            <div style="padding: 10px 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 10px;">
+              <p style="margin: 0; font-size: 12px; font-weight: 700; color: ${statusBadgeColor};">${statusSummaryTitle}</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #475569; line-height: 1.4;">${statusSummaryDesc}</p>
+            </div>
+
             ${isDue ? `
-              <div style="padding: 12px; background-color: #fee2e2; border-radius: 6px; margin-top: 8px;">
+              <div style="padding: 12px; background-color: #fee2e2; border-radius: 8px; border: 1px solid #fecaca; margin-top: 8px;">
                 <p style="margin: 0; font-size: 13px; font-weight: 700; color: #991b1b;">Outstanding Due Amount: ₹${dueAmount || 0}</p>
-                ${dueDetails ? `<p style="margin: 4px 0 0; font-size: 12px; color: #b91c1c;">Details: ${dueDetails}</p>` : ''}
+                ${dueDetails ? `<p style="margin: 4px 0 0; font-size: 12px; color: #b91c1c;"><strong>Details:</strong> ${dueDetails}</p>` : ''}
+                <p style="margin: 6px 0 0; font-size: 11px; color: #7f1d1d;">Please settle dues with the respective department officer to obtain clearance.</p>
               </div>
             ` : ''}
 
-            ${remarks ? `
+            ${isOnHold ? `
+              <div style="padding: 12px; background-color: #fef3c7; border-radius: 8px; border: 1px solid #fde68a; margin-top: 8px;">
+                <p style="margin: 0; font-size: 13px; font-weight: 700; color: #92400e;">Status: On Hold</p>
+                ${remarks ? `<p style="margin: 4px 0 0; font-size: 12px; color: #b45309;"><strong>Reason:</strong> ${remarks}</p>` : ''}
+                <p style="margin: 6px 0 0; font-size: 11px; color: #78350f;">Please visit the department desk or contact the officer to resolve.</p>
+              </div>
+            ` : ''}
+
+            ${remarks && !isOnHold ? `
               <p style="margin: 10px 0 0; font-size: 12px; color: #475569; font-style: italic;">
                 Officer Note: "${remarks}"
               </p>
@@ -183,7 +217,7 @@ class EmailService {
             ` : ''}
           </div>
 
-          ${clearedCount !== undefined && totalCount !== undefined ? `
+          ${clearedCount !== undefined && totalCount !== undefined && totalCount > 0 ? `
             <div style="margin-bottom: 24px; padding: 12px; background-color: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1; text-align: center;">
               <p style="margin: 0; font-size: 12px; font-weight: 600; color: #475569;">
                 Clearance Progress: <strong style="color: #2563eb;">${clearedCount} of ${totalCount}</strong> sections cleared.
@@ -193,7 +227,7 @@ class EmailService {
 
           <div style="text-align: center; margin-top: 24px;">
             <a href="${dashboardUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 13px; font-weight: 700; border-radius: 8px; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">
-              View My Clearance Dashboard
+              Sign In to View Clearance Dashboard
             </a>
           </div>
         </div>
@@ -206,6 +240,29 @@ class EmailService {
     `;
 
     return this.sendMail(toEmail, subject, htmlContent);
+  }
+
+  /**
+   * Dispatch a batch of clearance update emails sequentially through the pooled SMTP connection.
+   * Runs in the background without overwhelming SMTP server rate limits.
+   */
+  public async sendClearanceUpdateEmailsBatch(payloads: ClearanceEmailPayload[]): Promise<{ total: number; sent: number; failed: number }> {
+    let sent = 0;
+    let failed = 0;
+    for (const p of payloads) {
+      try {
+        const ok = await this.sendClearanceUpdateEmail(p);
+        if (ok) sent++;
+        else failed++;
+        // Small delay to remain well within Gmail rate limits
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      } catch (err) {
+        failed++;
+        console.warn(`[EmailService]: Failed to dispatch batch email for USN ${p.usn}:`, err);
+      }
+    }
+    console.log(`[EmailService]: Batch clearance dispatch completed: ${sent} sent, ${failed} failed out of ${payloads.length}`);
+    return { total: payloads.length, sent, failed };
   }
 
   /**

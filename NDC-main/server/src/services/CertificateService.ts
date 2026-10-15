@@ -243,23 +243,25 @@ export class CertificateService {
       certificate.id
     );
 
-    // Dispatch certificate completion email to student's registered email (bounded race to prevent serverless freezing)
-    const recipientEmail = student?.user?.email || student?.email;
+    // Dispatch certificate completion email to student's registered email
+    const recipientEmail = student?.email || student?.user?.email;
     if (recipientEmail && student) {
       try {
         const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-        await Promise.race([
-          emailService.sendCertificateIssuedEmail({
-            toEmail: recipientEmail,
-            studentName: student.fullName,
-            usn: student.usn,
-            certificateNumber: certificate.certificateNumber,
-            issuedAt: certificate.issuedAt,
-            downloadUrl: `${clientUrl}/student/dashboard`
-          }),
-          new Promise((resolve) => setTimeout(resolve, 5000))
-        ]);
-        console.log(`[CertificateService]: Certificate issued email finished for ${recipientEmail}`);
+        emailService.sendCertificateIssuedEmail({
+          toEmail: recipientEmail,
+          studentName: student.fullName,
+          usn: student.usn,
+          certificateNumber: certificate.certificateNumber,
+          issuedAt: certificate.issuedAt,
+          downloadUrl: `${clientUrl}/student/dashboard`
+        }).then((sent) => {
+          if (sent) {
+            console.log(`[CertificateService]: Certificate issued email successfully delivered to ${recipientEmail}`);
+          }
+        }).catch((e) => {
+          console.error('[CertificateService Error]: Failed to dispatch certificate issued email:', e);
+        });
       } catch (e) {
         console.error('[CertificateService Error]: Failed to dispatch certificate issued email:', e);
       }

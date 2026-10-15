@@ -541,7 +541,7 @@ export class NdcWorkflowService {
       });
 
       const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
-      const targetEmail = student?.user?.email || student?.email;
+      const targetEmail = student?.email || student?.user?.email;
 
       if (targetEmail && student) {
         const reqClearances = fullClearance?.ndcRequest?.clearances || [];
@@ -554,24 +554,29 @@ export class NdcWorkflowService {
           ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
           : fullClearance?.department?.name || 'Department Clearance Section';
 
-        await Promise.race([
-          emailService.sendClearanceUpdateEmail({
-            toEmail: targetEmail,
-            studentName: student.fullName,
-            usn: student.usn,
-            departmentName: sectionName,
-            departmentCode: fullClearance?.department?.code,
-            status: status,
-            dueAmount: status === DepartmentClearanceStatus.DUE ? (dueAmount || 0) : 0,
-            dueDetails: status === DepartmentClearanceStatus.DUE ? finalDueDetails : undefined,
-            remarks: finalRemarks,
-            officerName: fullClearance?.reviewedBy?.name,
-            clearedCount,
-            totalCount
-          }),
-          new Promise((resolve) => setTimeout(resolve, 5000))
-        ]);
-        console.log(`[NdcWorkflowService]: Clearance update email dispatch finished for ${targetEmail}`);
+        const officerName = fullClearance?.reviewedBy?.name || reqObj?.user?.name || reqObj?.user?.email || 'Clearance Officer';
+
+        // Reliable dispatch via pooled SMTP transporter
+        emailService.sendClearanceUpdateEmail({
+          toEmail: targetEmail,
+          studentName: student.fullName,
+          usn: student.usn,
+          departmentName: sectionName,
+          departmentCode: fullClearance?.department?.code,
+          status: status,
+          dueAmount: status === DepartmentClearanceStatus.DUE ? (dueAmount || 0) : 0,
+          dueDetails: status === DepartmentClearanceStatus.DUE ? finalDueDetails : undefined,
+          remarks: finalRemarks,
+          officerName,
+          clearedCount,
+          totalCount
+        }).then((sent) => {
+          if (sent) {
+            console.log(`[NdcWorkflowService]: Clearance update email successfully delivered to ${targetEmail} for ${student.usn}`);
+          }
+        }).catch((emailErr) => {
+          console.error('[NdcWorkflowService]: Failed to dispatch clearance update email:', emailErr);
+        });
       }
     } catch (emailErr) {
       console.error('[NdcWorkflowService]: Failed to dispatch clearance update email:', emailErr);
@@ -775,7 +780,7 @@ export class NdcWorkflowService {
       });
 
       const student = fullClearance?.student || fullClearance?.ndcRequest?.student;
-      const targetEmail = student?.user?.email || student?.email;
+      const targetEmail = student?.email || student?.user?.email;
 
       if (targetEmail && student) {
         const reqClearances = fullClearance?.ndcRequest?.clearances || [];
@@ -787,21 +792,24 @@ export class NdcWorkflowService {
           ? (fullClearance?.department?.name ? `${fullClearance.department.name} - ${fullClearance.lab.name}` : fullClearance.lab.name)
           : fullClearance?.department?.name || 'Department Clearance Section';
 
-        await Promise.race([
-          emailService.sendClearanceUpdateEmail({
-            toEmail: targetEmail,
-            studentName: student.fullName,
-            usn: student.usn,
-            departmentName: sectionName,
-            departmentCode: fullClearance?.department?.code,
-            status: newStatus,
-            remarks: `Admin Override: ${overrideReason || 'Administrative update'}`,
-            officerName: 'System Administrator',
-            clearedCount,
-            totalCount: reqClearances.length
-          }),
-          new Promise((resolve) => setTimeout(resolve, 5000))
-        ]);
+        emailService.sendClearanceUpdateEmail({
+          toEmail: targetEmail,
+          studentName: student.fullName,
+          usn: student.usn,
+          departmentName: sectionName,
+          departmentCode: fullClearance?.department?.code,
+          status: newStatus,
+          remarks: `Admin Override: ${overrideReason || 'Administrative update'}`,
+          officerName: 'System Administrator',
+          clearedCount,
+          totalCount: reqClearances.length
+        }).then((sent) => {
+          if (sent) {
+            console.log(`[NdcWorkflowService]: Admin override email delivered to ${targetEmail} for ${student.usn}`);
+          }
+        }).catch((emailErr) => {
+          console.error('[NdcWorkflowService]: Admin override email dispatch warning:', emailErr);
+        });
       }
     } catch (emailErr) {
       console.error('[NdcWorkflowService]: Admin override email dispatch warning:', emailErr);
