@@ -19,6 +19,7 @@ import auditRoutes from './routes/auditRoutes';
 import settingRoutes from './routes/settingRoutes';
 import teachingDepartmentRoutes from './routes/teachingDepartmentRoutes';
 import sectionLoginRoutes from './routes/sectionLoginRoutes';
+import jobRoutes from './routes/jobRoutes';
 import emailService from './services/EmailService';
 import { setLastKnownClientOrigin, extractOriginFromReq } from './utils/urlHelper';
 
@@ -159,6 +160,7 @@ app.use('/api/v1/audit-logs', auditRoutes);
 app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/teaching-department', teachingDepartmentRoutes);
 app.use('/api/v1/admin/section-logins', sectionLoginRoutes);
+app.use('/api/v1/jobs', jobRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

@@ -65,6 +65,7 @@ model User {
   reviewedClearances    NdcClearance[]      @relation("ReviewedClearances")
   notifications       Notification[]
   auditLogs           AuditLog[]
+  initiatedJobs       BackgroundJob[]     @relation("InitiatedJobs")
 
   @@index([loginId])
   @@index([departmentId])
@@ -358,4 +359,45 @@ model Notification {
 
   @@index([recipientUserId, isRead])
   @@map("notifications")
+}
+
+enum BackgroundJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIALLY_COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model BackgroundJob {
+  id                 String              @id @default(uuid())
+  type               String              @default("STUDENT_BULK_IMPORT")
+  status             BackgroundJobStatus @default(QUEUED)
+  initiatedByUserId  String?
+  totalRecords       Int                 @default(0)
+  processedRecords   Int                 @default(0)
+  insertedRecords    Int                 @default(0)
+  updatedRecords     Int                 @default(0)
+  skippedRecords     Int                 @default(0)
+  failedRecords      Int                 @default(0)
+  currentStage       String              @default("QUEUED")
+  currentBatch       Int                 @default(0)
+  totalBatches       Int                 @default(0)
+  payload            Json?
+  resultSummary      Json?
+  lastError          String?
+  heartbeatAt        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  initiatedByUser    User?               @relation("InitiatedJobs", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([type, status])
+  @@index([initiatedByUserId])
+  @@index([createdAt])
+  @@map("background_jobs")
 }

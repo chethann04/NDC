@@ -29,6 +29,23 @@ export interface CertificateEmailPayload {
   clientUrl?: string;
 }
 
+export const isSyntheticOrTestEmail = (email: string): boolean => {
+  if (!email || !email.includes('@')) return true;
+  const lower = email.toLowerCase().trim();
+  const domain = lower.split('@')[1] || '';
+  return (
+    domain.endsWith('.invalid') ||
+    domain.endsWith('.example') ||
+    domain.endsWith('.test') ||
+    domain.endsWith('.local') ||
+    domain === 'example.com' ||
+    domain === 'example.org' ||
+    domain === 'example.net' ||
+    lower.includes('@loadtest.invalid') ||
+    lower.includes('@demo.ndc.local')
+  );
+};
+
 class EmailService {
   private transporter: Transporter | null = null;
   private isConfigured: boolean = false;
@@ -42,8 +59,8 @@ class EmailService {
   private getTransporter(): Transporter | null {
     dotenv.config();
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const user = process.env.SMTP_USER || '4MC24IS022@gmail.com';
-    const pass = process.env.SMTP_PASS || 'ctvahxouinazbzui';
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
     const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
@@ -67,7 +84,10 @@ class EmailService {
           maxConnections: 3,
           maxMessages: 100,
           rateLimit: 5,
-          tls: { rejectUnauthorized: false }
+          connectionTimeout: 10000,
+          greetingTimeout: 5000,
+          socketTimeout: 15000,
+          tls: { rejectUnauthorized: true }
         };
 
         this.transporter = nodemailer.createTransport(transportConfig);
@@ -120,6 +140,11 @@ class EmailService {
     if (!toEmail || !toEmail.includes('@')) {
       console.warn(`[EmailService]: Invalid student email [${toEmail}] for USN [${usn}]. Skipping email.`);
       return false;
+    }
+
+    if (isSyntheticOrTestEmail(toEmail)) {
+      console.log(`[EmailService]: Skipped clearance update email for synthetic test address [${toEmail}].`);
+      return true;
     }
 
     const normalizedStatus = (status || '').toUpperCase();
@@ -356,6 +381,11 @@ class EmailService {
     const { toEmail, studentName, usn, departmentName, batch, clientUrl: preferredClientUrl } = payload;
     if (!toEmail || !toEmail.includes('@')) return false;
 
+    if (isSyntheticOrTestEmail(toEmail)) {
+      console.log(`[EmailService]: Skipped student welcome email for synthetic test address [${toEmail}].`);
+      return true;
+    }
+
     const clientUrl = getClientBaseUrl(preferredClientUrl);
     const loginUrl = `${clientUrl}/student-login`;
 
@@ -523,45 +553,50 @@ class EmailService {
     return this.sendMail(toEmail, subject, htmlContent);
   }
 
-  private async sendMail(to: string, subject: string, html: string): Promise<boolean> {
+  public async sendMailDetailed(
+    to: string,
+    subject: string,
+    html: string
+  ): Promise<{ success: boolean; skipped?: boolean; error?: string; messageId?: string }> {
+    if (!to || !to.includes('@')) {
+      return { success: false, error: 'INVALID_RECIPIENT_ADDRESS' };
+    }
+
+    if (isSyntheticOrTestEmail(to)) {
+      console.log(`[EmailService]: Skipped email dispatch to synthetic test address [${to}].`);
+      return { success: true, skipped: true };
+    }
+
     const transporter = this.getTransporter();
-    const userEmail = process.env.SMTP_USER || '4MC24IS022@gmail.com';
+    const userEmail = process.env.SMTP_USER;
+    if (!this.isConfigured || !transporter || !userEmail) {
+      console.warn(`[EmailService]: SMTP credentials unconfigured in environment. Email to [${to}] was not dispatched.`);
+      return { success: false, error: 'SMTP_UNCONFIGURED' };
+    }
+
     const from = {
-      name: 'MCE No Due Portal',
+      name: process.env.SMTP_FROM_NAME || 'MCE No Due Portal',
       address: userEmail
     };
 
-    // In demo / test environments, if student email is a mock domain (@demo.ndc.local),
-    // deliver to registered student user or fallback email so notifications land in the user's real inbox.
-    let recipient = to;
-    let finalSubject = subject;
-    if (to.includes('@demo.ndc.local') || to.includes('@example.com')) {
-      const registeredFallback = process.env.REGISTERED_STUDENT_EMAIL || 'chethuc809@gmail.com';
-      recipient = registeredFallback;
-      finalSubject = `[Student: ${to}] ${subject}`;
-      console.log(`[Email Notification]: Routed demo student email [${to}] -> registered student inbox [${recipient}]`);
+    try {
+      const info = await transporter.sendMail({
+        from: `"${from.name}" <${from.address}>`,
+        to,
+        subject,
+        html
+      });
+      console.log(`[Email Notification] -> Email accepted by SMTP provider for ${to} (MessageId: ${info.messageId})`);
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.error(`[Email Notification Error] -> Failed sending to ${to}:`, err.message || err);
+      return { success: false, error: err.message || 'SMTP_SEND_FAILED' };
     }
+  }
 
-    console.log(`[Email Notification] -> To: ${recipient} | Subject: "${finalSubject}" | From: ${from.name} <${from.address}>`);
-
-    if (this.isConfigured && transporter) {
-      try {
-        const info = await transporter.sendMail({
-          from: `"${from.name}" <${from.address}>`,
-          to: recipient,
-          subject: finalSubject,
-          html
-        });
-        console.log(`[Email Notification] -> Email sent successfully to ${recipient} (MessageId: ${info.messageId})`);
-        return true;
-      } catch (err: any) {
-        console.error(`[Email Notification Error] -> Failed sending to ${recipient}:`, err.message || err);
-        return false;
-      }
-    } else {
-      console.log(`[Email Notification (Dev Mode)]: SMTP credentials unconfigured. Mock email dispatched to ${recipient}`);
-      return true;
-    }
+  private async sendMail(to: string, subject: string, html: string): Promise<boolean> {
+    const res = await this.sendMailDetailed(to, subject, html);
+    return res.success && !res.error;
   }
 }
 

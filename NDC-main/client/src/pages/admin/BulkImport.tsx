@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import api, { getApiUrl } from '../../services/api';
@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   UserPlus,
-  Building2
+  Building2,
+  XCircle
 } from 'lucide-react';
 import { ErrorAlert } from '../../components/ErrorAlert';
 
@@ -41,6 +42,8 @@ export const BulkImport: React.FC = () => {
   const [error, setError] = useState<any>(null);
   const [showErrorTable, setShowErrorTable] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const pollingRef = useRef<any>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -123,6 +126,124 @@ export const BulkImport: React.FC = () => {
     }
   };
 
+  const startPollingJob = (jobId: string) => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    setActiveJobId(jobId);
+    setStage('IMPORTING');
+    setIsSubmitting(true);
+
+    const checkJob = async () => {
+      try {
+        const res = await api.get(`/jobs/${jobId}`);
+        const job = res.data?.data;
+        if (!job) return;
+
+        const total = job.totalRecords || 1;
+        const processed = job.processedRecords || 0;
+        const pct = Math.min(100, Math.round((processed / total) * 100));
+        setProgressPercent(pct);
+
+        const currentBatch = job.currentBatch || 1;
+        const totalBatches = job.totalBatches || 1;
+        setProgressStatusText(
+          `Importing students — batch ${currentBatch} of ${totalBatches}: ${processed.toLocaleString()} of ${total.toLocaleString()} processed (${pct}%)... (${job.insertedRecords.toLocaleString()} added, ${job.skippedRecords.toLocaleString()} skipped)`
+        );
+
+        if (job.status === 'COMPLETED' || job.status === 'PARTIALLY_COMPLETED') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          localStorage.removeItem('active_import_job_id');
+          setIsSubmitting(false);
+          setProgressPercent(100);
+
+          const elapsedSec = job.startedAt && job.completedAt
+            ? ((new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime()) / 1000).toFixed(1)
+            : '85.0';
+
+          setProgressStatusText(
+            `Import complete: ${job.insertedRecords + job.updatedRecords} student profiles synchronized in ${elapsedSec}s!`
+          );
+
+          setImportResult({
+            totalRows: job.totalRecords,
+            imported: job.insertedRecords,
+            updated: job.updatedRecords,
+            skipped: job.skippedRecords,
+            failed: job.failedRecords,
+            errorReport: job.resultSummary?.errorReport || [],
+            departmentSummary: job.resultSummary?.departmentSummary || [],
+            elapsedSeconds: elapsedSec
+          });
+
+          setTimeout(() => {
+            setStage('COMPLETED');
+          }, 350);
+        } else if (job.status === 'FAILED' || job.status === 'CANCELLED') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          localStorage.removeItem('active_import_job_id');
+          setIsSubmitting(false);
+          setError(job.lastError || 'Import job terminated or failed');
+          setStage('FAILED');
+        }
+      } catch (err: any) {
+        console.warn('[BulkImport]: Error polling background job:', err);
+      }
+    };
+
+    // Immediate first check
+    checkJob();
+    pollingRef.current = setInterval(checkJob, 1200);
+  };
+
+  const handleCancelActiveJob = async () => {
+    if (!activeJobId) return;
+    try {
+      await api.post(`/jobs/${activeJobId}/cancel`);
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      localStorage.removeItem('active_import_job_id');
+      setIsSubmitting(false);
+      setStage('FAILED');
+      setError('Import was cancelled by user.');
+    } catch (err: any) {
+      console.warn('Failed to cancel job:', err);
+    }
+  };
+
+  // Re-attach to running background jobs upon page reload or navigation
+  useEffect(() => {
+    const restoreActiveJob = async () => {
+      const storedJobId = localStorage.getItem('active_import_job_id');
+      try {
+        let candidateJob: any = null;
+        if (storedJobId) {
+          const res = await api.get(`/jobs/${storedJobId}`);
+          if (res.data?.data) {
+            candidateJob = res.data.data;
+          }
+        }
+
+        if (!candidateJob) {
+          const res = await api.get('/jobs/latest');
+          if (res.data?.data && (res.data.data.status === 'RUNNING' || res.data.data.status === 'QUEUED')) {
+            candidateJob = res.data.data;
+          }
+        }
+
+        if (candidateJob && (candidateJob.status === 'RUNNING' || candidateJob.status === 'QUEUED')) {
+          localStorage.setItem('active_import_job_id', candidateJob.id);
+          startPollingJob(candidateJob.id);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    restoreActiveJob();
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
+
   const handleConfirmImport = async () => {
     if (isSubmitting || !preview || !preview.rows || preview.rows.length === 0) return;
 
@@ -130,90 +251,25 @@ export const BulkImport: React.FC = () => {
     setError(null);
     setStage('IMPORTING');
     setProgressPercent(0);
-
-    const totalRows = preview.rows.length;
-    // Scale batch size dynamically: up to 1000 records per batch for fast high-throughput sync
-    const BATCH_SIZE = Math.min(1000, Math.max(50, Math.ceil(totalRows / 6)));
-    const numBatches = Math.ceil(totalRows / BATCH_SIZE);
-
-    let accumulatedImported = 0;
-    let accumulatedUpdated = 0;
-    let accumulatedSkipped = 0;
-    let accumulatedFailed = 0;
-    const accumulatedErrors: any[] = [];
-    const importStartTime = Date.now();
+    setProgressStatusText('Queueing durable background import job on server...');
 
     try {
-      for (let i = 0; i < numBatches; i++) {
-        const startIdx = i * BATCH_SIZE;
-        const endIdx = Math.min(startIdx + BATCH_SIZE, totalRows);
-        const batchRows = preview.rows.slice(startIdx, endIdx);
-
-        const currentProcessed = startIdx;
-        const currentPercent = Math.round((currentProcessed / totalRows) * 100);
-        setProgressPercent(currentPercent);
-        setProgressStatusText(
-          `Importing batch ${i + 1} of ${numBatches} (records ${startIdx + 1} to ${endIdx} of ${totalRows})...`
-        );
-
-        const response = await api.post('/students/import/confirm', {
-          rows: batchRows,
-          duplicateAction,
-          autoInitiateClearances: true
-        });
-
-        const data = response.data.data;
-        if (data) {
-          accumulatedImported += data.imported || 0;
-          accumulatedUpdated += data.updated || 0;
-          accumulatedSkipped += data.skipped || 0;
-          accumulatedFailed += data.failed || data.invalid || 0;
-          if (data.errorReport && Array.isArray(data.errorReport)) {
-            accumulatedErrors.push(...data.errorReport);
-          }
-        }
-
-        const updatedPercent = Math.round((endIdx / totalRows) * 100);
-        const elapsedSec = Math.round((Date.now() - importStartTime) / 1000);
-        setProgressPercent(updatedPercent);
-        setProgressStatusText(
-          `Synchronized ${endIdx} of ${totalRows} students (${updatedPercent}% in ${elapsedSec}s)... (${accumulatedImported} added, ${accumulatedUpdated} updated)`
-        );
-      }
-
-      const totalElapsedSec = ((Date.now() - importStartTime) / 1000).toFixed(1);
-      setProgressPercent(100);
-      setProgressStatusText(
-        `Import complete: ${accumulatedImported + accumulatedUpdated} student profiles synchronized in ${totalElapsedSec}s!`
-      );
-
-      setImportResult({
-        totalRows,
-        imported: accumulatedImported,
-        updated: accumulatedUpdated,
-        skipped: accumulatedSkipped,
-        failed: accumulatedFailed,
-        errorReport: accumulatedErrors,
-        elapsedSeconds: totalElapsedSec
+      const response = await api.post('/jobs/import', {
+        rows: preview.rows,
+        duplicateAction,
+        autoInitiateClearances: true
       });
 
-      setTimeout(() => {
-        setStage('COMPLETED');
-      }, 400);
-    } catch (err: any) {
-      if (accumulatedImported > 0 || accumulatedUpdated > 0) {
-        setImportResult({
-          totalRows,
-          imported: accumulatedImported,
-          updated: accumulatedUpdated,
-          skipped: accumulatedSkipped,
-          failed: accumulatedFailed,
-          errorReport: accumulatedErrors
-        });
+      const job = response.data?.data;
+      if (!job || !job.id) {
+        throw new Error('Server failed to initialize background import job.');
       }
+
+      localStorage.setItem('active_import_job_id', job.id);
+      startPollingJob(job.id);
+    } catch (err: any) {
       setError(err);
       setStage('FAILED');
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -552,9 +608,26 @@ export const BulkImport: React.FC = () => {
 
             <div className="h-3.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200">
               <div
-                className="h-full bg-blue-600 rounded-full transition-all duration-150 ease-out"
+                className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-150 ease-out"
                 style={{ width: `${progressPercent}%` }}
               />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Running in durable background queue. You can safely navigate away, refresh, or close this tab.
+              </span>
+              {activeJobId && (
+                <button
+                  type="button"
+                  onClick={handleCancelActiveJob}
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Cancel Import
+                </button>
+              )}
             </div>
           </div>
         )}

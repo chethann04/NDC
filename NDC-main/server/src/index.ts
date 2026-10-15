@@ -23,6 +23,8 @@ const startServer = async () => {
 
   try {
     await connectDB();
+    const { BackgroundJobService } = await import('./services/BackgroundJobService');
+    await BackgroundJobService.recoverStaleJobs();
   } catch (err) {
     console.error('[Initial DB connect error]:', err);
   }

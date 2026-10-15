@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar';
+import { GlobalJobIndicator } from '../components/GlobalJobIndicator';
 
 export const DashboardLayout: React.FC = () => {
   return (
@@ -13,6 +14,7 @@ export const DashboardLayout: React.FC = () => {
           <Outlet />
         </div>
       </div>
+      <GlobalJobIndicator />
     </div>
   );
 };
