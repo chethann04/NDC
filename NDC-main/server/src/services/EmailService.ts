@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import nodemailer, { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 import { getClientBaseUrl } from '../utils/urlHelper';
 
@@ -65,29 +66,31 @@ export type SendMailResult = SendMailDetailedResult;
 
 class EmailService {
   private resendClient: Resend | null = null;
+  private nodemailerTransporter: Transporter | null = null;
   private mockClient: any = null;
   private _isConfigured: boolean = false;
-  private currentApiKey: string | null = null;
+  private activeProvider: 'gmail' | 'resend' | 'mock' | 'none' = 'none';
 
   constructor() {
-    this.initClient();
+    this.initTransporter();
   }
 
   /**
-   * Check if Resend email service is configured and ready.
+   * Check if email service is configured and ready.
    */
   public isConfigured(): boolean {
     if (this.mockClient) return true;
-    this.initClient();
+    this.initTransporter();
     return this._isConfigured;
   }
 
   /**
-   * Inject a mock Resend client for automated unit and integration tests.
+   * Inject a mock client for automated unit and integration tests.
    * Ensures tests never trigger real emails or require live credentials.
    */
   public setMockClient(client: any): void {
     this.mockClient = client;
+    this.activeProvider = 'mock';
     this._isConfigured = !!client;
   }
 
@@ -96,89 +99,147 @@ class EmailService {
    */
   public clearMockClient(): void {
     this.mockClient = null;
-    this.initClient();
+    this.initTransporter();
   }
 
   /**
-   * Initialize or refresh the Resend SDK instance from environment variables.
+   * Initialize or refresh the active email transport (Gmail SMTP or Resend).
    */
-  private initClient(): Resend | null {
-    if (this.mockClient) return this.mockClient;
-
-    const apiKey = process.env.RESEND_API_KEY?.trim();
-
-    if (!apiKey || !apiKey.startsWith('re_') || apiKey.includes('your-resend-api-key') || apiKey.includes('placeholder')) {
-      this._isConfigured = false;
-      this.resendClient = null;
-      this.currentApiKey = null;
-      return null;
+  private initTransporter(): void {
+    if (this.mockClient) {
+      this.activeProvider = 'mock';
+      this._isConfigured = true;
+      return;
     }
 
-    if (!this.resendClient || this.currentApiKey !== apiKey) {
+    const providerPref = (process.env.EMAIL_PROVIDER || '').toLowerCase().trim();
+    const smtpUser = process.env.SMTP_USER?.trim();
+    const smtpPass = process.env.SMTP_PASS?.trim();
+    const resendKey = process.env.RESEND_API_KEY?.trim();
+
+    // 1. Explicit Resend if requested and key is valid
+    if (providerPref === 'resend' && resendKey && resendKey.startsWith('re_') && !resendKey.includes('placeholder')) {
       try {
-        this.resendClient = new Resend(apiKey);
-        this.currentApiKey = apiKey;
+        this.resendClient = new Resend(resendKey);
+        this.activeProvider = 'resend';
         this._isConfigured = true;
-        const masked = `${apiKey.slice(0, 5)}***${apiKey.slice(-4)}`;
-        console.log(`[EmailService]: Resend HTTPS client initialized with API key (${masked})`);
+        console.log(`[EmailService]: Resend HTTPS client active`);
+        return;
       } catch (err: any) {
-        console.warn('[EmailService]: Failed to initialize Resend client:', err?.message || err);
-        this.resendClient = null;
-        this._isConfigured = false;
+        console.warn('[EmailService]: Failed to init Resend:', err.message);
       }
     }
 
-    return this.resendClient;
+    // 2. Gmail SMTP via App Password (Allows sending to ANY student email without custom domain)
+    if (smtpUser && smtpPass && !smtpPass.includes('placeholder')) {
+      try {
+        const port = parseInt(process.env.SMTP_PORT || '465', 10);
+        const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+        this.nodemailerTransporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port,
+          secure,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass
+          }
+        });
+        this.activeProvider = 'gmail';
+        this._isConfigured = true;
+        console.log(`[EmailService]: Gmail SMTP transport active for [${smtpUser}]`);
+        return;
+      } catch (err: any) {
+        console.warn('[EmailService]: Failed to init Gmail SMTP transport:', err.message);
+      }
+    }
+
+    // 3. Fallback to Resend if key exists
+    if (resendKey && resendKey.startsWith('re_') && !resendKey.includes('placeholder')) {
+      try {
+        this.resendClient = new Resend(resendKey);
+        this.activeProvider = 'resend';
+        this._isConfigured = true;
+        console.log(`[EmailService]: Fallback to Resend HTTPS client`);
+        return;
+      } catch {
+        // ignore
+      }
+    }
+
+    this.activeProvider = 'none';
+    this._isConfigured = false;
   }
 
   /**
-   * Verify Resend API configuration and credentials.
-   * Queries Resend API key status or domain settings without sending an email.
+   * Verify email service credentials and connection.
    */
   public async testConnection(): Promise<{ success: boolean; message: string; provider: string; mode?: string }> {
     if (this.mockClient) {
-      return { success: true, message: 'Mock Resend client active for tests.', provider: 'Resend (Mock)', mode: 'mock' };
+      return { success: true, message: 'Mock email client active for tests.', provider: 'Mock', mode: 'mock' };
     }
 
-    const client = this.initClient();
-    if (!client || !this._isConfigured) {
+    this.initTransporter();
+    if (!this._isConfigured) {
       return {
         success: false,
-        provider: 'Resend',
-        message: 'RESEND_API_KEY environment variable is not configured or invalid (must start with "re_").',
+        provider: this.activeProvider,
+        message: 'No email credentials configured. Set SMTP_USER/SMTP_PASS for Gmail, or RESEND_API_KEY for Resend.',
         mode: 'unconfigured'
       };
     }
 
-    try {
-      const result = await client.apiKeys.list();
-      if (result.error) {
+    if (this.activeProvider === 'gmail' && this.nodemailerTransporter) {
+      try {
+        await this.nodemailerTransporter.verify();
+        return {
+          success: true,
+          provider: 'Gmail SMTP',
+          message: `Gmail SMTP connected and verified successfully for ${process.env.SMTP_USER}.`,
+          mode: 'live'
+        };
+      } catch (err: any) {
         return {
           success: false,
-          provider: 'Resend',
-          message: result.error.message || 'Resend API authentication failed.',
+          provider: 'Gmail SMTP',
+          message: `Gmail SMTP verification failed: ${err.message}`,
           mode: 'error'
         };
       }
-      return {
-        success: true,
-        provider: 'Resend',
-        message: 'Resend HTTPS API connection and API key verified successfully.',
-        mode: 'live'
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        provider: 'Resend',
-        message: err.message || 'Resend API connection test failed.',
-        mode: 'exception'
-      };
     }
+
+    if (this.activeProvider === 'resend' && this.resendClient) {
+      try {
+        const result = await this.resendClient.apiKeys.list();
+        if (result.error) {
+          return {
+            success: false,
+            provider: 'Resend',
+            message: result.error.message || 'Resend API authentication failed.',
+            mode: 'error'
+          };
+        }
+        return {
+          success: true,
+          provider: 'Resend',
+          message: 'Resend HTTPS API connection verified successfully.',
+          mode: 'live'
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          provider: 'Resend',
+          message: err.message || 'Resend API connection test failed.',
+          mode: 'exception'
+        };
+      }
+    }
+
+    return { success: false, provider: 'None', message: 'Email service is unconfigured.', mode: 'unconfigured' };
   }
 
   /**
-   * Core email dispatch method using Resend HTTPS API.
-   * Includes rate-limit retry with exponential backoff and synthetic address skipping.
+   * Core email dispatch method.
+   * Dispatches via Gmail SMTP (no domain required) or Resend (custom domain).
    */
   public async sendMailDetailed(
     toOrOptions: string | { to: string; subject: string; html: string; text?: string; headers?: Record<string, string> },
@@ -211,70 +272,96 @@ class EmailService {
 
     const recipient = to.trim();
 
-    // Skip synthetic/test domains without making HTTPS requests
+    // Skip synthetic/test domains without sending
     if (isSyntheticOrTestEmail(recipient)) {
       console.log(`[EmailService]: Skipped email dispatch to synthetic test address [${recipient}].`);
       return { success: true, skipped: true, messageId: `mock-skipped-synthetic-${Date.now()}` };
     }
 
-    const client = this.mockClient || this.initClient();
-    if (!client || (!this._isConfigured && !this.mockClient)) {
-      console.warn(`[EmailService]: RESEND_API_KEY unconfigured. Email to [${recipient}] was not dispatched.`);
-      return { success: false, error: 'RESEND_API_KEY_UNCONFIGURED' };
-    }
+    // 1. Dispatch via Mock Client or Resend HTTPS API
+    const resendApi = this.mockClient || (this.activeProvider === 'resend' ? this.resendClient : null);
+    if (resendApi) {
+      const fromAddress = process.env.EMAIL_FROM || 'MCE No Due Portal <onboarding@resend.dev>';
+      let attempt = 0;
+      const maxAttempts = 2;
+      let lastErrorMsg = 'Unknown dispatch failure';
 
-    const fromAddress = process.env.EMAIL_FROM || 'MCE No Due Portal <onboarding@resend.dev>';
+      while (attempt < maxAttempts) {
+        attempt++;
+        try {
+          const payload: any = {
+            from: fromAddress,
+            to: [recipient],
+            subject,
+            html
+          };
+          if (text) payload.text = text;
+          if (headers) payload.headers = headers;
 
-    // Bounded retry loop for transient rate-limit errors (HTTP 429)
-    let attempt = 0;
-    const maxAttempts = 2;
-    let lastErrorMsg = 'Unknown dispatch failure';
+          const response = await resendApi.emails.send(payload);
 
-    while (attempt < maxAttempts) {
-      attempt++;
-      try {
-        const payload: any = {
-          from: fromAddress,
-          to: [recipient],
-          subject,
-          html
-        };
-        if (text) payload.text = text;
-        if (headers) payload.headers = headers;
+          if (response.error) {
+            lastErrorMsg = response.error.message || response.error.name || 'Resend API error';
+            const isRateLimit =
+              response.error.name === 'rate_limit_exceeded' ||
+              response.error.message?.toLowerCase().includes('rate limit');
 
-        const response = await client.emails.send(payload);
+            if (isRateLimit && attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, 650));
+              continue;
+            }
 
-        if (response.error) {
-          lastErrorMsg = response.error.message || response.error.name || 'Resend API error';
-          const isRateLimit =
-            response.error.name === 'rate_limit_exceeded' ||
-            response.error.message?.toLowerCase().includes('rate limit');
+            console.error(`[EmailService Error]: Resend rejected email to [${recipient}]:`, lastErrorMsg);
+            return { success: false, error: lastErrorMsg, rateLimited: isRateLimit, retryCount: attempt - 1 };
+          }
 
-          if (isRateLimit && attempt < maxAttempts) {
-            console.warn(`[EmailService]: Resend rate limit exceeded for ${recipient}. Backing off for 650ms (attempt ${attempt}/${maxAttempts})...`);
+          if (response.data && response.data.id) {
+            console.log(`[Email Notification] -> Email accepted by Resend for ${recipient} (MessageId: ${response.data.id})`);
+            return { success: true, messageId: response.data.id, skipped: false, retryCount: attempt - 1 };
+          }
+        } catch (err: any) {
+          lastErrorMsg = err?.message || 'Network error communicating with Resend HTTPS API';
+          if (attempt < maxAttempts) {
             await new Promise((r) => setTimeout(r, 650));
             continue;
           }
-
-          console.error(`[EmailService Error]: Resend rejected email to [${recipient}]:`, lastErrorMsg);
-          return { success: false, error: lastErrorMsg, rateLimited: isRateLimit, retryCount: attempt - 1 };
         }
+      }
 
-        if (response.data && response.data.id) {
-          console.log(`[Email Notification] -> Email accepted by Resend for ${recipient} (MessageId: ${response.data.id})`);
-          return { success: true, messageId: response.data.id, skipped: false, retryCount: attempt - 1 };
-        }
+      return { success: false, error: lastErrorMsg, retryCount: attempt - 1 };
+    }
+
+    this.initTransporter();
+    if (!this._isConfigured) {
+      console.warn(`[EmailService]: Email service unconfigured. Email to [${recipient}] was not dispatched.`);
+      return { success: false, error: 'EMAIL_SERVICE_UNCONFIGURED' };
+    }
+
+    // 2. Dispatch via Gmail SMTP (Allows sending to ANY student without domain restrictions)
+    if (this.activeProvider === 'gmail' && this.nodemailerTransporter) {
+      const fromAddress =
+        process.env.SMTP_FROM ||
+        process.env.EMAIL_FROM ||
+        `"MCE No Due Portal" <${process.env.SMTP_USER}>`;
+
+      try {
+        const info = await this.nodemailerTransporter.sendMail({
+          from: fromAddress,
+          to: recipient,
+          subject,
+          html,
+          text,
+          headers
+        });
+        console.log(`[Email Notification] -> Email dispatched via Gmail SMTP to ${recipient} (MessageId: ${info.messageId})`);
+        return { success: true, messageId: info.messageId, skipped: false };
       } catch (err: any) {
-        lastErrorMsg = err?.message || 'Network error communicating with Resend HTTPS API';
-        console.error(`[EmailService Exception] -> Failed sending to ${recipient}:`, lastErrorMsg);
-        if (attempt < maxAttempts) {
-          await new Promise((r) => setTimeout(r, 650));
-          continue;
-        }
+        console.error(`[EmailService Error]: Gmail SMTP delivery failed to [${recipient}]:`, err.message);
+        return { success: false, error: err.message };
       }
     }
 
-    return { success: false, error: lastErrorMsg, retryCount: attempt - 1 };
+    return { success: false, error: 'NO_ACTIVE_EMAIL_PROVIDER' };
   }
 
   /**

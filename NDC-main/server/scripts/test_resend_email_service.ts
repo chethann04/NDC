@@ -356,7 +356,10 @@ async function runTestSuite() {
     EmailService.clearMockClient();
 
     const origKey = process.env.RESEND_API_KEY;
+    const origSmtpPass = process.env.SMTP_PASS;
+
     process.env.RESEND_API_KEY = 're_placeholder_replace_with_your_key';
+    process.env.SMTP_PASS = '';
     assert.strictEqual(EmailService.isConfigured(), false);
 
     process.env.RESEND_API_KEY = '';
@@ -371,6 +374,7 @@ async function runTestSuite() {
     assert.strictEqual(conn.mode, 'mock');
 
     if (origKey) process.env.RESEND_API_KEY = origKey;
+    if (origSmtpPass) process.env.SMTP_PASS = origSmtpPass;
     EmailService.clearMockClient();
   });
 

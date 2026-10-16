@@ -174,7 +174,7 @@ app.get('/', (req, res) => {
 
 // Health check endpoint with diagnostic info
 app.get('/api/v1/health', async (req, res) => {
-  const isConfigured = !!(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_'));
+  const isConfigured = emailService.isConfigured();
   const testResult = await emailService.testConnection();
 
   res.status(200).json({
@@ -182,9 +182,9 @@ app.get('/api/v1/health', async (req, res) => {
     system: 'No Due Certificate Management System',
     time: new Date(),
     email: {
-      provider: 'Resend',
+      provider: testResult.provider,
       configured: isConfigured,
-      from: process.env.EMAIL_FROM || 'MCE No Due Portal <onboarding@resend.dev>',
+      from: process.env.SMTP_FROM || process.env.EMAIL_FROM || 'MCE No Due Portal',
       test: testResult
     }
   });
