@@ -126,6 +126,7 @@ async function runProxyAndRateLimitTests() {
     console.log('\n====================================================');
     console.log(`SUMMARY: ${passedCount} of ${testCount} tests PASSED!`);
     console.log('====================================================');
+    process.exit(0);
   } finally {
     server.close();
   }
