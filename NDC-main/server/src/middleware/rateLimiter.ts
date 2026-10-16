@@ -51,3 +51,16 @@ export const generalApiLimiter = rateLimit({
     message: 'Request rate limit exceeded. Please slow down and try again later.'
   }
 });
+
+// Limiter for certificate verification requests
+export const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    status: 'RATE_LIMITED',
+    message: 'Too many verification requests. Please wait 15 minutes before trying again.'
+  }
+});

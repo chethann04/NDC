@@ -1,18 +1,11 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
 import { VerifyController } from '../controllers/VerifyController';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/rbac';
 import { UserRole } from '../constants/roles';
+import { verifyLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
-
-// Rate Limiting
-const verifyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 60,
-  message: { success: false, status: 'RATE_LIMITED', message: 'Too many verification requests. Please try again later.' }
-});
 
 router.use(authenticateToken);
 

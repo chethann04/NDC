@@ -36,6 +36,39 @@ const app: Application = express();
 // Disable x-powered-by to prevent Express version leakage
 app.disable('x-powered-by');
 
+/**
+ * Express Reverse Proxy Configuration ('trust proxy')
+ * 
+ * Deployment Topology & Proxy Resolution:
+ * - The backend is deployed on Render (web service behind Render's ingress reverse proxy).
+ * - Render routes public HTTPS traffic through an ingress reverse proxy before reaching Express.
+ * - The Render proxy forwards requests and attaches the 'X-Forwarded-For' header with the real client IP.
+ * - When 'trust proxy' is false (Express default), Express ignores 'X-Forwarded-For', causing req.ip to
+ *   fall back to the internal proxy's IP. This breaks IP-based rate limiting (all users share one quota)
+ *   and causes express-rate-limit to fail with ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+ * - Blindly setting 'trust proxy: true' is unsafe because an attacker can spoof arbitrary upstream IPs.
+ * - Setting 'trust proxy: 1' tells Express to trust the single immediate front-facing reverse proxy (Render),
+ *   allowing Express to extract the genuine client IP safely from the right-most untrusted entry in X-Forwarded-For.
+ * - For custom topologies (e.g. Cloudflare in front of Render = 2 hops, or custom subnets), TRUST_PROXY
+ *   environment variable can be supplied to override the default 1 hop.
+ */
+const resolveTrustProxySetting = (): boolean | number | string => {
+  const envVal = process.env.TRUST_PROXY?.trim();
+  if (!envVal) {
+    // Default: trust 1 hop (Render's edge reverse proxy)
+    return 1;
+  }
+  if (envVal.toLowerCase() === 'true') return true;
+  if (envVal.toLowerCase() === 'false') return false;
+  const parsedNum = Number(envVal);
+  if (!isNaN(parsedNum) && Number.isInteger(parsedNum) && parsedNum > 0) {
+    return parsedNum;
+  }
+  return envVal;
+};
+
+app.set('trust proxy', resolveTrustProxySetting());
+
 // Hardened Security & Cookie Headers
 app.use(
   helmet({
