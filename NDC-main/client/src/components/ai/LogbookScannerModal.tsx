@@ -331,14 +331,14 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-base text-white">
-                  AI Logbook Scanner — {departmentName}
+                  Scan Lab Register — {departmentName}
                 </h3>
                 <span className="text-[10px] uppercase tracking-wider font-semibold bg-blue-500/30 text-blue-200 border border-blue-400/30 px-2 py-0.5 rounded-full">
-                  Gemini Vision OCR
+                  Scanner Active
                 </span>
               </div>
               <p className="text-xs text-blue-200/80">
-                Extract handwritten lab breakage registers, match real students, and apply dues safely
+                Upload register photo to extract and record student equipment dues
               </p>
             </div>
           </div>

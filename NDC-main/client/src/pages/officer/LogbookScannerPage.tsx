@@ -332,50 +332,43 @@ export const LogbookScannerPage: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-cyan-300 shadow-inner">
-              <UploadCloud className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-400/20 text-blue-200 border border-blue-300/30 uppercase tracking-wider">
-                  OCR Vision Pipeline
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-300/30">
-                  Multimodal Gemini
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-                AI Logbook Scanner
+      {/* Compact Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-600 shadow-2xs">
+            <UploadCloud className="w-5 h-5 text-cyan-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-900">
+                Logbook Register Scanner
               </h1>
-              <p className="text-xs sm:text-sm text-blue-100/90 mt-1 max-w-2xl">
-                Upload scanned images or PDFs of handwritten laboratory equipment registers. Automatically extracts records, reconciles student USNs against the institutional database, and enables batch dues application.
-              </p>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                Physics Lab
+              </span>
             </div>
+            <p className="text-xs text-slate-500">
+              Upload photos of handwritten equipment registers to scan student dues.
+            </p>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-            <Link
-              to="/officer/ai-assistant"
-              className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>AI Assistant</span>
-            </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/officer/physics-lab"
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
+          >
+            <Atom className="w-3.5 h-3.5 text-cyan-600" />
+            <span>Clearance Queue</span>
+          </Link>
 
-            <Link
-              to="/officer/physics-lab"
-              className="px-3.5 py-2 rounded-xl bg-cyan-500/30 hover:bg-cyan-500/40 text-white text-xs font-semibold backdrop-blur-sm border border-cyan-300/30 transition-all flex items-center gap-1.5"
-            >
-              <Atom className="w-4 h-4 text-cyan-200" />
-              <span>Physics Queue</span>
-            </Link>
-          </div>
+          <Link
+            to="/officer/ai-assistant"
+            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Ask AI Assistant</span>
+          </Link>
         </div>
       </div>
 
