@@ -76,7 +76,7 @@ export class GeminiService {
   }
 
   private static getModel(): string {
-    return process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    return process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   }
 
   public static isConfigured(): boolean {
@@ -866,19 +866,62 @@ export class GeminiService {
       return JSON.stringify(result);
     }
 
-    // DEFAULT: SINGLE ENTRY
-    const result: DocumentAnalysisResult = {
-      layoutType: 'SINGLE_ENTRY',
-      pageCount: 1,
-      detectedRowCount: 1,
-      visibleEntryCount: 1,
-      stageMetrics: {
+    // 11. EXPLICIT SINGLE ENTRY TEST
+    if (rawHint.includes('single')) {
+      const singleResult: DocumentAnalysisResult = {
+        layoutType: 'SINGLE_ENTRY',
+        pageCount: 1,
         detectedRowCount: 1,
-        candidateRowCount: 1,
-        validRowCount: 1,
+        visibleEntryCount: 1,
+        stageMetrics: {
+          detectedRowCount: 1,
+          candidateRowCount: 1,
+          validRowCount: 1,
+          crossedOutRowCount: 0,
+          blankLinesSkippedCount: 10,
+          discrepancyExplanation: 'Single handwritten due entry on page.'
+        },
+        orientation: 'UPRIGHT',
+        entries: [
+          {
+            pageNumber: 1,
+            rowNumber: 1,
+            sourceRegion: 'Row 1',
+            boundingBox: { ymin: 140, xmin: 50, ymax: 210, xmax: 950 },
+            rawText: '1. 4MC24IS022 Chethan N ₹300 Breaking a thermometer 2026-03-15',
+            rawUsn: '4MC24IS022',
+            normalizedUsn: '4MC24IS022',
+            usn: '4MC24IS022',
+            isUsnUncertain: false,
+            studentName: 'Chethan N',
+            rawAmount: '₹300',
+            amount: 300,
+            isAmountUncertain: false,
+            rawReason: 'Breaking a thermometer',
+            reason: 'Breaking a thermometer',
+            date: new Date().toISOString().split('T')[0],
+            confidence: 0.94,
+            confidenceMethod: 'HEURISTIC_ESTIMATE',
+            isCrossedOut: false
+          }
+        ]
+      };
+      return JSON.stringify(singleResult);
+    }
+
+    // DEFAULT: MULTI-ROW TABLE EXTRACTION (Multiple entries processed at once)
+    const result: DocumentAnalysisResult = {
+      layoutType: 'TABLE',
+      pageCount: 1,
+      detectedRowCount: 3,
+      visibleEntryCount: 3,
+      stageMetrics: {
+        detectedRowCount: 3,
+        candidateRowCount: 3,
+        validRowCount: 3,
         crossedOutRowCount: 0,
-        blankLinesSkippedCount: 10,
-        discrepancyExplanation: 'Single handwritten due entry on page.'
+        blankLinesSkippedCount: 12,
+        discrepancyExplanation: 'Multi-row laboratory register: 3 populated entries detected across rows.'
       },
       orientation: 'UPRIGHT',
       entries: [
@@ -900,6 +943,48 @@ export class GeminiService {
           reason: 'Breaking a thermometer',
           date: new Date().toISOString().split('T')[0],
           confidence: 0.94,
+          confidenceMethod: 'HEURISTIC_ESTIMATE',
+          isCrossedOut: false
+        },
+        {
+          pageNumber: 1,
+          rowNumber: 2,
+          sourceRegion: 'Row 2',
+          boundingBox: { ymin: 220, xmin: 50, ymax: 290, xmax: 950 },
+          rawText: '2. 4MC22IS022 Chethan HS ₹200 Laser diode lost 2026-03-15',
+          rawUsn: '4MC22IS022',
+          normalizedUsn: '4MC22IS022',
+          usn: '4MC22IS022',
+          isUsnUncertain: false,
+          studentName: 'Chethan HS',
+          rawAmount: '₹200',
+          amount: 200,
+          isAmountUncertain: false,
+          rawReason: 'Laser diode lost',
+          reason: 'Laser diode lost',
+          date: new Date().toISOString().split('T')[0],
+          confidence: 0.91,
+          confidenceMethod: 'HEURISTIC_ESTIMATE',
+          isCrossedOut: false
+        },
+        {
+          pageNumber: 1,
+          rowNumber: 3,
+          sourceRegion: 'Row 3',
+          boundingBox: { ymin: 300, xmin: 50, ymax: 370, xmax: 950 },
+          rawText: '3. 4MC24IS023 Manoj K ₹150 Prism optical scratch 2026-03-15',
+          rawUsn: '4MC24IS023',
+          normalizedUsn: '4MC24IS023',
+          usn: '4MC24IS023',
+          isUsnUncertain: false,
+          studentName: 'Manoj K',
+          rawAmount: '₹150',
+          amount: 150,
+          isAmountUncertain: false,
+          rawReason: 'Prism optical scratch',
+          reason: 'Prism optical scratch',
+          date: new Date().toISOString().split('T')[0],
+          confidence: 0.88,
           confidenceMethod: 'HEURISTIC_ESTIMATE',
           isCrossedOut: false
         }
