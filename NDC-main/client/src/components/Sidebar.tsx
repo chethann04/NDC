@@ -89,8 +89,12 @@ export const Sidebar: React.FC = () => {
   const deptName = officerDeptObj?.name || (typeof deptObj === 'object' ? deptObj?.name : '') || '';
 
   const isPhysicsOfficer =
-    role === 'DEPARTMENT_OFFICER' &&
-    (deptCode === 'PHY' || user?.loginId === 'PHY001' || user?.email?.includes('physics') || deptName.toLowerCase().includes('physics'));
+    (role === 'DEPARTMENT_OFFICER' || role === 'HOD') &&
+    (deptCode === 'PHY' ||
+      deptCode === 'PHY_LAB' ||
+      user?.loginId?.toUpperCase() === 'PHY001' ||
+      user?.email?.toLowerCase().includes('physics') ||
+      deptName.toLowerCase().includes('physics'));
 
   const isChemistryOfficer =
     role === 'DEPARTMENT_OFFICER' &&
@@ -323,8 +327,8 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
 
-        {/* AI INTELLIGENCE & AUTOMATION SECTION */}
-        {(isOfficer || isAdmin) && (
+        {/* AI INTELLIGENCE & AUTOMATION SECTION - STRICTLY FOR PHYSICS DEPARTMENT ONLY */}
+        {isPhysicsOfficer && (
           <div>
             {!isCollapsed && (
               <div className="px-2 mb-1.5 text-[10px] font-bold tracking-wider text-indigo-500 uppercase flex items-center justify-between">
