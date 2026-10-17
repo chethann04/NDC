@@ -40,6 +40,8 @@ const Settings = React.lazy(() => import('./pages/admin/Settings').then((m) => (
 const SectionLoginManagement = React.lazy(() => import('./pages/admin/SectionLoginManagement').then((m) => ({ default: m.SectionLoginManagement })));
 const TeachingDepartmentView = React.lazy(() => import('./pages/teaching/TeachingDepartmentView').then((m) => ({ default: m.TeachingDepartmentView })));
 const AccountSettings = React.lazy(() => import('./pages/AccountSettings').then((m) => ({ default: m.AccountSettings })));
+const AiAssistantPage = React.lazy(() => import('./pages/officer/AiAssistantPage').then((m) => ({ default: m.AiAssistantPage })));
+const LogbookScannerPage = React.lazy(() => import('./pages/officer/LogbookScannerPage').then((m) => ({ default: m.LogbookScannerPage })));
 
 // Protected Route Guard
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
@@ -158,6 +160,30 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+
+          {/* AI Intelligence & Automation Dedicated Routes */}
+          <Route
+            path="/officer/ai-assistant"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                <AiAssistantPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/ai/assistant" element={<Navigate to="/officer/ai-assistant" replace />} />
+          <Route path="/ai" element={<Navigate to="/officer/ai-assistant" replace />} />
+
+          <Route
+            path="/officer/logbook-scanner"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                <LogbookScannerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/ai/logbook-scanner" element={<Navigate to="/officer/logbook-scanner" replace />} />
+          <Route path="/ai/scanner" element={<Navigate to="/officer/logbook-scanner" replace />} />
+
           <Route
             path="/officer/students"
             element={

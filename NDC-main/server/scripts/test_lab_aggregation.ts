@@ -33,13 +33,15 @@ async function runTests() {
       dueAmount,
       dueDetails: dueAmount > 0 ? `Unpaid lab manual fee for ${deptName}` : null,
       remarks: status === DepartmentClearanceStatus.CLEARED ? 'Equipment verified' : status === DepartmentClearanceStatus.DUE ? 'Overdue fee' : null,
+      labId: isLab ? `lab-${deptCode.toLowerCase()}` : null,
       department: {
         id: `dept-${deptCode.toLowerCase()}`,
         name: deptName,
         code: deptCode,
         category: isLab ? 'COLLEGE_LAB' : 'CENTRAL_DESK',
         requiresClearance: true,
-        displayOrder: isLab ? 2 : 1
+        displayOrder: isLab ? 2 : 1,
+        isAcademicBranch: isLab && deptCode !== 'PHY' && deptCode !== 'CHEM'
       },
       reviewedAt: new Date()
     };
@@ -89,14 +91,14 @@ async function runTests() {
     assert(summary.status === DepartmentClearanceStatus.DUE, 'CASE 2: summary status is DUE');
     assert(summary.dueCount === 1, 'CASE 2: dueCount is 1');
     assert(summary.totalDueAmount === 250, 'CASE 2: totalDueAmount is 250');
-    assert(summary.pendingLabs.length === 1, 'CASE 2: pendingLabs contains 1 lab');
-    assert(summary.pendingLabs[0].code === 'CHEM', 'CASE 2: pending lab is Chemistry Lab');
-    assert(summary.pendingLabs[0].dueAmount === 250, 'CASE 2: pending lab due amount is 250');
+    assert(summary.dueLabs.length === 1, 'CASE 2: dueLabs contains 1 lab');
+    assert(summary.dueLabs[0].code === 'CHEM', 'CASE 2: due lab is Chemistry Lab');
+    assert(summary.dueLabs[0].dueAmount === 250, 'CASE 2: due lab due amount is 250');
   }
 
   // ====================================================
   // CASE 3: Physics = DUE, Chemistry = DUE, DDCO = CLEARED
-  // Expected: Student Laboratory = NOT CLEARED, Pending labs = Physics Lab, Chemistry Lab
+  // Expected: Student Laboratory = NOT CLEARED, Due labs = Physics Lab, Chemistry Lab
   // ====================================================
   console.log('\n--- Running CASE 3: Multiple Labs Due ---');
   {
@@ -110,9 +112,9 @@ async function runTests() {
     assert(summary.status === DepartmentClearanceStatus.DUE, 'CASE 3: summary status is DUE');
     assert(summary.dueCount === 2, 'CASE 3: dueCount is 2');
     assert(summary.totalDueAmount === 450, 'CASE 3: totalDueAmount is 450');
-    assert(summary.pendingLabs.length === 2, 'CASE 3: pendingLabs has 2 entries');
-    const labNames = summary.pendingLabs.map(l => l.name);
-    assert(labNames.includes('Engineering Physics Laboratory') && labNames.includes('Engineering Chemistry Laboratory'), 'CASE 3: pendingLabs includes both Physics and Chemistry');
+    assert(summary.dueLabs.length === 2, 'CASE 3: dueLabs has 2 entries');
+    const labNames = summary.dueLabs.map(l => l.name);
+    assert(labNames.includes('Physics Lab') && labNames.includes('Chemistry Lab'), 'CASE 3: dueLabs includes both Physics and Chemistry');
   }
 
   // ====================================================
@@ -148,12 +150,13 @@ async function runTests() {
   {
     const clearances = [
       createMockClearance('Engineering Physics Laboratory', 'PHY', DepartmentClearanceStatus.NOT_APPLICABLE),
-      createMockClearance('Engineering Chemistry Laboratory', 'CHEM', DepartmentClearanceStatus.NOT_APPLICABLE)
+      createMockClearance('Engineering Chemistry Laboratory', 'CHEM', DepartmentClearanceStatus.NOT_APPLICABLE),
+      createMockClearance('DDCO Laboratory', 'IS-DDCO', DepartmentClearanceStatus.NOT_APPLICABLE)
     ];
 
     const summary = LaboratoryAggregationService.getLaboratoryClearanceSummary(clearances);
     assert(summary.status === DepartmentClearanceStatus.CLEARED, 'CASE 5: summary status is CLEARED when all labs are NOT_APPLICABLE');
-    assert(summary.notApplicableLabsCount === 2, 'CASE 5: notApplicableLabsCount is 2');
+    assert(summary.notApplicableLabsCount === 3, 'CASE 5: notApplicableLabsCount is 3');
   }
 
   // ====================================================
@@ -175,8 +178,9 @@ async function runTests() {
       createMockClearance('Student Hostel', 'HSTL', DepartmentClearanceStatus.CLEARED, 0, false)
     ];
 
+    const rawLabCount = clearances.filter(c => LaboratoryAggregationService.isLaboratoryClearance(c)).length;
+    assert(rawLabCount === 8, 'CASE 6: Student has 8 raw laboratory records');
     const summary = LaboratoryAggregationService.getLaboratoryClearanceSummary(clearances);
-    assert(summary.totalLabs === 8, 'CASE 6: totalLabs is 8');
     assert(summary.status === DepartmentClearanceStatus.CLEARED, 'CASE 6: summary status is CLEARED');
 
     // Presentation Aggregation

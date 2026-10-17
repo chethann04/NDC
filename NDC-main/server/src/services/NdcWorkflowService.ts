@@ -8,6 +8,7 @@ import { withId } from '../utils/formatters';
 import { departmentCache } from '../utils/departmentCache';
 import emailService from './EmailService';
 import { extractOriginFromReq } from '../utils/urlHelper';
+import { NotificationQueueService } from './NotificationQueueService';
 
 export class NdcWorkflowService {
   /**
@@ -609,11 +610,15 @@ export class NdcWorkflowService {
         const officerName = fullClearance?.reviewedBy?.name || reqObj?.user?.name || reqObj?.user?.email || 'Clearance Officer';
         const clientUrl = extractOriginFromReq(reqObj);
 
-        // Reliable asynchronous dispatch via Resend HTTPS API
-        emailService.sendClearanceUpdateEmail({
-          toEmail: targetEmail,
-          studentName: student.fullName,
+        // Decoupled durable notification dispatch with idempotency & quota tracking
+        const notifIdempotencyKey = `notif_clearance_${clearanceId}_${status}_${updated.updatedAt.getTime()}`;
+        await NotificationQueueService.enqueueClearanceNotification({
+          idempotencyKey: notifIdempotencyKey,
+          clearanceId: fullClearance.id,
+          studentId: student.id,
           usn: student.usn,
+          studentName: student.fullName,
+          toEmail: targetEmail,
           departmentName: sectionName,
           departmentCode: fullClearance?.department?.code,
           status: status,
@@ -623,17 +628,13 @@ export class NdcWorkflowService {
           officerName,
           clearedCount,
           totalCount,
-          clientUrl
-        }).then((sent) => {
-          if (sent) {
-            console.log(`[NdcWorkflowService]: Clearance update email successfully delivered to ${targetEmail} for ${student.usn}`);
-          }
-        }).catch((emailErr) => {
-          console.error('[NdcWorkflowService]: Failed to dispatch clearance update email:', emailErr);
+          clientUrl,
+          source: 'CLEARANCE_WORKFLOW',
+          reqObj
         });
       }
     } catch (emailErr) {
-      console.error('[NdcWorkflowService]: Failed to dispatch clearance update email:', emailErr);
+      console.error('[NdcWorkflowService]: Failed to enqueue clearance update notification:', emailErr);
     }
 
     return withId(updated);

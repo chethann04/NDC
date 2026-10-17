@@ -22,6 +22,8 @@ import {
   FlaskConical,
   Laptop,
   KeyRound,
+  Sparkles,
+  ScanLine,
   X
 } from 'lucide-react';
 
@@ -317,6 +319,39 @@ export const Sidebar: React.FC = () => {
                   />
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* AI INTELLIGENCE & AUTOMATION SECTION */}
+        {(isOfficer || isAdmin) && (
+          <div>
+            {!isCollapsed && (
+              <div className="px-2 mb-1.5 text-[10px] font-bold tracking-wider text-indigo-500 uppercase flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  <span>AI & Automation</span>
+                </span>
+                <span className="text-[9px] font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-200">
+                  NEW
+                </span>
+              </div>
+            )}
+            <div className="space-y-1">
+              <NavItem
+                to="/officer/ai-assistant"
+                icon={<Sparkles className="w-4 h-4 text-indigo-600" />}
+                label="Physics AI Assistant"
+                collapsed={isCollapsed}
+                onClick={onItemClick}
+              />
+              <NavItem
+                to="/officer/logbook-scanner"
+                icon={<ScanLine className="w-4 h-4 text-cyan-600" />}
+                label="AI Logbook Scanner"
+                collapsed={isCollapsed}
+                onClick={onItemClick}
+              />
             </div>
           </div>
         )}

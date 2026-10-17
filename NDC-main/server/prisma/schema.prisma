@@ -401,3 +401,115 @@ model BackgroundJob {
   @@index([createdAt])
   @@map("background_jobs")
 }
+
+// ═══════════════════════════════════════════════════════════════
+// AI ASSISTANT & LOGBOOK SCANNER MODELS
+// ═══════════════════════════════════════════════════════════════
+
+enum ScanJobStatus {
+  UPLOADING
+  EXTRACTING
+  EXTRACTED
+  REVIEWING
+  APPROVED
+  PARTIALLY_APPROVED
+  FAILED
+  CANCELLED
+}
+
+enum ScanEntryStatus {
+  PENDING_REVIEW
+  MATCHED
+  UNMATCHED
+  CORRECTED
+  APPROVED
+  REJECTED
+  APPLIED
+  FAILED
+}
+
+model ScanJob {
+  id                 String        @id @default(uuid())
+  lecturerUserId     String
+  departmentId       String
+  labId              String?
+  status             ScanJobStatus @default(UPLOADING)
+  originalFilename   String        @default("")
+  mimeType           String        @default("")
+  fileSize           Int           @default(0)
+  totalEntries       Int           @default(0)
+  matchedEntries     Int           @default(0)
+  unmatchedEntries   Int           @default(0)
+  approvedEntries    Int           @default(0)
+  rejectedEntries    Int           @default(0)
+  appliedEntries     Int           @default(0)
+  failedEntries      Int           @default(0)
+  extractionRaw      Json?
+  errorMessage       String?
+  idempotencyKey     String?       @unique
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  entries            ScanJobEntry[]
+
+  @@index([lecturerUserId])
+  @@index([status])
+  @@index([departmentId])
+  @@index([createdAt])
+  @@map("scan_jobs")
+}
+
+model ScanJobEntry {
+  id                 String          @id @default(uuid())
+  scanJobId          String
+  entryIndex         Int             @default(0)
+  status             ScanEntryStatus @default(PENDING_REVIEW)
+  extractedUsn       String          @default("")
+  extractedName      String          @default("")
+  extractedAmount    Float           @default(0)
+  extractedReason    String          @default("")
+  extractedDate      String          @default("")
+  confidence         Float           @default(0)
+  matchedStudentId   String?
+  matchedStudentUsn  String?
+  matchedStudentName String?
+  correctedUsn       String?
+  correctedAmount    Float?
+  correctedReason    String?
+  validationErrors   String?
+  clearanceId        String?
+  appliedAt          DateTime?
+  errorMessage       String?
+  idempotencyKey     String?         @unique
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  scanJob            ScanJob         @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+
+  @@unique([scanJobId, entryIndex])
+  @@index([scanJobId])
+  @@index([status])
+  @@index([matchedStudentId])
+  @@map("scan_job_entries")
+}
+
+model AiConfirmationToken {
+  id                 String   @id @default(uuid())
+  token              String   @unique
+  userId             String
+  action             String
+  studentId          String
+  clearanceId        String?
+  payload            Json
+  expiresAt          DateTime
+  consumed           Boolean  @default(false)
+  consumedAt         DateTime?
+  createdAt          DateTime @default(now())
+
+  @@index([token])
+  @@index([userId, consumed])
+  @@index([expiresAt])
+  @@map("ai_confirmation_tokens")
+}

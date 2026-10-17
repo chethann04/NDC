@@ -20,6 +20,7 @@ import settingRoutes from './routes/settingRoutes';
 import teachingDepartmentRoutes from './routes/teachingDepartmentRoutes';
 import sectionLoginRoutes from './routes/sectionLoginRoutes';
 import jobRoutes from './routes/jobRoutes';
+import aiRoutes from './routes/aiRoutes';
 import emailService from './services/EmailService';
 import { setLastKnownClientOrigin, extractOriginFromReq } from './utils/urlHelper';
 
@@ -177,6 +178,14 @@ app.use(sanitizeInput);
 // Global API rate limiting
 app.use('/api/', generalApiLimiter);
 
+// Prevent unauthenticated / accidental public access to internal logbook scans
+app.use('/uploads/logbooks', (req, res) => {
+  res.status(403).json({
+    success: false,
+    message: 'Forbidden: Direct public access to logbook scans is not permitted. Access via authenticated scanner endpoints.'
+  });
+});
+
 // Static directory for generated PDF certificates
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -194,6 +203,8 @@ app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/teaching-department', teachingDepartmentRoutes);
 app.use('/api/v1/admin/section-logins', sectionLoginRoutes);
 app.use('/api/v1/jobs', jobRoutes);
+app.use('/api/v1/ai', aiRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

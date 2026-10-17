@@ -17,10 +17,15 @@ import {
   FileCheck2,
   ChevronRight,
   ShieldCheck,
-  Layers
+  Layers,
+  Sparkles,
+  UploadCloud,
+  Bot
 } from 'lucide-react';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { clientCache } from '../../utils/clientCache';
+import { PhysicsAiAssistantModal } from '../../components/ai/PhysicsAiAssistantModal';
+import { LogbookScannerModal } from '../../components/ai/LogbookScannerModal';
 
 interface ClearanceItem {
   id: string;
@@ -54,6 +59,8 @@ export const PhysicsLabClearance: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkClearing, setBulkClearing] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ cleared: number; message?: string } | null>(null);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [isLogbookScannerOpen, setIsLogbookScannerOpen] = useState(false);
 
   // Review modal state
   const [selectedItem, setSelectedItem] = useState<ClearanceItem | null>(null);
@@ -215,8 +222,29 @@ export const PhysicsLabClearance: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start md:self-center">
             <button
+              type="button"
+              onClick={() => setIsAiAssistantOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/40 text-white text-xs font-bold backdrop-blur-sm border border-indigo-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              title="Launch Physics Department Conversational AI Assistant"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>AI Assistant</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsLogbookScannerOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-cyan-500/30 hover:bg-cyan-500/40 text-white text-xs font-bold backdrop-blur-sm border border-cyan-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              title="Upload lab register image or PDF to extract dues via Gemini Vision OCR"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-cyan-200" />
+              <span>Scan Logbook</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => fetchClearances()}
               disabled={loading}
               className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
@@ -639,6 +667,27 @@ export const PhysicsLabClearance: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Physics Department Conversational AI Assistant Modal */}
+      <PhysicsAiAssistantModal
+        isOpen={isAiAssistantOpen}
+        onClose={() => setIsAiAssistantOpen(false)}
+        onActionApplied={() => {
+          fetchClearances();
+        }}
+        departmentCode="PHY"
+        departmentName="Physics Lab"
+      />
+
+      {/* AI Logbook Scanner Modal */}
+      <LogbookScannerModal
+        isOpen={isLogbookScannerOpen}
+        onClose={() => setIsLogbookScannerOpen(false)}
+        onDuesApplied={() => {
+          fetchClearances();
+        }}
+        departmentName="Physics Lab"
+      />
     </div>
   );
 };

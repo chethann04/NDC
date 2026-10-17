@@ -64,6 +64,9 @@ export const getAppsScriptSecret = (): string =>
  * that must be skipped from delivery to avoid wasted credits and provider errors.
  */
 export const isSyntheticOrTestEmail = (email: string): boolean => {
+  if (process.env.SKIP_NOTIFICATIONS === 'true' || process.env.NODE_ENV === 'test') {
+    return true;
+  }
   if (!email || !email.includes('@')) return true;
   const lower = email.toLowerCase().trim();
   const domain = lower.split('@')[1] || '';
@@ -81,6 +84,8 @@ export const isSyntheticOrTestEmail = (email: string): boolean => {
   );
 };
 
+export type NotificationDeliveryStatus = 'QUEUED' | 'ACCEPTED' | 'FAILED' | 'UNCERTAIN';
+
 export interface SendMailDetailedResult {
   success: boolean;
   messageId?: string;
@@ -88,6 +93,9 @@ export interface SendMailDetailedResult {
   error?: string;
   rateLimited?: boolean;
   retryCount?: number;
+  deliveryStatus?: NotificationDeliveryStatus;
+  remainingQuota?: number | null;
+  isTimeout?: boolean;
 }
 
 export type SendMailResult = SendMailDetailedResult;
@@ -341,7 +349,7 @@ class EmailService {
     }
 
     if (!to || !to.includes('@')) {
-      return { success: false, error: 'INVALID_RECIPIENT_ADDRESS' };
+      return { success: false, error: 'INVALID_RECIPIENT_ADDRESS', deliveryStatus: 'FAILED' };
     }
 
     const recipient = to.trim();
@@ -349,7 +357,12 @@ class EmailService {
     // Skip synthetic/test domains without sending
     if (isSyntheticOrTestEmail(recipient)) {
       console.log(`[EmailService]: Skipped email dispatch to synthetic test address [${recipient}].`);
-      return { success: true, skipped: true, messageId: `mock-skipped-synthetic-${Date.now()}` };
+      return {
+        success: true,
+        skipped: true,
+        messageId: `mock-skipped-synthetic-${Date.now()}`,
+        deliveryStatus: 'ACCEPTED'
+      };
     }
 
     // 1. Dispatch via Mock Client with Apps Script simulation
@@ -369,13 +382,47 @@ class EmailService {
         const response = await this.mockClient.appsScript.send(payload);
         if (response && response.success === true && response.messageId) {
           console.log(`[Email Notification] -> Email accepted by Google Apps Script (Mock) for ${recipient} (MessageId: ${response.messageId})`);
-          return { success: true, messageId: response.messageId, skipped: false };
+          return {
+            success: true,
+            messageId: response.messageId,
+            skipped: false,
+            deliveryStatus: 'ACCEPTED',
+            remainingQuota: response.remainingQuota
+          };
+        }
+        if (response && (response.timedOut || response.isTimeout || response.error?.includes('TIMEOUT_ABORTED'))) {
+          return {
+            success: false,
+            error: response.error || 'TIMEOUT_ABORTED: Request timed out; result is uncertain.',
+            retryCount: 0,
+            deliveryStatus: 'UNCERTAIN',
+            isTimeout: true
+          };
         }
         const errorMsg = response?.error || 'Google Apps Script mock delivery failed';
         console.error(`[EmailService Error]: Google Apps Script (Mock) rejected email to [${recipient}]:`, errorMsg);
-        return { success: false, error: errorMsg };
+        return {
+          success: false,
+          error: errorMsg,
+          deliveryStatus: 'FAILED',
+          remainingQuota: response?.remainingQuota
+        };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        const isTimeout =
+          err.name === 'AbortError' ||
+          err.name === 'TimeoutError' ||
+          err.message?.toLowerCase().includes('timeout') ||
+          err.message?.toLowerCase().includes('aborted');
+        if (isTimeout) {
+          return {
+            success: false,
+            error: 'TIMEOUT_ABORTED: Request timed out; result is uncertain.',
+            retryCount: 0,
+            deliveryStatus: 'UNCERTAIN',
+            isTimeout: true
+          };
+        }
+        return { success: false, error: err.message, deliveryStatus: 'FAILED' };
       }
     }
 
@@ -386,7 +433,7 @@ class EmailService {
 
       if (!appsScriptUrl || !appsScriptSecret) {
         console.error('[EmailService Error]: GOOGLE_APPS_SCRIPT_URL or GOOGLE_APPS_SCRIPT_SECRET is missing');
-        return { success: false, error: 'APPS_SCRIPT_CONFIG_MISSING' };
+        return { success: false, error: 'APPS_SCRIPT_CONFIG_MISSING', deliveryStatus: 'FAILED' };
       }
 
       const senderName = process.env.EMAIL_SENDER_NAME || 'MCE No Due Portal';
@@ -435,29 +482,51 @@ class EmailService {
 
         if (result && result.success === true && result.messageId) {
           console.log(`[Email Notification] -> Email accepted by Google Apps Script for ${recipient} (MessageId: ${result.messageId}, Quota: ${result.remainingQuota ?? 'N/A'})`);
-          return { success: true, messageId: result.messageId, skipped: false, retryCount: 0 };
+          return {
+            success: true,
+            messageId: result.messageId,
+            skipped: false,
+            retryCount: 0,
+            deliveryStatus: 'ACCEPTED',
+            remainingQuota: result.remainingQuota
+          };
         }
 
         const failureError = result?.error || `Google Apps Script returned failure with status ${result?.statusCode || response.status}`;
         console.error(`[EmailService Error]: Google Apps Script rejected email to [${recipient}]:`, failureError);
-        return { success: false, error: failureError, retryCount: 0 };
+        const isQuota = failureError.includes('QUOTA_EXCEEDED');
+        return {
+          success: false,
+          error: failureError,
+          retryCount: 0,
+          deliveryStatus: 'FAILED',
+          rateLimited: isQuota,
+          remainingQuota: result?.remainingQuota ?? (isQuota ? 0 : undefined)
+        };
       } catch (err: any) {
         clearTimeout(timeoutId);
 
-        const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError' || err.message?.toLowerCase().includes('aborted');
+        const isTimeout =
+          err.name === 'AbortError' ||
+          err.name === 'TimeoutError' ||
+          err.message?.toLowerCase().includes('aborted') ||
+          err.message?.toLowerCase().includes('timeout');
+
         if (isTimeout) {
           const timeoutMsg = `TIMEOUT_ABORTED: Request to Google Apps Script timed out after ${TIMEOUT_MS}ms for [${recipient}]. Automatic retry was aborted to prevent sending duplicate emails.`;
           console.error(`[EmailService Error]: ${timeoutMsg}`);
           return {
             success: false,
             error: timeoutMsg,
-            retryCount: 0
+            retryCount: 0,
+            deliveryStatus: 'UNCERTAIN',
+            isTimeout: true
           };
         }
 
         const networkError = `Network error communicating with Google Apps Script: ${err.message || String(err)}`;
         console.error(`[EmailService Error]: ${networkError}`);
-        return { success: false, error: networkError, retryCount: 0 };
+        return { success: false, error: networkError, retryCount: 0, deliveryStatus: 'FAILED' };
       }
     }
 
@@ -553,9 +622,9 @@ class EmailService {
   }
 
   /**
-   * Send notification email when a department updates a student's clearance status.
+   * Send notification email when a department updates a student's clearance status (Detailed Result).
    */
-  public async sendClearanceUpdateEmail(payload: ClearanceEmailPayload): Promise<boolean> {
+  public async sendClearanceUpdateEmailDetailed(payload: ClearanceEmailPayload): Promise<SendMailDetailedResult> {
     const {
       toEmail,
       studentName,
@@ -573,12 +642,17 @@ class EmailService {
 
     if (!toEmail || !toEmail.includes('@')) {
       console.warn(`[EmailService]: Invalid student email [${toEmail}] for USN [${usn}]. Skipping email.`);
-      return false;
+      return { success: false, error: 'INVALID_RECIPIENT_ADDRESS', deliveryStatus: 'FAILED' };
     }
 
     if (isSyntheticOrTestEmail(toEmail)) {
       console.log(`[EmailService]: Skipped clearance update email for synthetic test address [${toEmail}].`);
-      return true;
+      return {
+        success: true,
+        skipped: true,
+        messageId: `mock-skipped-synthetic-${Date.now()}`,
+        deliveryStatus: 'ACCEPTED'
+      };
     }
 
     const normalizedStatus = (status || '').toUpperCase();
@@ -701,7 +775,15 @@ class EmailService {
       </div>
     `;
 
-    return this.sendMail(toEmail, subject, htmlContent);
+    return this.sendMailDetailed(toEmail, subject, htmlContent);
+  }
+
+  /**
+   * Compatibility wrapper returning boolean success for existing callers.
+   */
+  public async sendClearanceUpdateEmail(payload: ClearanceEmailPayload): Promise<boolean> {
+    const res = await this.sendClearanceUpdateEmailDetailed(payload);
+    return res.success && !res.error;
   }
 
   /**

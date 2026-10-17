@@ -1,0 +1,518 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Sparkles,
+  Send,
+  Bot,
+  User,
+  ShieldAlert,
+  CheckCircle2,
+  Clock,
+  RotateCcw,
+  AlertTriangle,
+  ArrowRight,
+  Atom,
+  HelpCircle,
+  ShieldCheck,
+  Check,
+  Search,
+  ExternalLink
+} from 'lucide-react';
+import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
+import { MarkdownRenderer } from '../../components/common/MarkdownRenderer';
+import api from '../../services/api';
+
+interface MessageItem extends AssistantMessage {
+  actionRequired?: ActionRequired | null;
+  actionExecuted?: boolean;
+  notification?: {
+    deliveryStatus?: 'QUEUED' | 'ACCEPTED' | 'FAILED' | 'UNCERTAIN';
+    messageId?: string;
+    lastError?: string;
+  };
+}
+
+export const AiAssistantPage: React.FC = () => {
+  const [messages, setMessages] = useState<MessageItem[]>([
+    {
+      role: 'model',
+      content: `Hello! I am the **Physics Department AI Assistant**.\n\nI can read real-time student clearance data, check outstanding apparatus dues, and stage safe approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [confirmingToken, setConfirmingToken] = useState<string | null>(null);
+  const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Live department stats
+  const [stats, setStats] = useState({ total: 0, pending: 0, due: 0, cleared: 0 });
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Load real stats for the side panel
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await api.get('/ndc/officer/stats');
+        if (res.data?.data) {
+          const d = res.data.data;
+          setStats({
+            total: d.TOTAL || 0,
+            pending: d.PENDING || 0,
+            due: d.DUE || 0,
+            cleared: d.CLEARED || 0
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const handleSend = async (textToSend?: string) => {
+    const text = (textToSend || input).trim();
+    if (!text || loading) return;
+
+    setErrorMsg(null);
+    setConfirmSuccess(null);
+
+    const newMessages: MessageItem[] = [
+      ...messages,
+      { role: 'user', content: text }
+    ];
+
+    setMessages(newMessages);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const response = await aiService.chatWithAssistant(
+        newMessages.map((m) => ({ role: m.role, content: m.content })),
+        'PHY'
+      );
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'model',
+          content: response.reply,
+          actionRequired: response.actionRequired
+        }
+      ]);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to contact AI assistant.');
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'model',
+          content: `⚠️ Sorry, I encountered an issue: ${err.message}`
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmAction = async (token: string, messageIndex: number) => {
+    try {
+      setConfirmingToken(token);
+      setErrorMsg(null);
+      const result = await aiService.confirmAssistantAction(token);
+
+      setConfirmSuccess(result.message || 'Action executed successfully.');
+
+      setMessages((prev) =>
+        prev.map((m, idx) =>
+          idx === messageIndex
+            ? { ...m, actionExecuted: true, notification: result.notification }
+            : m
+        )
+      );
+
+      // Re-fetch stats
+      const statsRes = await api.get('/ndc/officer/stats');
+      if (statsRes.data?.data) {
+        const d = statsRes.data.data;
+        setStats({
+          total: d.TOTAL || 0,
+          pending: d.PENDING || 0,
+          due: d.DUE || 0,
+          cleared: d.CLEARED || 0
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to confirm action.');
+    } finally {
+      setConfirmingToken(null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const quickPills = [
+    'Who has outstanding dues in Physics Lab?',
+    'What is the current clearance summary?',
+    'Clear dues for USN 4MC21CS001',
+    'Mark ₹350 due for Spectrometer Prism damage',
+    'Show guidelines for optical bench clearances'
+  ];
+
+  const apparatusPresets = [
+    { label: 'Spectrometer Prism / Grating', amount: 350 },
+    { label: 'Laser Optics Kit Component', amount: 500 },
+    { label: 'Torsional Pendulum Wire Snap', amount: 150 },
+    { label: 'Optical Bench Component', amount: 250 },
+    { label: 'Observation Manual Overdue', amount: 0 }
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+        <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-amber-300 shadow-inner">
+              <Sparkles className="w-7 h-7 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-400/20 text-indigo-200 border border-indigo-300/30 uppercase tracking-wider">
+                  Physics Lab Desk
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-300/30">
+                  Gemini 1.5 Flash
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
+                Physics Department AI Assistant
+              </h1>
+              <p className="text-xs sm:text-sm text-indigo-100/90 mt-1 max-w-2xl">
+                Conversational assistant grounded in live student clearance records. Queries are answered directly, and all mutations require cryptographic officer confirmation.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+            <Link
+              to="/officer/physics-lab"
+              className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5"
+            >
+              <Atom className="w-4 h-4 text-cyan-300" />
+              <span>Physics Queue</span>
+            </Link>
+
+            <Link
+              to="/officer/logbook-scanner"
+              className="px-3.5 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/40 text-white text-xs font-semibold backdrop-blur-sm border border-indigo-300/30 transition-all flex items-center gap-1.5"
+            >
+              <span>Scan Logbook</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Left Chat Panel, Right Info Panel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Chat Interface (2 Columns) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col h-[750px] overflow-hidden">
+          {/* Notification Banners */}
+          {errorMsg && (
+            <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {errorMsg}
+              </span>
+              <button onClick={() => setErrorMsg(null)} className="text-rose-500 hover:text-rose-700">
+                ×
+              </button>
+            </div>
+          )}
+
+          {confirmSuccess && (
+            <div className="px-4 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                {confirmSuccess}
+              </span>
+              <button onClick={() => setConfirmSuccess(null)} className="text-emerald-500 hover:text-emerald-700">
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Messages Stream */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/40">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex items-start gap-3 ${
+                  msg.role === 'user' ? 'flex-row-reverse' : ''
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-emerald-600 text-white shadow-xs'
+                  }`}
+                >
+                  {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                </div>
+
+                <div
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-600 text-white rounded-tr-none'
+                      : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
+                  }`}
+                >
+                  {msg.role === 'user' ? (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  ) : (
+                    <MarkdownRenderer content={msg.content} />
+                  )}
+
+                  {/* Staged Action Confirmation Box */}
+                  {msg.actionRequired && (
+                    <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/80 text-slate-900 text-xs space-y-2.5">
+                      <div className="flex items-center justify-between font-semibold text-amber-900 border-b border-amber-200/60 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <ShieldAlert className="w-4 h-4 text-amber-600" />
+                          <span>Action Staged — Confirmation Required</span>
+                        </div>
+                        <span className="text-[10px] font-mono bg-amber-200/60 px-1.5 py-0.5 rounded text-amber-900">
+                          {msg.actionRequired.action}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-slate-500 block">Student Name:</span>
+                          <span className="font-semibold">{msg.actionRequired.studentName}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Student USN:</span>
+                          <span className="font-mono font-semibold">{msg.actionRequired.usn}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Target Laboratory:</span>
+                          <span className="font-semibold text-indigo-900">
+                            {msg.actionRequired.labName || 'Physics Lab'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Operation:</span>
+                          <span className="font-semibold text-slate-900">
+                            {msg.actionRequired.action === 'CLEAR_DUE'
+                              ? 'Set Clearance to NO DUE'
+                              : msg.actionRequired.action === 'MARK_DUE'
+                              ? 'Add Outstanding Due'
+                              : 'Hold Clearance'}
+                          </span>
+                        </div>
+                        {msg.actionRequired.amount !== undefined && (
+                          <div>
+                            <span className="text-slate-500 block">Due Amount:</span>
+                            <span className="font-bold text-rose-700">₹{msg.actionRequired.amount}</span>
+                          </div>
+                        )}
+                        {msg.actionRequired.reason && (
+                          <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
+                            <span className="text-slate-500 block">Apparatus / Reason:</span>
+                            <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {msg.actionExecuted ? (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-100/70 p-2 rounded-lg border border-emerald-200 text-xs">
+                            <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            <span>Executed and applied to live student clearance records!</span>
+                          </div>
+                          {msg.notification && (
+                            <div className="flex items-center gap-2 text-[11px] font-medium pt-0.5">
+                              {msg.notification.deliveryStatus === 'ACCEPTED' && (
+                                <span className="text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                                  ✉️ Email Dispatched {msg.notification.messageId ? `(${msg.notification.messageId})` : ''}
+                                </span>
+                              )}
+                              {msg.notification.deliveryStatus === 'QUEUED' && (
+                                <span className="text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                                  ✉️ Email Queued
+                                </span>
+                              )}
+                              {msg.notification.deliveryStatus === 'UNCERTAIN' && (
+                                <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs" title="HTTP timeout; automatic duplicate retry aborted">
+                                  ⚠️ Delivery Uncertain (Timeout - Retry Blocked)
+                                </span>
+                              )}
+                              {msg.notification.deliveryStatus === 'FAILED' && (
+                                <span className="text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                                  ❌ Email Failed: {msg.notification.lastError || 'Undelivered'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="pt-1 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
+                            disabled={confirmingToken === msg.actionRequired.token}
+                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {confirmingToken === msg.actionRequired.token ? (
+                              <Clock className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            )}
+                            <span>Confirm & Apply to Live Database</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-500 flex items-center gap-2 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                  <span>Consulting live database & formulating response...</span>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick Prompt Suggestions */}
+          <div className="px-4 py-2 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+            <span className="text-[11px] font-semibold text-slate-400 shrink-0">Try:</span>
+            {quickPills.map((pill, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSend(pill)}
+                disabled={loading}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200 rounded-full text-xs text-slate-700 transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
+              >
+                {pill}
+              </button>
+            ))}
+          </div>
+
+          {/* Input Bar */}
+          <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about Physics dues, student status, or clear approvals..."
+              disabled={loading}
+              className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all disabled:opacity-50"
+            />
+
+            <button
+              type="button"
+              onClick={() => handleSend()}
+              disabled={!input.trim() || loading}
+              className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+              title="Send query"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Right Info & Live Context Panel (1 Column) */}
+        <div className="space-y-4">
+          {/* Live KPI Statistics */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Atom className="w-4 h-4 text-cyan-600" />
+              <span>Physics Lab Live Overview</span>
+            </h3>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Students</span>
+                <span className="text-lg font-black text-slate-800">{stats.total}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60">
+                <span className="text-[10px] uppercase font-bold text-amber-700 block">Pending</span>
+                <span className="text-lg font-black text-amber-800">{stats.pending}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/60">
+                <span className="text-[10px] uppercase font-bold text-rose-700 block">Dues Flagged</span>
+                <span className="text-lg font-black text-rose-800">{stats.due}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60">
+                <span className="text-[10px] uppercase font-bold text-emerald-700 block">Cleared</span>
+                <span className="text-lg font-black text-emerald-800">{stats.cleared}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Common Apparatus Presets */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <HelpCircle className="w-4 h-4 text-indigo-600" />
+              <span>Physics Apparatus Presets</span>
+            </h3>
+
+            <div className="space-y-1.5 text-xs">
+              {apparatusPresets.map((preset, i) => (
+                <div
+                  key={i}
+                  onClick={() => handleSend(`Mark ₹${preset.amount} due for ${preset.label}`)}
+                  className="p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 flex items-center justify-between cursor-pointer transition-colors"
+                >
+                  <span className="text-slate-700 font-medium">{preset.label}</span>
+                  <span className="font-bold text-rose-600">₹{preset.amount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Safety & Audit Guarantee */}
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-2xl border border-indigo-100 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-bold text-indigo-950">
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
+              <span>Safe Mutation Guarantee</span>
+            </div>
+            <p className="text-indigo-900/80 leading-relaxed text-[11px]">
+              Every database modification staged by this assistant uses a unique HMAC confirmation token bound to your user ID. Changes trigger real-time overall status recalculations, student email notifications, and irreversible audit logs.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
