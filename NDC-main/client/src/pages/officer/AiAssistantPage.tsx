@@ -182,50 +182,43 @@ export const AiAssistantPage: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-amber-300 shadow-inner">
-              <Sparkles className="w-7 h-7 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-400/20 text-indigo-200 border border-indigo-300/30 uppercase tracking-wider">
-                  Physics Lab Desk
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-400/20 text-emerald-300 border border-emerald-300/30">
-                  Gemini 1.5 Flash
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-                Physics Department AI Assistant
+      {/* Compact Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-900">
+                Physics Department Assistant
               </h1>
-              <p className="text-xs sm:text-sm text-indigo-100/90 mt-1 max-w-2xl">
-                Conversational assistant grounded in live student clearance records. Queries are answered directly, and all mutations require cryptographic officer confirmation.
-              </p>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Physics Lab
+              </span>
             </div>
+            <p className="text-xs text-slate-500">
+              Check student dues, review clearance records, or ask questions.
+            </p>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-            <Link
-              to="/officer/physics-lab"
-              className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5"
-            >
-              <Atom className="w-4 h-4 text-cyan-300" />
-              <span>Physics Queue</span>
-            </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/officer/physics-lab"
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
+          >
+            <Atom className="w-3.5 h-3.5 text-cyan-600" />
+            <span>Clearance Queue</span>
+          </Link>
 
-            <Link
-              to="/officer/logbook-scanner"
-              className="px-3.5 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/40 text-white text-xs font-semibold backdrop-blur-sm border border-indigo-300/30 transition-all flex items-center gap-1.5"
-            >
-              <span>Scan Logbook</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+          <Link
+            to="/officer/logbook-scanner"
+            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+            <span>Scan Lab Register</span>
+          </Link>
         </div>
       </div>
 
@@ -386,7 +379,7 @@ export const AiAssistantPage: React.FC = () => {
                             ) : (
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             )}
-                            <span>Confirm & Apply to Live Database</span>
+                            <span>Confirm & Save to Records</span>
                           </button>
                         </div>
                       )}

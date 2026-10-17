@@ -242,9 +242,8 @@ export const LogbookScannerPage: React.FC = () => {
 
       setApplyResult({
         appliedCount: result.appliedCount,
-        message: `Successfully approved & applied due of ₹${entry.correctedAmount ?? entry.extractedAmount} for ${
-          entry.matchedStudentName || entry.matchedStudentUsn || entry.extractedUsn
-        } directly to official clearance records.`
+        message: `Successfully approved & applied due of ₹${entry.correctedAmount ?? entry.extractedAmount} for ${entry.matchedStudentName || entry.matchedStudentUsn || entry.extractedUsn
+          } directly to official clearance records.`
       });
 
       const refreshedJob = await aiService.getScanJob(scanJob!.id);
@@ -310,15 +309,15 @@ export const LogbookScannerPage: React.FC = () => {
 
   const filteredEntries = scanJob
     ? scanJob.entries.filter((e) => {
-        const query = searchFilter.toLowerCase();
-        return (
-          e.extractedUsn.toLowerCase().includes(query) ||
-          (e.correctedUsn && e.correctedUsn.toLowerCase().includes(query)) ||
-          e.extractedName.toLowerCase().includes(query) ||
-          (e.matchedStudentName && e.matchedStudentName.toLowerCase().includes(query)) ||
-          e.extractedReason.toLowerCase().includes(query)
-        );
-      })
+      const query = searchFilter.toLowerCase();
+      return (
+        e.extractedUsn.toLowerCase().includes(query) ||
+        (e.correctedUsn && e.correctedUsn.toLowerCase().includes(query)) ||
+        e.extractedName.toLowerCase().includes(query) ||
+        (e.matchedStudentName && e.matchedStudentName.toLowerCase().includes(query)) ||
+        e.extractedReason.toLowerCase().includes(query)
+      );
+    })
     : [];
 
   const eligibleEntriesCount = scanJob
@@ -327,8 +326,8 @@ export const LogbookScannerPage: React.FC = () => {
 
   const selectedTotal = scanJob
     ? scanJob.entries
-        .filter((e) => selectedEntryIds.has(e.id))
-        .reduce((sum, e) => sum + (e.correctedAmount ?? e.extractedAmount), 0)
+      .filter((e) => selectedEntryIds.has(e.id))
+      .reduce((sum, e) => sum + (e.correctedAmount ?? e.extractedAmount), 0)
     : 0;
 
   return (
@@ -420,11 +419,10 @@ export const LogbookScannerPage: React.FC = () => {
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${
-                file
+              className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${file
                   ? 'border-indigo-400 bg-indigo-50/40'
                   : 'border-slate-300 hover:border-indigo-500 hover:bg-slate-100/50 bg-white'
-              }`}
+                }`}
             >
               <input
                 type="file"
@@ -488,12 +486,12 @@ export const LogbookScannerPage: React.FC = () => {
                 {extracting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Extracting via Gemini Vision OCR...</span>
+                    <span>Scanning Image for Dues...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Start AI Extraction</span>
+                    <span>Scan Image</span>
                   </>
                 )}
               </button>
@@ -520,11 +518,10 @@ export const LogbookScannerPage: React.FC = () => {
                     <div className="flex items-center justify-between font-semibold text-slate-800">
                       <span className="truncate max-w-[160px]">{job.originalFilename || 'Logbook Scan'}</span>
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          job.status === 'APPROVED'
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${job.status === 'APPROVED'
                             ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-blue-100 text-blue-800'
-                        }`}
+                          }`}
                       >
                         {job.status}
                       </span>
@@ -614,9 +611,8 @@ export const LogbookScannerPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowProcessed((s) => !s)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                    showProcessed ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${showProcessed ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
                   title="Toggle Contrast Enhanced Image"
                 >
                   <Eye className="w-3.5 h-3.5" />
@@ -720,7 +716,7 @@ export const LogbookScannerPage: React.FC = () => {
                     }
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
                   />
-                  <span>Select All Eligible ({eligibleEntriesCount} ready for approval)</span>
+                  <span>Select All Ready ({eligibleEntriesCount} ready to add)</span>
                 </label>
                 <span className="text-xs text-slate-500">
                   ({selectedEntryIds.size} selected • Total: ₹{selectedTotal})
@@ -755,7 +751,7 @@ export const LogbookScannerPage: React.FC = () => {
                   className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Upload Another File</span>
+                  <span>Upload Another Image</span>
                 </button>
               </div>
             </div>
@@ -792,9 +788,8 @@ export const LogbookScannerPage: React.FC = () => {
                     return (
                       <tr
                         key={entry.id}
-                        className={`hover:bg-slate-50/70 transition-colors ${
-                          isApplied ? 'bg-emerald-50/20 opacity-75' : !eligibility.isEligible ? 'bg-amber-50/15' : ''
-                        }`}
+                        className={`hover:bg-slate-50/70 transition-colors ${isApplied ? 'bg-emerald-50/20 opacity-75' : !eligibility.isEligible ? 'bg-amber-50/15' : ''
+                          }`}
                       >
                         {/* Checkbox & Row Index */}
                         <td className="py-3.5 px-3 align-top text-center">
@@ -943,8 +938,8 @@ export const LogbookScannerPage: React.FC = () => {
                                   {!entry.matchedStudentName
                                     ? 'Click Edit to fix USN'
                                     : displayAmount <= 0
-                                    ? 'Enter due amount'
-                                    : 'Review details'}
+                                      ? 'Enter due amount'
+                                      : 'Review details'}
                                 </p>
                               </div>
                             )}
@@ -1012,8 +1007,8 @@ export const LogbookScannerPage: React.FC = () => {
                                     isApplied
                                       ? 'Already applied to database'
                                       : eligibility.isEligible
-                                      ? 'Approve and apply this entry'
-                                      : 'Cannot approve until USN matches a registered student'
+                                        ? 'Approve and apply this entry'
+                                        : 'Cannot approve until USN matches a registered student'
                                   }
                                   className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                                 >
@@ -1022,7 +1017,7 @@ export const LogbookScannerPage: React.FC = () => {
                                   ) : (
                                     <Check className="w-3 h-3" />
                                   )}
-                                  <span>{isApplied ? 'Applied' : 'Approve'}</span>
+                                  <span>{isApplied ? 'Added' : 'Add Due'}</span>
                                 </button>
                               </>
                             )}
@@ -1070,7 +1065,7 @@ export const LogbookScannerPage: React.FC = () => {
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Apply {selectedEntryIds.size} Selected Dues to Database</span>
+                    <span>Add {selectedEntryIds.size} Selected Dues to Records</span>
                   </>
                 )}
               </button>

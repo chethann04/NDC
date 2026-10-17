@@ -172,14 +172,14 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-base text-white">
-                  {departmentName} AI Assistant
+                  {departmentName} Assistant
                 </h3>
                 <span className="text-[10px] uppercase tracking-wider font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full">
-                  Gemini Flash
+                  AI Active
                 </span>
               </div>
               <p className="text-xs text-indigo-200/80">
-                Grounded institutional assistant with cryptographic confirmed mutations
+                Check student lab records or stage clearance updates.
               </p>
             </div>
           </div>
@@ -327,7 +327,7 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                           ) : (
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           )}
-                          <span>Confirm & Apply to Database</span>
+                          <span>Confirm & Save Change</span>
                         </button>
                       </div>
                     )}

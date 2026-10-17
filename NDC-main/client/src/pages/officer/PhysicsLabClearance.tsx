@@ -217,7 +217,7 @@ export const PhysicsLabClearance: React.FC = () => {
                 Engineering Physics Laboratory Clearance
               </h1>
               <p className="text-xs sm:text-sm text-cyan-100/90 mt-1 max-w-2xl">
-                Independent clearance portal for Physics laboratory apparatus, laser optics kits, spectrometers, experiment manuals, and breakage assessment.
+                Review student laboratory dues, check equipment breakages, and issue clearance for Engineering Physics.
               </p>
             </div>
           </div>
@@ -227,20 +227,20 @@ export const PhysicsLabClearance: React.FC = () => {
               type="button"
               onClick={() => setIsAiAssistantOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/40 text-white text-xs font-bold backdrop-blur-sm border border-indigo-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
-              title="Launch Physics Department Conversational AI Assistant"
+              title="Open Physics Assistant Chat"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>AI Assistant</span>
+              <span>Ask AI Assistant</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsLogbookScannerOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-cyan-500/30 hover:bg-cyan-500/40 text-white text-xs font-bold backdrop-blur-sm border border-cyan-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
-              title="Upload lab register image or PDF to extract dues via Gemini Vision OCR"
+              title="Upload lab register photo to extract dues"
             >
               <UploadCloud className="w-3.5 h-3.5 text-cyan-200" />
-              <span>Scan Logbook</span>
+              <span>Scan Lab Register</span>
             </button>
 
             <button
@@ -250,7 +250,7 @@ export const PhysicsLabClearance: React.FC = () => {
               className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Queue</span>
+              <span>Refresh Student List</span>
             </button>
           </div>
         </div>
@@ -371,7 +371,7 @@ export const PhysicsLabClearance: React.FC = () => {
                 disabled={bulkClearing}
                 className="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-800 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
-                <span>{bulkClearing ? 'Clearing...' : 'Approve & Mark No Due'}</span>
+                <span>{bulkClearing ? 'Marking Cleared...' : 'Approve & Clear Dues'}</span>
               </button>
             </div>
           </div>
@@ -406,11 +406,11 @@ export const PhysicsLabClearance: React.FC = () => {
                       className="rounded border-zinc-300 text-cyan-600 focus:ring-cyan-500"
                     />
                   </th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Student USN</th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Name & Branch</th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Physics Lab Status</th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Apparatus Dues</th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Remarks / Inspection</th>
+                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">USN</th>
+                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Student & Branch</th>
+                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Clearance Status</th>
+                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Lab Due Amount</th>
+                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider text-[10px] text-zinc-500">Inspection Notes</th>
                   <th className="py-3 px-3.5 text-right font-bold uppercase tracking-wider text-[10px] text-zinc-500">Action</th>
                 </tr>
               </thead>
@@ -490,7 +490,7 @@ export const PhysicsLabClearance: React.FC = () => {
                           onClick={() => openReviewModal(c)}
                           className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-[11px] transition-colors cursor-pointer"
                         >
-                          Review
+                          Inspect & Update
                         </button>
                       </td>
                     </tr>
@@ -564,7 +564,7 @@ export const PhysicsLabClearance: React.FC = () => {
                     }`}
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>✓ Clear (No Due)</span>
+                    <span>✓ Mark Cleared (No Due)</span>
                   </button>
 
                   <button
@@ -577,7 +577,7 @@ export const PhysicsLabClearance: React.FC = () => {
                     }`}
                   >
                     <AlertCircle className="w-4 h-4 text-rose-600" />
-                    <span>⚠ Record Due</span>
+                    <span>⚠ Add Lab Due</span>
                   </button>
                 </div>
               </div>
@@ -660,7 +660,7 @@ export const PhysicsLabClearance: React.FC = () => {
                   disabled={submitting}
                   className="px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-bold disabled:opacity-50 cursor-pointer shadow-xs"
                 >
-                  {submitting ? 'Saving...' : 'Confirm Clearance Status'}
+                  {submitting ? 'Saving...' : 'Save Clearance Status'}
                 </button>
               </div>
             </form>

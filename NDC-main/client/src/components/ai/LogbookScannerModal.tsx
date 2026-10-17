@@ -465,12 +465,12 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                   {extracting ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Scanning & Extracting with Gemini Vision...</span>
+                      <span>Scanning Image for Dues...</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>Start AI Extraction</span>
+                      <span>Scan Image for Dues</span>
                     </>
                   )}
                 </button>
@@ -626,7 +626,7 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                         }
                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-40"
                       />
-                      <span>Select All Eligible ({eligibleEntriesCount} ready for approval)</span>
+                      <span>Select All Ready ({eligibleEntriesCount} ready to add)</span>
                     </label>
                     <span className="text-xs text-slate-500">
                       ({selectedEntryIds.size} selected • Total: ₹{selectedTotal})
@@ -928,7 +928,7 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                                       ) : (
                                         <Check className="w-3 h-3" />
                                       )}
-                                      <span>{isApplied ? 'Applied' : 'Approve'}</span>
+                                      <span>{isApplied ? 'Added' : 'Add Due'}</span>
                                     </button>
                                   </>
                                 )}
@@ -968,12 +968,12 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                     {applying ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Applying to Student Clearance Records...</span>
+                        <span>Saving Dues to Database...</span>
                       </>
                     ) : (
                       <>
                         <ShieldCheck className="w-4 h-4" />
-                        <span>Apply {selectedEntryIds.size} Selected Dues</span>
+                        <span>Add {selectedEntryIds.size} Selected Dues to Records</span>
                       </>
                     )}
                   </button>

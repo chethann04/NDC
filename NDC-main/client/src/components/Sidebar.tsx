@@ -345,14 +345,14 @@ export const Sidebar: React.FC = () => {
               <NavItem
                 to="/officer/ai-assistant"
                 icon={<Sparkles className="w-4 h-4 text-indigo-600" />}
-                label="Physics AI Assistant"
+                label="Physics Assistant"
                 collapsed={isCollapsed}
                 onClick={onItemClick}
               />
               <NavItem
                 to="/officer/logbook-scanner"
                 icon={<ScanLine className="w-4 h-4 text-cyan-600" />}
-                label="AI Logbook Scanner"
+                label="Scan Lab Register"
                 collapsed={isCollapsed}
                 onClick={onItemClick}
               />
