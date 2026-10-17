@@ -232,13 +232,23 @@ const handleSendTestEmail = async (req: any, res: any) => {
   }
 
   const clientUrl = extractOriginFromReq(req);
+  const activeProvider = emailService.getActiveProvider();
+  const providerLabel = activeProvider === 'apps_script'
+    ? 'Google Apps Script'
+    : activeProvider === 'resend'
+    ? 'Resend'
+    : activeProvider === 'mock'
+    ? 'Mock'
+    : 'Email Service';
+
   const sendRes = await emailService.sendMailDetailed({
     to: targetEmail,
     subject: `✓ [NDC Update] Central Library: Cleared (No Due) - 4MC24IS022`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px; background: #f0fdf4; border-radius: 8px; color: #1e293b;">
-        <h2 style="color: #047857;">MCE No Due Portal: Live Resend Verification</h2>
-        <p>Congratulations! This test clearance update confirms your Resend integration is actively working and delivering on Render.</p>
+        <h2 style="color: #047857;">MCE No Due Portal: Live ${providerLabel} Delivery Verification</h2>
+        <p>Congratulations! This test clearance update confirms your email delivery integration is actively working and delivering on Render.</p>
+        <p><strong>Provider:</strong> ${providerLabel}</p>
         <p><strong>Target:</strong> ${targetEmail}</p>
         <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
       </div>
@@ -251,10 +261,10 @@ const handleSendTestEmail = async (req: any, res: any) => {
     sentTo: targetEmail,
     messageId: sendRes.messageId,
     error: sendRes.error,
-    provider: 'Resend',
+    provider: providerLabel,
     notice: sendRes.success
-      ? 'Email successfully accepted by Resend! Check your inbox or Resend dashboard.'
-      : `Email rejected by Resend: ${sendRes.error}`
+      ? `Email successfully accepted by ${providerLabel}! Check your inbox.`
+      : `Email rejected by ${providerLabel}: ${sendRes.error}`
   });
 };
 

@@ -17,10 +17,23 @@ class MockResendClient {
   public rateLimitFailCount = 0;
   public shouldFailWithAuthError = false;
   public shouldFailWithGenericError = false;
+  public shouldFailWithSandboxError = false;
+  public shouldReturnEmptyData = false;
 
   public emails = {
     send: async (payload: MockSendCall) => {
       this.sendCalls.push(payload);
+
+      if (this.shouldFailWithSandboxError) {
+        return {
+          data: null,
+          error: {
+            name: 'validation_error',
+            message: 'You can only send testing emails to your own email address (4mc24is022@gmail.com). To send to other domains, you must verify a domain at resend.com/domains',
+            statusCode: 403
+          }
+        };
+      }
 
       if (this.shouldFailWithAuthError) {
         return {
@@ -56,6 +69,13 @@ class MockResendClient {
         };
       }
 
+      if (this.shouldReturnEmptyData) {
+        return {
+          data: null,
+          error: null
+        };
+      }
+
       // Successful acceptance
       return {
         data: {
@@ -81,6 +101,8 @@ class MockResendClient {
     this.rateLimitFailCount = 0;
     this.shouldFailWithAuthError = false;
     this.shouldFailWithGenericError = false;
+    this.shouldFailWithSandboxError = false;
+    this.shouldReturnEmptyData = false;
   }
 }
 
@@ -376,6 +398,72 @@ async function runTestSuite() {
     if (origKey) process.env.RESEND_API_KEY = origKey;
     if (origSmtpPass) process.env.SMTP_PASS = origSmtpPass;
     EmailService.clearMockClient();
+  });
+
+  // 12. Render environment auto-detection & provider prioritization
+  await runTest('Render environment (process.env.RENDER=true) auto-prioritizes Resend HTTPS over SMTP', () => {
+    EmailService.clearMockClient();
+
+    const origRender = process.env.RENDER;
+    const origProvider = process.env.EMAIL_PROVIDER;
+    const origKey = process.env.RESEND_API_KEY;
+    const origSmtpUser = process.env.SMTP_USER;
+    const origSmtpPass = process.env.SMTP_PASS;
+
+    try {
+      // Simulate Render environment with both SMTP credentials and Resend API key
+      process.env.RENDER = 'true';
+      delete process.env.EMAIL_PROVIDER;
+      process.env.RESEND_API_KEY = 're_live_test_api_key_12345';
+      process.env.SMTP_USER = 'test@gmail.com';
+      process.env.SMTP_PASS = 'abcd efgh ijkl mnop';
+
+      EmailService.initTransporter();
+
+      // Must select Resend HTTPS because Render Free blocks outbound SMTP ports 465/587
+      assert.strictEqual(EmailService.getActiveProvider(), 'resend');
+    } finally {
+      if (origRender !== undefined) process.env.RENDER = origRender; else delete process.env.RENDER;
+      if (origProvider !== undefined) process.env.EMAIL_PROVIDER = origProvider; else delete process.env.EMAIL_PROVIDER;
+      if (origKey !== undefined) process.env.RESEND_API_KEY = origKey; else delete process.env.RESEND_API_KEY;
+      if (origSmtpUser !== undefined) process.env.SMTP_USER = origSmtpUser; else delete process.env.SMTP_USER;
+      if (origSmtpPass !== undefined) process.env.SMTP_PASS = origSmtpPass; else delete process.env.SMTP_PASS;
+      EmailService.clearMockClient();
+    }
+  });
+
+  // 13. Resend sandbox restriction diagnostic handling
+  await runTest('Resend sandbox restriction returns clear actionable domain verification error', async () => {
+    mockClient.reset();
+    mockClient.shouldFailWithSandboxError = true;
+    EmailService.setMockClient(mockClient);
+
+    const res = await EmailService.sendMailDetailed({
+      to: 'unverified.student@gmail.com',
+      subject: 'Sandbox Clearance Test',
+      html: '<p>Testing sandbox rejection</p>'
+    });
+
+    assert.strictEqual(res.success, false, 'Delivery must not be reported as successful');
+    assert.ok(res.error?.includes('[Resend Sandbox Restriction]'), 'Must include sandbox restriction tag');
+    assert.ok(res.error?.includes('https://resend.com/domains'), 'Must guide user to resend.com/domains');
+    assert.ok(res.error?.includes('EMAIL_FROM'), 'Must advise setting EMAIL_FROM');
+  });
+
+  // 14. Delivery acceptance enforcement (never report success without accepted ID)
+  await runTest('Never report delivery as successful if provider returns empty confirmation without message ID', async () => {
+    mockClient.reset();
+    mockClient.shouldReturnEmptyData = true;
+    EmailService.setMockClient(mockClient);
+
+    const res = await EmailService.sendMailDetailed({
+      to: 'student.unconfirmed@college.edu.in',
+      subject: 'Unconfirmed Message Test',
+      html: '<p>Testing acceptance enforcement</p>'
+    });
+
+    assert.strictEqual(res.success, false, 'Must not report success without provider confirmation');
+    assert.ok(res.error?.includes('empty confirmation without message ID'), 'Must record empty confirmation error');
   });
 
   console.log('====================================================');

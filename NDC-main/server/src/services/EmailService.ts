@@ -1,9 +1,23 @@
 import { Resend } from 'resend';
-import nodemailer, { Transporter } from 'nodemailer';
 import dotenv from 'dotenv';
 import { getClientBaseUrl } from '../utils/urlHelper';
 
 dotenv.config();
+
+export interface EmailAttachment {
+  filename: string;
+  content: string; // base64 encoded
+  contentType?: string;
+}
+
+export interface SendMailOptions {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  headers?: Record<string, string>;
+  attachments?: EmailAttachment[];
+}
 
 export interface ClearanceEmailPayload {
   toEmail: string;
@@ -30,6 +44,20 @@ export interface CertificateEmailPayload {
   downloadUrl?: string;
   clientUrl?: string;
 }
+
+/**
+ * Helper to retrieve Google Apps Script Web App URL from environment.
+ * Supports both GOOGLE_APPS_SCRIPT_URL and legacy APPS_SCRIPT_URL.
+ */
+export const getAppsScriptUrl = (): string =>
+  (process.env.GOOGLE_APPS_SCRIPT_URL || process.env.APPS_SCRIPT_URL || '').trim();
+
+/**
+ * Helper to retrieve Google Apps Script shared authentication secret from environment.
+ * Supports both GOOGLE_APPS_SCRIPT_SECRET and legacy APPS_SCRIPT_SECRET.
+ */
+export const getAppsScriptSecret = (): string =>
+  (process.env.GOOGLE_APPS_SCRIPT_SECRET || process.env.APPS_SCRIPT_SECRET || '').trim();
 
 /**
  * Identifies synthetic, load-test, or RFC 2606 reserved domains
@@ -66,10 +94,9 @@ export type SendMailResult = SendMailDetailedResult;
 
 class EmailService {
   private resendClient: Resend | null = null;
-  private nodemailerTransporter: Transporter | null = null;
   private mockClient: any = null;
   private _isConfigured: boolean = false;
-  private activeProvider: 'gmail' | 'resend' | 'mock' | 'none' = 'none';
+  private activeProvider: 'apps_script' | 'resend' | 'mock' | 'none' = 'none';
 
   constructor() {
     this.initTransporter();
@@ -103,63 +130,90 @@ class EmailService {
   }
 
   /**
-   * Initialize or refresh the active email transport (Gmail SMTP or Resend).
+   * Check current active provider name.
    */
-  private initTransporter(): void {
+  public getActiveProvider(): 'apps_script' | 'resend' | 'mock' | 'none' {
+    return this.activeProvider;
+  }
+
+  /**
+   * Initialize or refresh the active email transport.
+   * 
+   * Transport Selection Logic:
+   * 1. Google Apps Script Web App (HTTPS Port 443) is the primary production delivery path.
+   *    It dispatches emails via Google's MailApp service, bypassing Render Free outbound SMTP blocks
+   *    (ENETUNREACH) without requiring a custom verified domain.
+   * 2. Resend HTTPS API (Port 443) is available as an optional secondary alternative when configured.
+   * 3. Outbound SMTP is completely disabled in production because Render blocks ports 25, 465, 587.
+   */
+  public initTransporter(): void {
     if (this.mockClient) {
       this.activeProvider = 'mock';
       this._isConfigured = true;
       return;
     }
 
+    const isRender = process.env.RENDER === 'true' || process.env.RENDER_SERVICE_ID !== undefined;
     const providerPref = (process.env.EMAIL_PROVIDER || '').toLowerCase().trim();
-    const smtpUser = process.env.SMTP_USER?.trim();
-    const smtpPass = process.env.SMTP_PASS?.trim();
+    const appsScriptUrl = getAppsScriptUrl();
+    const appsScriptSecret = getAppsScriptSecret();
+    const hasValidAppsScript = !!(
+      appsScriptUrl &&
+      appsScriptUrl.startsWith('https://script.google.com') &&
+      appsScriptSecret &&
+      !appsScriptSecret.includes('placeholder')
+    );
     const resendKey = process.env.RESEND_API_KEY?.trim();
+    const hasValidResendKey = !!(resendKey && resendKey.startsWith('re_') && !resendKey.includes('placeholder'));
 
-    // 1. Explicit Resend if requested and key is valid
-    if (providerPref === 'resend' && resendKey && resendKey.startsWith('re_') && !resendKey.includes('placeholder')) {
+    // If legacy SMTP credentials are present in the environment, inform the user that SMTP is disabled
+    if (process.env.SMTP_USER || process.env.SMTP_PASS) {
+      console.log(
+        '[EmailService]: Outbound SMTP is disabled (Render blocks ports 25, 465, 587). ' +
+        'Production email delivery is routed via Google Apps Script HTTPS (Port 443).'
+      );
+    }
+
+    // 1. Google Apps Script Web App (HTTPS Port 443 - Primary Production Provider)
+    // Active if:
+    // - Valid Apps Script URL and secret configured (prioritized)
+    // - Or EMAIL_PROVIDER is explicitly 'apps_script', 'gas', or 'google_apps_script'
+    if (hasValidAppsScript && (providerPref !== 'resend' || !hasValidResendKey)) {
+      this.activeProvider = 'apps_script';
+      this._isConfigured = true;
+      console.log(`[EmailService]: Google Apps Script HTTPS client active (Port 443)${isRender ? ' [Render Environment Detected]' : ''}`);
+      return;
+    }
+
+    // 2. Resend HTTPS API (Port 443 - Secondary Alternative):
+    // Active if EMAIL_PROVIDER is explicitly 'resend' or if Apps Script is not configured
+    if (hasValidResendKey && (providerPref === 'resend' || !hasValidAppsScript)) {
       try {
         this.resendClient = new Resend(resendKey);
         this.activeProvider = 'resend';
         this._isConfigured = true;
-        console.log(`[EmailService]: Resend HTTPS client active`);
+        console.log(`[EmailService]: Resend HTTPS client active (Port 443)${isRender ? ' [Render Environment Detected]' : ''}`);
         return;
       } catch (err: any) {
         console.warn('[EmailService]: Failed to init Resend:', err.message);
       }
     }
 
-    // 2. Gmail SMTP via App Password (Allows sending to ANY student email without custom domain)
-    if (smtpUser && smtpPass && !smtpPass.includes('placeholder')) {
-      try {
-        const port = parseInt(process.env.SMTP_PORT || '465', 10);
-        const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-        this.nodemailerTransporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port,
-          secure,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass
-          }
-        });
-        this.activeProvider = 'gmail';
-        this._isConfigured = true;
-        console.log(`[EmailService]: Gmail SMTP transport active for [${smtpUser}]`);
-        return;
-      } catch (err: any) {
-        console.warn('[EmailService]: Failed to init Gmail SMTP transport:', err.message);
-      }
+    // 3. Fallback to Google Apps Script if URL exists
+    if (hasValidAppsScript) {
+      this.activeProvider = 'apps_script';
+      this._isConfigured = true;
+      console.log(`[EmailService]: Fallback to Google Apps Script HTTPS client (Port 443)`);
+      return;
     }
 
-    // 3. Fallback to Resend if key exists
-    if (resendKey && resendKey.startsWith('re_') && !resendKey.includes('placeholder')) {
+    // 4. Fallback to Resend if key exists
+    if (hasValidResendKey) {
       try {
         this.resendClient = new Resend(resendKey);
         this.activeProvider = 'resend';
         this._isConfigured = true;
-        console.log(`[EmailService]: Fallback to Resend HTTPS client`);
+        console.log(`[EmailService]: Fallback to Resend HTTPS client (Port 443)`);
         return;
       } catch {
         // ignore
@@ -183,26 +237,44 @@ class EmailService {
       return {
         success: false,
         provider: this.activeProvider,
-        message: 'No email credentials configured. Set SMTP_USER/SMTP_PASS for Gmail, or RESEND_API_KEY for Resend.',
+        message: 'No valid HTTPS email credentials configured. Set GOOGLE_APPS_SCRIPT_URL and GOOGLE_APPS_SCRIPT_SECRET (or RESEND_API_KEY).',
         mode: 'unconfigured'
       };
     }
 
-    if (this.activeProvider === 'gmail' && this.nodemailerTransporter) {
+    if (this.activeProvider === 'apps_script') {
+      const url = getAppsScriptUrl();
       try {
-        await this.nodemailerTransporter.verify();
+        const response = await fetch(url, { method: 'GET', redirect: 'follow' });
+        if (!response.ok) {
+          return {
+            success: false,
+            provider: 'Google Apps Script',
+            message: `Google Apps Script returned HTTP ${response.status}: ${response.statusText}`,
+            mode: 'error'
+          };
+        }
+        const data: any = await response.json();
+        if (data && data.status === 'ONLINE') {
+          return {
+            success: true,
+            provider: 'Google Apps Script',
+            message: `Google Apps Script HTTPS connection verified successfully (${data.service || 'NDC Email Service'}).`,
+            mode: 'live'
+          };
+        }
         return {
-          success: true,
-          provider: 'Gmail SMTP',
-          message: `Gmail SMTP connected and verified successfully for ${process.env.SMTP_USER}.`,
-          mode: 'live'
+          success: false,
+          provider: 'Google Apps Script',
+          message: `Google Apps Script returned unexpected payload: ${JSON.stringify(data)}`,
+          mode: 'error'
         };
       } catch (err: any) {
         return {
           success: false,
-          provider: 'Gmail SMTP',
-          message: `Gmail SMTP verification failed: ${err.message}`,
-          mode: 'error'
+          provider: 'Google Apps Script',
+          message: `Google Apps Script connection test failed: ${err.message}`,
+          mode: 'exception'
         };
       }
     }
@@ -239,10 +311,10 @@ class EmailService {
 
   /**
    * Core email dispatch method.
-   * Dispatches via Gmail SMTP (no domain required) or Resend (custom domain).
+   * Dispatches via Google Apps Script Web App (HTTPS Port 443) or Resend (custom domain).
    */
   public async sendMailDetailed(
-    toOrOptions: string | { to: string; subject: string; html: string; text?: string; headers?: Record<string, string> },
+    toOrOptions: string | SendMailOptions,
     subjectParam?: string,
     htmlParam?: string,
     headersParam?: Record<string, string>
@@ -252,6 +324,7 @@ class EmailService {
     let html: string;
     let text: string | undefined;
     let headers: Record<string, string> | undefined;
+    let attachments: EmailAttachment[] | undefined;
 
     if (typeof toOrOptions === 'object' && toOrOptions !== null) {
       to = toOrOptions.to;
@@ -259,6 +332,7 @@ class EmailService {
       html = toOrOptions.html;
       text = toOrOptions.text;
       headers = toOrOptions.headers;
+      attachments = toOrOptions.attachments;
     } else {
       to = toOrOptions;
       subject = subjectParam || '';
@@ -278,7 +352,116 @@ class EmailService {
       return { success: true, skipped: true, messageId: `mock-skipped-synthetic-${Date.now()}` };
     }
 
-    // 1. Dispatch via Mock Client or Resend HTTPS API
+    // 1. Dispatch via Mock Client with Apps Script simulation
+    if (this.mockClient?.appsScript) {
+      try {
+        const payload: any = {
+          secret: getAppsScriptSecret() || 'mock_secret',
+          to: recipient,
+          subject,
+          html,
+          text: text || '',
+          senderName: process.env.EMAIL_SENDER_NAME || 'MCE No Due Portal'
+        };
+        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+          payload.attachments = attachments;
+        }
+        const response = await this.mockClient.appsScript.send(payload);
+        if (response && response.success === true && response.messageId) {
+          console.log(`[Email Notification] -> Email accepted by Google Apps Script (Mock) for ${recipient} (MessageId: ${response.messageId})`);
+          return { success: true, messageId: response.messageId, skipped: false };
+        }
+        const errorMsg = response?.error || 'Google Apps Script mock delivery failed';
+        console.error(`[EmailService Error]: Google Apps Script (Mock) rejected email to [${recipient}]:`, errorMsg);
+        return { success: false, error: errorMsg };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    }
+
+    // 2. Dispatch via Google Apps Script Web App (HTTPS Port 443)
+    if (this.activeProvider === 'apps_script') {
+      const appsScriptUrl = getAppsScriptUrl();
+      const appsScriptSecret = getAppsScriptSecret();
+
+      if (!appsScriptUrl || !appsScriptSecret) {
+        console.error('[EmailService Error]: GOOGLE_APPS_SCRIPT_URL or GOOGLE_APPS_SCRIPT_SECRET is missing');
+        return { success: false, error: 'APPS_SCRIPT_CONFIG_MISSING' };
+      }
+
+      const senderName = process.env.EMAIL_SENDER_NAME || 'MCE No Due Portal';
+      const payload: any = {
+        secret: appsScriptSecret,
+        to: recipient,
+        subject,
+        html,
+        text: text || '',
+        senderName
+      };
+
+      if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+        payload.attachments = attachments;
+      }
+
+      const TIMEOUT_MS = 20000; // 20s abort timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+      try {
+        const response = await fetch(appsScriptUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload),
+          redirect: 'follow',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        const contentType = response.headers.get('content-type') || '';
+        let result: any;
+        if (contentType.includes('application/json')) {
+          result = await response.json();
+        } else {
+          const rawText = await response.text();
+          try {
+            result = JSON.parse(rawText);
+          } catch {
+            result = { success: false, error: rawText.substring(0, 300) };
+          }
+        }
+
+        if (result && result.success === true && result.messageId) {
+          console.log(`[Email Notification] -> Email accepted by Google Apps Script for ${recipient} (MessageId: ${result.messageId}, Quota: ${result.remainingQuota ?? 'N/A'})`);
+          return { success: true, messageId: result.messageId, skipped: false, retryCount: 0 };
+        }
+
+        const failureError = result?.error || `Google Apps Script returned failure with status ${result?.statusCode || response.status}`;
+        console.error(`[EmailService Error]: Google Apps Script rejected email to [${recipient}]:`, failureError);
+        return { success: false, error: failureError, retryCount: 0 };
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+
+        const isTimeout = err.name === 'AbortError' || err.name === 'TimeoutError' || err.message?.toLowerCase().includes('aborted');
+        if (isTimeout) {
+          const timeoutMsg = `TIMEOUT_ABORTED: Request to Google Apps Script timed out after ${TIMEOUT_MS}ms for [${recipient}]. Automatic retry was aborted to prevent sending duplicate emails.`;
+          console.error(`[EmailService Error]: ${timeoutMsg}`);
+          return {
+            success: false,
+            error: timeoutMsg,
+            retryCount: 0
+          };
+        }
+
+        const networkError = `Network error communicating with Google Apps Script: ${err.message || String(err)}`;
+        console.error(`[EmailService Error]: ${networkError}`);
+        return { success: false, error: networkError, retryCount: 0 };
+      }
+    }
+
+    // 3. Dispatch via Mock Client or Resend HTTPS API
     const resendApi = this.mockClient || (this.activeProvider === 'resend' ? this.resendClient : null);
     if (resendApi) {
       const fromAddress = process.env.EMAIL_FROM || 'MCE No Due Portal <onboarding@resend.dev>';
@@ -311,6 +494,24 @@ class EmailService {
               continue;
             }
 
+            // Detect Resend Sandbox Restriction (e.g. sending to unverified recipient with onboarding@resend.dev)
+            const lowerErr = lastErrorMsg.toLowerCase();
+            const isSandboxRestriction =
+              lowerErr.includes('only send testing emails') ||
+              lowerErr.includes('own email address') ||
+              lowerErr.includes('resend.com/domains') ||
+              lowerErr.includes('verify a domain');
+
+            if (isSandboxRestriction) {
+              const sandboxMessage =
+                `[Resend Sandbox Restriction]: ${lastErrorMsg}. ` +
+                `In Resend sandbox mode, emails can only be sent to the verified account owner. ` +
+                `To deliver emails to dynamic student recipients, verify a custom sending domain at https://resend.com/domains ` +
+                `and configure EMAIL_FROM="MCE No Due Portal <noreply@yourdomain.com>".`;
+              console.error(`[EmailService Error]: ${sandboxMessage}`);
+              return { success: false, error: sandboxMessage, rateLimited: false, retryCount: attempt - 1 };
+            }
+
             console.error(`[EmailService Error]: Resend rejected email to [${recipient}]:`, lastErrorMsg);
             return { success: false, error: lastErrorMsg, rateLimited: isRateLimit, retryCount: attempt - 1 };
           }
@@ -319,6 +520,9 @@ class EmailService {
             console.log(`[Email Notification] -> Email accepted by Resend for ${recipient} (MessageId: ${response.data.id})`);
             return { success: true, messageId: response.data.id, skipped: false, retryCount: attempt - 1 };
           }
+
+          // If neither error nor message ID was returned, never report delivery as successful
+          lastErrorMsg = 'Resend API returned empty confirmation without message ID';
         } catch (err: any) {
           lastErrorMsg = err?.message || 'Network error communicating with Resend HTTPS API';
           if (attempt < maxAttempts) {
@@ -335,30 +539,6 @@ class EmailService {
     if (!this._isConfigured) {
       console.warn(`[EmailService]: Email service unconfigured. Email to [${recipient}] was not dispatched.`);
       return { success: false, error: 'EMAIL_SERVICE_UNCONFIGURED' };
-    }
-
-    // 2. Dispatch via Gmail SMTP (Allows sending to ANY student without domain restrictions)
-    if (this.activeProvider === 'gmail' && this.nodemailerTransporter) {
-      const fromAddress =
-        process.env.SMTP_FROM ||
-        process.env.EMAIL_FROM ||
-        `"MCE No Due Portal" <${process.env.SMTP_USER}>`;
-
-      try {
-        const info = await this.nodemailerTransporter.sendMail({
-          from: fromAddress,
-          to: recipient,
-          subject,
-          html,
-          text,
-          headers
-        });
-        console.log(`[Email Notification] -> Email dispatched via Gmail SMTP to ${recipient} (MessageId: ${info.messageId})`);
-        return { success: true, messageId: info.messageId, skipped: false };
-      } catch (err: any) {
-        console.error(`[EmailService Error]: Gmail SMTP delivery failed to [${recipient}]:`, err.message);
-        return { success: false, error: err.message };
-      }
     }
 
     return { success: false, error: 'NO_ACTIVE_EMAIL_PROVIDER' };

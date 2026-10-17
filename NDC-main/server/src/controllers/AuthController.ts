@@ -575,6 +575,15 @@ export class AuthController {
       invalidateUserCache(user.id);
       AuditService.log(req, 'PASSWORD_RESET', 'User', `User [${user.email}] updated password.`, user.id).catch(() => {});
 
+      // Asynchronously send password reset notice email
+      if (user.email && user.email.includes('@')) {
+        emailService.sendPasswordResetNoticeEmail({
+          toEmail: user.email,
+          accountName: user.name || user.email,
+          resetBy: 'Self-service'
+        }).catch((emailErr) => console.warn('[AuthController]: Password reset notice email warning:', emailErr));
+      }
+
       res.status(200).json({ success: true, message: 'Password updated successfully.' });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });
