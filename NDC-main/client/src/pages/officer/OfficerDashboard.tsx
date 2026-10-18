@@ -19,11 +19,13 @@ import {
   BadgeCheck,
   Layers,
   ArrowUpRight,
-  UploadCloud,
   ShieldAlert,
   FlaskConical,
   Atom,
-  Laptop
+  Laptop,
+  BookOpen,
+  Library,
+  UploadCloud
 } from 'lucide-react';
 
 const CACHE_KEY_STATS = 'officer_dashboard_stats';
@@ -37,6 +39,13 @@ export const OfficerDashboard: React.FC = () => {
   const deptObj = user?.departmentId as any;
   const officerDeptObj = user?.officerProfile?.departmentIds?.[0] as any;
   const fetchedDept = kpiStats?.byDepartment?.[0];
+
+  const isLibraryOfficer =
+    user?.loginId === 'LIB001' ||
+    user?.email?.includes('library') ||
+    officerDeptObj?.code === 'LIB' ||
+    deptObj?.code === 'LIB' ||
+    fetchedDept?.code === 'LIB';
 
   const isCashFeeOfficer =
     user?.email?.startsWith('cashfee') ||
@@ -65,6 +74,7 @@ export const OfficerDashboard: React.FC = () => {
     fetchedDept?.code === 'CHEM';
 
   const isAcademicBranchOfficer =
+    !isLibraryOfficer &&
     !isPhysicsOfficer &&
     !isChemistryOfficer &&
     !isCashFeeOfficer &&
@@ -72,7 +82,9 @@ export const OfficerDashboard: React.FC = () => {
      officerDeptObj?.category === 'ACADEMIC_BRANCH' || (typeof deptObj === 'object' && deptObj?.category === 'ACADEMIC_BRANCH') ||
      ['IS', 'CS', 'EC', 'ME', 'CV', 'EE', 'AIML', 'BT', 'CB', 'VL', 'ET', 'AI', 'RA', 'ST'].includes(officerDeptObj?.code || deptObj?.code || fetchedDept?.code));
 
-  const departmentName = isPhysicsOfficer
+  const departmentName = isLibraryOfficer
+    ? 'Central Library'
+    : isPhysicsOfficer
     ? 'Physics Lab'
     : isChemistryOfficer
     ? 'Chemistry Lab'
@@ -85,7 +97,9 @@ export const OfficerDashboard: React.FC = () => {
       fetchedDept?.name ||
       (user?.role === 'HOD' ? 'Academic Department' : 'Clearance Desk');
 
-  const departmentCode = isPhysicsOfficer
+  const departmentCode = isLibraryOfficer
+    ? 'LIB'
+    : isPhysicsOfficer
     ? 'PHY'
     : isChemistryOfficer
     ? 'CHEM'
@@ -95,6 +109,7 @@ export const OfficerDashboard: React.FC = () => {
       (typeof deptObj === 'object' ? deptObj?.code : undefined) ||
       fetchedDept?.code ||
       'DEPT';
+
 
   useEffect(() => {
     // SWR pattern: if we have cached stats, show immediately and refresh in background
@@ -191,96 +206,185 @@ export const OfficerDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Department Header Banner */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 font-mono font-extrabold text-sm">
-            {departmentCode}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="page-title">{departmentName}</h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 uppercase tracking-wider">
-                Respective Desk Overview
-              </span>
-            </div>
-            <p className="caption-text mt-0.5">
-              Live clearance status, branch breakdown, and historical year performance for {departmentName}
-            </p>
-          </div>
-        </div>
+      {/* Rich Department Hero Banner (Design from 2nd Image - Displayed on Dashboard) */}
+      <div
+        className={`relative overflow-hidden rounded-2xl p-6 text-white shadow-xl border ${
+          isLibraryOfficer
+            ? 'bg-gradient-to-r from-amber-950 via-amber-900 to-stone-900 border-amber-800/40'
+            : isPhysicsOfficer
+            ? 'bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 border-cyan-800/40'
+            : isChemistryOfficer
+            ? 'bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 border-emerald-800/40'
+            : isAcademicBranchOfficer
+            ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 border-indigo-800/40'
+            : isCashFeeOfficer
+            ? 'bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-blue-800/40'
+            : 'bg-gradient-to-r from-slate-950 via-slate-900 to-zinc-900 border-slate-800/40'
+        }`}
+      >
+        <div
+          className={`absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 rounded-full blur-3xl pointer-events-none ${
+            isLibraryOfficer
+              ? 'bg-amber-500/10'
+              : isPhysicsOfficer
+              ? 'bg-cyan-500/10'
+              : isChemistryOfficer
+              ? 'bg-emerald-500/10'
+              : 'bg-indigo-500/10'
+          }`}
+        />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {isCashFeeOfficer && (
-            <>
-              <Link to="/officer/students" className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50">
-                <Users className="w-3.5 h-3.5 text-blue-600" />
-                Manage Students
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="flex items-center gap-4">
+            <div
+              className={`w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 shadow-inner ${
+                isLibraryOfficer
+                  ? 'text-amber-300'
+                  : isPhysicsOfficer
+                  ? 'text-cyan-300'
+                  : isChemistryOfficer
+                  ? 'text-emerald-300'
+                  : 'text-indigo-300'
+              }`}
+            >
+              {isLibraryOfficer ? (
+                <Library className="w-8 h-8" />
+              ) : isPhysicsOfficer ? (
+                <Atom className="w-8 h-8" />
+              ) : isChemistryOfficer ? (
+                <FlaskConical className="w-8 h-8" />
+              ) : isAcademicBranchOfficer ? (
+                <Laptop className="w-8 h-8" />
+              ) : (
+                <FileCheck className="w-8 h-8" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
+                    isLibraryOfficer
+                      ? 'bg-amber-400/20 text-amber-200 border border-amber-300/30'
+                      : isPhysicsOfficer
+                      ? 'bg-cyan-400/20 text-cyan-200 border border-cyan-300/30'
+                      : isChemistryOfficer
+                      ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-300/30'
+                      : 'bg-indigo-400/20 text-indigo-200 border border-indigo-300/30'
+                  }`}
+                >
+                  {isLibraryOfficer
+                    ? 'Central Desk'
+                    : isPhysicsOfficer
+                    ? 'Physics Lab Desk'
+                    : isChemistryOfficer
+                    ? 'Chemistry Lab Desk'
+                    : isAcademicBranchOfficer
+                    ? `${departmentCode}-LAB Desk`
+                    : `${departmentCode} Desk`}
+                </span>
+                <span className="text-xs text-white/70 font-mono">
+                  Scope: {departmentCode}001 • {departmentName}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
+                {isLibraryOfficer
+                  ? 'Central Library Book Clearance & Circulation Desk'
+                  : isPhysicsOfficer
+                  ? 'Engineering Physics Laboratory Clearance'
+                  : isChemistryOfficer
+                  ? 'Engineering Chemistry Laboratory Clearance'
+                  : `${departmentName} Clearance Desk`}
+              </h1>
+              <p className="text-xs sm:text-sm text-white/80 mt-1 max-w-2xl leading-relaxed">
+                {isLibraryOfficer
+                  ? 'Review textbook returns, circulation book dues, overdue fines, lost book replacements, and issue official Central Library clearance.'
+                  : isPhysicsOfficer
+                  ? 'Review student laboratory dues, check equipment breakages, and issue clearance for Engineering Physics.'
+                  : isChemistryOfficer
+                  ? 'Independent clearance portal for Chemistry laboratory glassware, chemical reagents, titration assemblies, and breakage assessment.'
+                  : `Live clearance status, branch breakdown, and student verification for ${departmentName}.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start md:self-center">
+
+
+            {/* Go to Clearance Queue Link */}
+            {isLibraryOfficer ? (
+              <Link
+                to="/officer/central-library"
+                className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-white text-xs font-bold backdrop-blur-sm border border-amber-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-200" />
+                <span>Clearance Queue</span>
               </Link>
-              <Link to="/officer/import" className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50">
-                <UploadCloud className="w-3.5 h-3.5 text-blue-600" />
-                Import Students
+            ) : isPhysicsOfficer ? (
+              <Link
+                to="/officer/physics-lab"
+                className="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-white text-xs font-bold backdrop-blur-sm border border-cyan-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              >
+                <Atom className="w-3.5 h-3.5 text-cyan-200" />
+                <span>Physics Lab Queue</span>
               </Link>
-              <Link to="/officer/audit-logs" className="btn btn-secondary text-xs flex items-center gap-1.5 border-zinc-200 text-zinc-700 hover:bg-zinc-50">
-                <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
-                Audit Logs
+            ) : isChemistryOfficer ? (
+              <Link
+                to="/officer/chemistry-lab"
+                className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-white text-xs font-bold backdrop-blur-sm border border-emerald-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              >
+                <FlaskConical className="w-3.5 h-3.5 text-emerald-200" />
+                <span>Chemistry Lab Queue</span>
               </Link>
-            </>
-          )}
-          <button onClick={() => fetchDepartmentData(true)} className="btn btn-secondary text-xs">
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </button>
-          {isPhysicsOfficer ? (
-            <Link to="/officer/physics-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-cyan-700 hover:bg-cyan-800">
-              <Atom className="w-3.5 h-3.5" />
-              Physics Lab Queue
-            </Link>
-          ) : isChemistryOfficer ? (
-            <Link to="/officer/chemistry-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800">
-              <FlaskConical className="w-3.5 h-3.5" />
-              Chemistry Lab Queue
-            </Link>
-          ) : isAcademicBranchOfficer ? (
-            <Link to="/officer/department-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-800">
-              <Laptop className="w-3.5 h-3.5" />
-              Department Lab Queue
-            </Link>
-          ) : (
-            <Link to="/officer/clearances" className="btn btn-primary text-xs">
-              <FileCheck className="w-3.5 h-3.5" />
-              Go to Clearance Queue
-            </Link>
-          )}
+            ) : isAcademicBranchOfficer ? (
+              <Link
+                to="/officer/department-lab"
+                className="px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-white text-xs font-bold backdrop-blur-sm border border-indigo-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              >
+                <Laptop className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Department Lab Queue</span>
+              </Link>
+            ) : (
+              <Link
+                to="/officer/clearances"
+                className="px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold backdrop-blur-sm border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
+              >
+                <FileCheck className="w-3.5 h-3.5" />
+                <span>Clearance Queue</span>
+              </Link>
+            )}
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => fetchDepartmentData(true)}
+              disabled={loading}
+              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Refresh Dashboard data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Department Lab Banner for Academic Branches */}
-      {isAcademicBranchOfficer && (
-        <div className="bg-gradient-to-r from-indigo-50/70 to-blue-50/70 border border-indigo-200/80 rounded-2xl p-5 shadow-xs">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                <Laptop className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  {departmentName || departmentCode} Department Laboratory Clearance
-                </h3>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  As {departmentCode} Faculty, you manage the Department Laboratory clearance for your branch students.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Link to="/officer/department-lab" className="btn btn-primary text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white">
-                <span>Manage Department Lab Queue</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
+      {/* Cash/Fee Action Links */}
+      {isCashFeeOfficer && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/officer/students" className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50">
+            <Users className="w-3.5 h-3.5 text-blue-600" />
+            Manage Students
+          </Link>
+          <Link to="/officer/import" className="btn btn-secondary text-xs flex items-center gap-1.5 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-50">
+            <UploadCloud className="w-3.5 h-3.5 text-blue-600" />
+            Import Students
+          </Link>
+          <Link to="/officer/audit-logs" className="btn btn-secondary text-xs flex items-center gap-1.5 border-zinc-200 text-zinc-700 hover:bg-zinc-50">
+            <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+            Audit Logs
+          </Link>
         </div>
       )}
+
 
       {/* Respective Department Current Year (2026) Stat Row */}
       <div className="stat-row">
@@ -516,6 +620,7 @@ export const OfficerDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
     </div>
   );
 };

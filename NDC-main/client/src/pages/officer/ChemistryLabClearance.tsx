@@ -183,43 +183,32 @@ export const ChemistryLabClearance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-emerald-950 via-teal-900 to-cyan-950 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-emerald-300 shadow-inner">
-              <FlaskConical className="w-8 h-8 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-400/20 text-emerald-200 border border-emerald-300/30 uppercase tracking-wider">
-                  Chemistry Lab Desk
-                </span>
-                <span className="text-xs text-emerald-200/80 font-mono">Scope: CHEM001</span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-                Engineering Chemistry Laboratory Clearance
-              </h1>
-              <p className="text-xs sm:text-sm text-emerald-100/90 mt-1 max-w-2xl">
-                Independent clearance portal for Chemistry laboratory glassware, chemical reagents, titration assemblies, lab manuals, and breakage assessment.
-              </p>
-            </div>
+      {/* Simple Clean Header for Clearance Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-zinc-900">Chemistry Lab Clearance</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              CHEM001 • Chemistry Lab
+            </span>
           </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            Independent clearance for Chemistry laboratory glassware, reagents, and breakage assessment.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
-            <button
-              onClick={() => fetchClearances()}
-              disabled={loading}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Queue</span>
-            </button>
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => fetchClearances()}
+            disabled={loading}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-semibold border border-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Queue</span>
+          </button>
         </div>
       </div>
+
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -346,9 +335,11 @@ export const ChemistryLabClearance: React.FC = () => {
       {/* Clearances Table */}
       <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-zinc-400 font-semibold text-xs">
-            <FlaskConical className="w-6 h-6 text-emerald-600 animate-spin mx-auto mb-2" />
-            Loading Chemistry Lab clearance queue...
+          <div className="p-12 text-center text-zinc-500 font-medium text-xs flex flex-col items-center justify-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-emerald-600 animate-spin" />
+            </div>
+            <span>Loading Chemistry Lab clearance queue...</span>
           </div>
         ) : clearances.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 text-xs">

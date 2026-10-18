@@ -17,13 +17,14 @@ import {
   Check,
   Search,
   ExternalLink,
-  X,
   XCircle,
-  Edit3
+  Edit3,
+  RefreshCw
 } from 'lucide-react';
 import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
 import { MarkdownRenderer } from '../../components/common/MarkdownRenderer';
 import api from '../../services/api';
+import { useAuthStore } from '../../store/useAuthStore';
 
 interface MessageItem extends AssistantMessage {
   actionRequired?: ActionRequired | null;
@@ -38,13 +39,32 @@ interface MessageItem extends AssistantMessage {
 }
 
 export const AiAssistantPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const officerDeptObj = ((user?.officerProfile as any)?.department || user?.department) as any;
+  const deptCode = (officerDeptObj?.code || (typeof user?.department === 'object' ? (user?.department as any)?.code : undefined) || 'PHY').toUpperCase();
+  const deptName = officerDeptObj?.name || (typeof user?.department === 'object' ? (user?.department as any)?.name : '') || (deptCode === 'LIB' ? 'Central Library' : 'Physics Lab');
+
+  const isLibrary = deptCode === 'LIB' || deptName.toLowerCase().includes('library');
+  const isChemistry = deptCode === 'CHEM' || deptName.toLowerCase().includes('chemistry');
+
+  const getGreeting = () => {
+    if (isLibrary) {
+      return `Hello! I am the **Central Library AI Assistant**.\n\nI can read real-time circulation dues, check overdue textbooks, reference books, and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your circulation desk today?`;
+    }
+    if (isChemistry) {
+      return `Hello! I am the **Chemistry Lab AI Assistant**.\n\nI can read real-time laboratory records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
+    }
+    return `Hello! I am the **Physics Department AI Assistant**.\n\nI can read real-time student clearance data, check outstanding apparatus dues, and stage safe approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
+  };
+
   const [messages, setMessages] = useState<MessageItem[]>([
     {
       role: 'model',
-      content: `Hello! I am the **Physics Department AI Assistant**.\n\nI can read real-time student clearance data, check outstanding apparatus dues, and stage safe approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`
+      content: getGreeting()
     }
   ]);
   const [input, setInput] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [confirmingToken, setConfirmingToken] = useState<string | null>(null);
   const [cancellingToken, setCancellingToken] = useState<string | null>(null);
@@ -110,8 +130,9 @@ export const AiAssistantPage: React.FC = () => {
     try {
       const response = await aiService.chatWithAssistant(
         newMessages.map((m) => ({ role: m.role, content: m.content })),
-        'PHY'
+        deptCode
       );
+
 
       setMessages((prev) => [
         ...prev,
@@ -215,21 +236,53 @@ export const AiAssistantPage: React.FC = () => {
     }
   };
 
-  const quickPills = [
-    'Who has outstanding dues in Physics Lab?',
-    'What is the current clearance summary?',
-    'Clear dues for USN 4MC21CS001',
-    'Mark ₹350 due for Spectrometer Prism damage',
-    'Show guidelines for optical bench clearances'
-  ];
+  const quickPills = isLibrary
+    ? [
+        'Who has overdue books in Central Library?',
+        'What is the current library clearance summary?',
+        'Clear dues for USN 4MC21CS001',
+        'Mark ₹150 due for Reference textbook overdue',
+        'Show guidelines for library book replacement'
+      ]
+    : isChemistry
+    ? [
+        'Who has outstanding dues in Chemistry Lab?',
+        'What is the current chemistry clearance summary?',
+        'Clear dues for USN 4MC21CS001',
+        'Mark ₹200 due for Burette breakage',
+        'Show guidelines for lab glassware replacement'
+      ]
+    : [
+        `Who has outstanding dues in ${deptName}?`,
+        'What is the current clearance summary?',
+        'Clear dues for USN 4MC21CS001',
+        'Mark ₹350 due for Spectrometer Prism damage',
+        'Show guidelines for laboratory clearances'
+      ];
 
-  const apparatusPresets = [
-    { label: 'Spectrometer Prism / Grating', amount: 350 },
-    { label: 'Laser Optics Kit Component', amount: 500 },
-    { label: 'Torsional Pendulum Wire Snap', amount: 150 },
-    { label: 'Optical Bench Component', amount: 250 },
-    { label: 'Observation Manual Overdue', amount: 0 }
-  ];
+  const apparatusPresets = isLibrary
+    ? [
+        { label: 'Overdue textbook fine (Standard)', amount: 50 },
+        { label: 'Reference section overdue fine', amount: 150 },
+        { label: 'Lost textbook replacement fee', amount: 500 },
+        { label: 'Damaged book binding / spine penalty', amount: 200 },
+        { label: 'Library card / RFID tag lost fine', amount: 100 }
+      ]
+    : isChemistry
+    ? [
+        { label: 'Standard Burette / Pipette Breakage', amount: 200 },
+        { label: 'Volumetric Flask Damage', amount: 300 },
+        { label: 'Chemical Spill / Reagent Fee', amount: 150 },
+        { label: 'Glass Beaker / Test Tube Damage', amount: 100 },
+        { label: 'Lab Manual Overdue', amount: 0 }
+      ]
+    : [
+        { label: 'Spectrometer Prism / Grating', amount: 350 },
+        { label: 'Laser Optics Kit Component', amount: 500 },
+        { label: 'Torsional Pendulum Wire Snap', amount: 150 },
+        { label: 'Optical Bench Component', amount: 250 },
+        { label: 'Observation Manual Overdue', amount: 0 }
+      ];
 
   return (
     <div className="space-y-5">
@@ -242,10 +295,10 @@ export const AiAssistantPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold text-slate-900">
-                Physics Department Assistant
+                {deptName} Assistant
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Physics Lab
+                {deptCode}
               </span>
             </div>
             <p className="text-xs text-slate-500">
@@ -253,6 +306,7 @@ export const AiAssistantPage: React.FC = () => {
             </p>
           </div>
         </div>
+
 
         <div className="flex items-center gap-2 shrink-0">
           <Link
@@ -486,7 +540,7 @@ export const AiAssistantPage: React.FC = () => {
                             className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer min-w-[140px]"
                           >
                             {confirmingToken === msg.actionRequired.token ? (
-                              <Clock className="w-3.5 h-3.5 animate-spin" />
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             )}
@@ -510,7 +564,7 @@ export const AiAssistantPage: React.FC = () => {
                             className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             {cancellingToken === msg.actionRequired.token ? (
-                              <Clock className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
                             ) : (
                               <XCircle className="w-3.5 h-3.5 text-rose-600" />
                             )}
@@ -533,13 +587,21 @@ export const AiAssistantPage: React.FC = () => {
             ))}
 
             {loading && (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
+              <div className="flex items-center gap-3 animate-in fade-in duration-200">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center text-xs shadow-xs">
                   <Bot className="w-4 h-4" />
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-500 flex items-center gap-2 shadow-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                  <span>Consulting live database & formulating response...</span>
+                <div className="bg-gradient-to-r from-indigo-50/70 via-white to-purple-50/50 border border-indigo-100 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-700 flex items-center gap-2.5 shadow-xs">
+                  <div className="relative flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                    <span className="absolute -inset-1 rounded-full bg-indigo-400/20 animate-ping opacity-60" />
+                  </div>
+                  <span className="font-medium text-slate-600">Consulting live database & formulating response</span>
+                  <span className="inline-flex items-center gap-1 pl-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+                  </span>
                 </div>
               </div>
             )}

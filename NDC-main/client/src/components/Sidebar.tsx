@@ -24,8 +24,10 @@ import {
   KeyRound,
   Sparkles,
   ScanLine,
+  BookOpen,
   X
 } from 'lucide-react';
+
 
 export const Sidebar: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -100,6 +102,10 @@ export const Sidebar: React.FC = () => {
     role === 'DEPARTMENT_OFFICER' &&
     (deptCode === 'CHEM' || user?.loginId === 'CHEM001' || user?.email?.includes('chemistry') || deptName.toLowerCase().includes('chemistry'));
 
+  const isLibraryOfficer =
+    role === 'DEPARTMENT_OFFICER' &&
+    (deptCode === 'LIB' || user?.loginId === 'LIB001' || user?.email?.includes('library') || deptName.toLowerCase().includes('library'));
+
   const isAcademicBranchOfficer =
     role === 'DEPARTMENT_OFFICER' &&
     !isPhysicsOfficer &&
@@ -114,6 +120,8 @@ export const Sidebar: React.FC = () => {
     ? 'Physics Lab'
     : isChemistryOfficer
     ? 'Chemistry Lab'
+    : isLibraryOfficer
+    ? 'Central Library'
     : isAcademicBranchOfficer
     ? `${deptCode || 'Academic'} Department`
     : isCashFeeOfficer
@@ -124,7 +132,16 @@ export const Sidebar: React.FC = () => {
       (typeof deptObj === 'object' ? deptObj?.name : undefined) ||
       (role === 'HOD' ? 'Academic Department' : 'Clearance Desk');
 
+  const isStaff =
+    isPhysicsOfficer ||
+    isLibraryOfficer ||
+    isChemistryOfficer ||
+    role === 'HOD' ||
+    isAdmin ||
+    role === 'DEPARTMENT_OFFICER';
+
   const toggleCollapse = () => {
+
     const next = !collapsed;
     setCollapsed(next);
     localStorage.setItem('ndc_sidebar_collapsed', String(next));
@@ -199,7 +216,7 @@ export const Sidebar: React.FC = () => {
                   <NavItem
                     to="/officer/dashboard"
                     icon={<LayoutDashboard className="w-4 h-4" />}
-                    label="Overview"
+                    label="Dashboard"
                     collapsed={isCollapsed}
                     onClick={onItemClick}
                   />
@@ -223,7 +240,7 @@ export const Sidebar: React.FC = () => {
                   <NavItem
                     to="/officer/dashboard"
                     icon={<LayoutDashboard className="w-4 h-4" />}
-                    label="Overview"
+                    label="Dashboard"
                     collapsed={isCollapsed}
                     onClick={onItemClick}
                   />
@@ -242,12 +259,36 @@ export const Sidebar: React.FC = () => {
                     onClick={onItemClick}
                   />
                 </>
+              ) : isLibraryOfficer ? (
+                <>
+                  <NavItem
+                    to="/officer/dashboard"
+                    icon={<LayoutDashboard className="w-4 h-4" />}
+                    label="Dashboard"
+                    collapsed={isCollapsed}
+                    onClick={onItemClick}
+                  />
+                  <NavItem
+                    to="/officer/central-library"
+                    icon={<BookOpen className="w-4 h-4 text-amber-600" />}
+                    label="Library Clearance"
+                    collapsed={isCollapsed}
+                    onClick={onItemClick}
+                  />
+                  <NavItem
+                    to="/officer/history"
+                    icon={<History className="w-4 h-4" />}
+                    label="Clearance History"
+                    collapsed={isCollapsed}
+                    onClick={onItemClick}
+                  />
+                </>
               ) : isAcademicBranchOfficer ? (
                 <>
                   <NavItem
                     to="/officer/dashboard"
                     icon={<LayoutDashboard className="w-4 h-4" />}
-                    label="Overview"
+                    label="Dashboard"
                     collapsed={isCollapsed}
                     onClick={onItemClick}
                   />
@@ -271,10 +312,11 @@ export const Sidebar: React.FC = () => {
                   <NavItem
                     to="/officer/dashboard"
                     icon={<LayoutDashboard className="w-4 h-4" />}
-                    label="Overview"
+                    label="Dashboard"
                     collapsed={isCollapsed}
                     onClick={onItemClick}
                   />
+
                   <NavItem
                     to="/officer/clearances"
                     icon={<FileCheck className="w-4 h-4" />}
@@ -326,9 +368,8 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* AI INTELLIGENCE & AUTOMATION SECTION - STRICTLY FOR PHYSICS DEPARTMENT ONLY */}
-        {isPhysicsOfficer && (
+        {/* AI & REGISTER SCANNING SECTION IN LEFT NAVIGATION BAR */}
+        {isStaff && (
           <div>
             {!isCollapsed && (
               <div className="px-2 mb-1.5 text-[10px] font-bold tracking-wider text-indigo-500 uppercase flex items-center justify-between">
@@ -345,14 +386,28 @@ export const Sidebar: React.FC = () => {
               <NavItem
                 to="/officer/ai-assistant"
                 icon={<Sparkles className="w-4 h-4 text-indigo-600" />}
-                label="Physics Assistant"
+                label={
+                  isLibraryOfficer
+                    ? 'Library AI Assistant'
+                    : isChemistryOfficer
+                    ? 'Chemistry Assistant'
+                    : isPhysicsOfficer
+                    ? 'Physics Assistant'
+                    : 'AI Assistant'
+                }
                 collapsed={isCollapsed}
                 onClick={onItemClick}
               />
               <NavItem
                 to="/officer/logbook-scanner"
                 icon={<ScanLine className="w-4 h-4 text-cyan-600" />}
-                label="Scan Lab Register"
+                label={
+                  isLibraryOfficer
+                    ? 'Scan Library Register'
+                    : isChemistryOfficer || isPhysicsOfficer
+                    ? 'Scan Lab Register'
+                    : 'Scan Register'
+                }
                 collapsed={isCollapsed}
                 onClick={onItemClick}
               />
@@ -361,6 +416,7 @@ export const Sidebar: React.FC = () => {
         )}
 
         {/* ADMIN LINKS */}
+
         {isAdmin && (
           <div>
             {!isCollapsed && (

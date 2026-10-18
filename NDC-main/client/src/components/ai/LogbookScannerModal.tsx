@@ -312,6 +312,8 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
     return usn.includes(query) || name.includes(query) || reason.includes(query);
   });
 
+  const isLibrary = departmentName?.toLowerCase().includes('library') || departmentName?.toLowerCase().includes('lib');
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150"
@@ -323,7 +325,7 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white flex items-center justify-between shrink-0">
+        <div className={`px-5 py-4 ${isLibrary ? 'bg-gradient-to-r from-amber-700 via-stone-800 to-slate-900' : 'bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900'} text-white flex items-center justify-between shrink-0`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 text-blue-200">
               <Sparkles className="w-5 h-5 text-amber-300" />
@@ -331,14 +333,16 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-base text-white">
-                  Scan Lab Register — {departmentName}
+                  {isLibrary ? 'Scan Library Register' : 'Scan Lab Register'} — {departmentName}
                 </h3>
-                <span className="text-[10px] uppercase tracking-wider font-semibold bg-blue-500/30 text-blue-200 border border-blue-400/30 px-2 py-0.5 rounded-full">
-                  Scanner Active
+                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isLibrary ? 'bg-amber-500/30 text-amber-200 border-amber-400/30' : 'bg-blue-500/30 text-blue-200 border-blue-400/30'} border px-2 py-0.5 rounded-full`}>
+                  {isLibrary ? 'Library Scanner Active' : 'Lab Scanner Active'}
                 </span>
               </div>
               <p className="text-xs text-blue-200/80">
-                Upload register photo to extract and record student equipment dues
+                {isLibrary
+                  ? 'Upload library circulation or fine register photo to extract and record student book dues'
+                  : 'Upload register photo to extract and record student equipment dues'}
               </p>
             </div>
           </div>
@@ -426,10 +430,12 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                 ) : (
                   <div>
                     <h4 className="font-bold text-slate-800 text-sm">
-                      Upload Lab Breakage / Due Logbook
+                      {isLibrary ? 'Upload Library Circulation / Fine Register' : 'Upload Lab Breakage / Due Logbook'}
                     </h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Drag and drop image (JPG, PNG) or PDF of handwritten register
+                      {isLibrary
+                        ? 'Drag and drop image (JPG, PNG) or PDF of handwritten library register'
+                        : 'Drag and drop image (JPG, PNG) or PDF of handwritten register'}
                     </p>
                     <span className="inline-block mt-3 px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full border border-indigo-200">
                       Browse Files
@@ -672,7 +678,7 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                       <tr className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
                         <th className="py-2.5 px-3 w-10 text-center">#</th>
                         <th className="py-2.5 px-3 min-w-[200px]">Student</th>
-                        <th className="py-2.5 px-3 min-w-[170px]">Reason / Apparatus</th>
+                        <th className="py-2.5 px-3 min-w-[170px]">{isLibrary ? 'Book Title / Due Reason' : 'Reason / Apparatus'}</th>
                         <th className="py-2.5 px-3 w-24">Amount</th>
                         <th className="py-2.5 px-3 min-w-[150px]">Status</th>
                         {showTechnicalDetails && (
@@ -772,12 +778,14 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                             <td className="py-3 px-3 align-top">
                               {isEditing ? (
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-bold text-slate-500 uppercase">Reason / Apparatus</label>
+                                  <label className="text-[9px] font-bold text-slate-500 uppercase">
+                                    {isLibrary ? 'Book Title / Due Reason' : 'Reason / Apparatus'}
+                                  </label>
                                   <input
                                     type="text"
                                     value={editForm.reason}
                                     onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
-                                    placeholder="e.g. Breaking thermometer"
+                                    placeholder={isLibrary ? 'e.g. Overdue textbook - Engg Maths' : 'e.g. Breaking thermometer'}
                                     className="w-full px-2 py-1 bg-white border border-indigo-500 rounded text-xs focus:ring-1 focus:ring-indigo-500"
                                   />
                                 </div>

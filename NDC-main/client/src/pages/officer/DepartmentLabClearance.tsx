@@ -196,57 +196,32 @@ export const DepartmentLabClearance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Active Scope Header */}
-      <div className="flex items-center justify-between bg-zinc-100 p-1.5 rounded-2xl border border-zinc-200/80">
-        <div className="flex items-center gap-2">
-          <div className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-indigo-950 shadow-xs border border-zinc-200/60 flex items-center gap-1.5">
-            <Laptop className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Department Lab Clearance (Active)</span>
+      {/* Simple Clean Header for Clearance Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-zinc-900">{deptName} — Department Lab Clearance</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
+              {deptCode}-LAB Desk
+            </span>
           </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            Independent clearance for computing & hardware equipment, project kits, and asset handovers for students of {deptName}.
+          </p>
         </div>
 
-        <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline mr-2">
-          Branch: {deptCode}
-        </span>
-      </div>
-
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-indigo-300 shadow-inner">
-              <Laptop className="w-8 h-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-400/20 text-indigo-200 border border-indigo-300/30 uppercase tracking-wider">
-                  {deptCode}-LAB Desk
-                </span>
-                <span className="text-xs text-indigo-200/80 font-mono">Department Faculty Scope</span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-                {deptName} — Department Lab Clearance
-              </h1>
-              <p className="text-xs sm:text-sm text-indigo-100/90 mt-1 max-w-2xl">
-                Independent clearance for Department Computing & Hardware Laboratory equipment, project development kits, lab manuals, and asset handovers for students of {deptName}.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
-            <button
-              onClick={() => fetchClearances()}
-              disabled={loading}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Queue</span>
-            </button>
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => fetchClearances()}
+            disabled={loading}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-semibold border border-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Queue</span>
+          </button>
         </div>
       </div>
+
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -345,9 +320,11 @@ export const DepartmentLabClearance: React.FC = () => {
       {/* Clearances Table */}
       <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-zinc-400 font-semibold text-xs">
-            <Laptop className="w-6 h-6 text-indigo-600 animate-spin mx-auto mb-2" />
-            Loading Department Lab clearance queue...
+          <div className="p-12 text-center text-zinc-500 font-medium text-xs flex flex-col items-center justify-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200/80 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-indigo-600 animate-spin" />
+            </div>
+            <span>Loading Department Lab clearance queue...</span>
           </div>
         ) : clearances.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 text-xs">

@@ -25,6 +25,7 @@ const OfficerDashboard = React.lazy(() => import('./pages/officer/OfficerDashboa
 const OfficerClearanceQueue = React.lazy(() => import('./pages/officer/OfficerClearanceQueue').then((m) => ({ default: m.OfficerClearanceQueue })));
 const PhysicsLabClearance = React.lazy(() => import('./pages/officer/PhysicsLabClearance').then((m) => ({ default: m.PhysicsLabClearance })));
 const ChemistryLabClearance = React.lazy(() => import('./pages/officer/ChemistryLabClearance').then((m) => ({ default: m.ChemistryLabClearance })));
+const CentralLibraryClearance = React.lazy(() => import('./pages/officer/CentralLibraryClearance').then((m) => ({ default: m.CentralLibraryClearance })));
 const DepartmentLabClearance = React.lazy(() => import('./pages/officer/DepartmentLabClearance').then((m) => ({ default: m.DepartmentLabClearance })));
 const OfficerHistory = React.lazy(() => import('./pages/officer/OfficerHistory').then((m) => ({ default: m.OfficerHistory })));
 const AdminDashboard = React.lazy(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
@@ -141,6 +142,14 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
                 <ChemistryLabClearance />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/officer/central-library"
+            element={
+              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                <CentralLibraryClearance />
               </ProtectedRoute>
             }
           />

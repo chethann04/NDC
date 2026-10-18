@@ -50,9 +50,14 @@ export class LogbookScannerService {
       throw new Error(fileValidation.error || 'Invalid file format or size.');
     }
 
-    // 2. Resolve target department (default to Physics Lab PHY if not explicitly given)
+    // 2. Resolve target department (support code or UUID, default to Physics Lab PHY if not explicitly given)
     let departmentId = params.departmentId;
-    if (!departmentId) {
+    if (departmentId) {
+      const resolved = await departmentCache.getDepartmentByCodeOrName(departmentId);
+      if (resolved) {
+        departmentId = resolved.id;
+      }
+    } else {
       const phyDept = await departmentCache.getDepartmentByCodeOrName('PHY');
       if (phyDept) {
         departmentId = phyDept.id;
@@ -63,6 +68,10 @@ export class LogbookScannerService {
         departmentId = fallback?.id || '';
       }
     }
+
+    const targetDept = departmentId ? await departmentCache.getDepartmentById(departmentId) : null;
+    const deptName = targetDept?.name || 'Laboratory / Department';
+    const isLibrary = targetDept?.code === 'LIB' || deptName.toLowerCase().includes('library');
 
     // 3. Initialize ScanJob in DB
     const jobId = crypto.randomUUID();
@@ -92,8 +101,16 @@ export class LogbookScannerService {
 
       // 5. Construct High-Precision Multi-Row Forensic Vision Prompt
       const base64Data = preprocessed.preprocessedBuffer.toString('base64');
-      const prompt = `You are a forensic laboratory register OCR assistant for an engineering college.
-CRITICAL INSTRUCTIONS FOR MULTI-ROW LOGBOOK EXTRACTION:
+      const prompt = `You are a forensic institutional register OCR assistant for ${deptName} (${targetDept?.code || 'GEN'}) at an engineering college.
+CRITICAL INSTRUCTIONS FOR MULTI-ROW ${isLibrary ? 'CENTRAL LIBRARY REGISTER' : 'LOGBOOK'} EXTRACTION:
+${isLibrary ? `
+- This is a Central Institutional Library circulation, book issue, overdue fine, or lost book replacement register.
+- Columns typically include: Sl No / Date / Student USN / Student Name / Book Title & Accession Number / Due Amount.
+- Reason: The book title, accession number, or overdue description (e.g. "Overdue book: Engineering Physics", "Lost textbook replacement: Data Structures", "Damaged binding", "Book Bank scheme fee").
+` : `
+- This is a laboratory equipment and manual breakage register.
+- Columns typically include: Sl No / Date / Student USN / Student Name / Apparatus Damaged / Broken / Fine Amount.
+`}
 1. PAGE LAYOUT ANALYSIS:
    - "layoutType": Classify layout into "TABLE" (ruled grid), "LIST" (vertical unruled entries), "IRREGULAR" (varying row spacing or annotations without visible borders), "SINGLE_ENTRY" (isolated single row), or "EMPTY".
    - "pageCount": Total pages processed (${preprocessed.pageCount}).
@@ -313,7 +330,7 @@ OUTPUT FORMAT (STRICT JSON ONLY):
             extractedUsn: normalizedUsn || rawUsn,
             extractedName: item.studentName || student?.fullName || '',
             extractedAmount: finalAmount,
-            extractedReason: item.reason || 'Apparatus / Lab Due',
+            extractedReason: item.reason || (isLibrary ? 'Overdue Book / Library Fine' : 'Apparatus / Lab Due'),
             extractedDate: item.date || new Date().toISOString().split('T')[0],
             confidence,
             matchedStudentId: student?.id || null,

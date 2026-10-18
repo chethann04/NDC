@@ -119,6 +119,16 @@ export const PhysicsLabClearance: React.FC = () => {
     return () => clearTimeout(handler);
   }, [search]);
 
+  // Listen for clearance mutations triggered globally (e.g. from Navbar AI or Scanner modal)
+  useEffect(() => {
+    const onClearanceUpdated = () => {
+      fetchClearances();
+    };
+    window.addEventListener('ndc_clearance_updated', onClearanceUpdated);
+    return () => window.removeEventListener('ndc_clearance_updated', onClearanceUpdated);
+  }, []);
+
+
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       const pendingIds = clearances.filter((c) => c.status === 'PENDING').map((c) => c.id);
@@ -197,64 +207,34 @@ export const PhysicsLabClearance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-cyan-900 via-indigo-900 to-blue-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-cyan-300 shadow-inner">
-              <Atom className="w-8 h-8 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-cyan-400/20 text-cyan-200 border border-cyan-300/30 uppercase tracking-wider">
-                  Physics Lab Desk
-                </span>
-                <span className="text-xs text-cyan-200/80 font-mono">Scope: PHY001</span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-                Engineering Physics Laboratory Clearance
-              </h1>
-              <p className="text-xs sm:text-sm text-cyan-100/90 mt-1 max-w-2xl">
-                Review student laboratory dues, check equipment breakages, and issue clearance for Engineering Physics.
-              </p>
-            </div>
+      {/* Simple Clean Header for Clearance Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-zinc-900">Physics Lab Clearance</h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-800 border border-cyan-200">
+              PHY001 • Physics Lab
+            </span>
           </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            Review student laboratory dues, check equipment breakages, and issue clearance for Engineering Physics.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start md:self-center">
-            <button
-              type="button"
-              onClick={() => setIsAiAssistantOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/40 text-white text-xs font-bold backdrop-blur-sm border border-indigo-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
-              title="Open Physics Assistant Chat"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Ask AI Assistant</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsLogbookScannerOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-cyan-500/30 hover:bg-cyan-500/40 text-white text-xs font-bold backdrop-blur-sm border border-cyan-300/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-102"
-              title="Upload lab register photo to extract dues"
-            >
-              <UploadCloud className="w-3.5 h-3.5 text-cyan-200" />
-              <span>Scan Lab Register</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fetchClearances()}
-              disabled={loading}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Student List</span>
-            </button>
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => fetchClearances()}
+            disabled={loading}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-semibold border border-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+            title="Refresh student list"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
+
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -381,9 +361,11 @@ export const PhysicsLabClearance: React.FC = () => {
       {/* Clearances Table */}
       <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-zinc-400 font-semibold text-xs">
-            <Atom className="w-6 h-6 text-cyan-600 animate-spin mx-auto mb-2" />
-            Loading Physics Lab clearance queue...
+          <div className="p-12 text-center text-zinc-500 font-medium text-xs flex flex-col items-center justify-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-200/80 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-cyan-600 animate-spin" />
+            </div>
+            <span>Loading Physics Lab clearance queue...</span>
           </div>
         ) : clearances.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 text-xs">

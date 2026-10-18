@@ -69,6 +69,18 @@ export const OfficerClearanceQueue: React.FC = () => {
     return <Navigate to="/officer/chemistry-lab" replace />;
   }
 
+  // Check if current officer is Central Library Officer
+  const isLibraryOfficer =
+    user?.loginId === 'LIB001' ||
+    user?.email?.includes('library') ||
+    officerDeptObj?.code === 'LIB' ||
+    deptObj?.code === 'LIB' ||
+    (typeof deptObj === 'object' && (deptObj?.code === 'LIB' || deptObj?.name?.toLowerCase().includes('library')));
+
+  if (isLibraryOfficer) {
+    return <Navigate to="/officer/central-library" replace />;
+  }
+
   // Check if current officer is Academic Department Faculty
   const isAcademicBranchOfficer =
     !isAdmOrAdmin &&
@@ -242,6 +254,17 @@ export const OfficerClearanceQueue: React.FC = () => {
     }
     fetchClearances();
   }, [activeTab, debouncedSearch, page, limit, selectedDepartment, selectedLabId]);
+
+  // Listen for clearance mutations triggered globally (e.g. from Navbar AI or Scanner modal)
+  useEffect(() => {
+    const onClearanceUpdated = () => {
+      fetchClearances(true);
+      fetchStats();
+    };
+    window.addEventListener('ndc_clearance_updated', onClearanceUpdated);
+    return () => window.removeEventListener('ndc_clearance_updated', onClearanceUpdated);
+  }, []);
+
 
   const fetchStats = async () => {
     try {

@@ -40,14 +40,21 @@ import {
   parseEntryForensics,
   ParsedForensicDetails
 } from '../../services/aiService';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export const LogbookScannerPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const officerDeptObj = ((user?.officerProfile as any)?.department || user?.department) as any;
+  const deptCode = (officerDeptObj?.code || (typeof user?.department === 'object' ? (user?.department as any)?.code : undefined) || 'PHY').toUpperCase();
+  const deptName = officerDeptObj?.name || (typeof user?.department === 'object' ? (user?.department as any)?.name : '') || (deptCode === 'LIB' ? 'Central Library' : 'Physics Lab');
+
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [scanJob, setScanJob] = useState<ScanJob | null>(null);
   const [recentJobs, setRecentJobs] = useState<ScanJob[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ usn: string; amount: number; reason: string }>({
     usn: '',
@@ -124,8 +131,9 @@ export const LogbookScannerPage: React.FC = () => {
       setErrorMsg(null);
       setApplyResult(null);
 
-      const job = await aiService.uploadLogbook(file);
+      const job = await aiService.uploadLogbook(file, deptCode);
       setScanJob(job);
+
 
       // Pre-select ONLY entries eligible for approval by default
       const eligibleIds = job.entries
@@ -330,6 +338,13 @@ export const LogbookScannerPage: React.FC = () => {
       .reduce((sum, e) => sum + (e.correctedAmount ?? e.extractedAmount), 0)
     : 0;
 
+  const isLibrary = deptCode === 'LIB' || deptName.toLowerCase().includes('library');
+  const queuePath = isLibrary
+    ? '/officer/central-library'
+    : deptCode === 'CHEM'
+    ? '/officer/chemistry-lab'
+    : '/officer/physics-lab';
+
   return (
     <div className="space-y-5">
       {/* Compact Page Header */}
@@ -341,21 +356,23 @@ export const LogbookScannerPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold text-slate-900">
-                Logbook Register Scanner
+                {isLibrary ? 'Library Register Scanner' : 'Lab Register Scanner'}
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
-                Physics Lab
+                {deptName}
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Upload photos of handwritten equipment registers to scan student dues.
+              {isLibrary
+                ? 'Upload photos of library fine registers or book ledgers to scan student dues.'
+                : 'Upload photos of handwritten equipment registers to scan student dues.'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <Link
-            to="/officer/physics-lab"
+            to={queuePath}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
           >
             <Atom className="w-3.5 h-3.5 text-cyan-600" />
@@ -371,6 +388,7 @@ export const LogbookScannerPage: React.FC = () => {
           </Link>
         </div>
       </div>
+
 
       {/* Notifications */}
       {errorMsg && (

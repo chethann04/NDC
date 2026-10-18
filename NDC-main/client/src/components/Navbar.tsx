@@ -50,10 +50,11 @@ export const Navbar: React.FC = () => {
     if (path.includes('/officer/students')) return ['Cash/Fee Section', 'Manage Students'];
     if (path.includes('/officer/import')) return ['Cash/Fee Section', 'Import Students'];
     if (path.includes('/officer/audit-logs')) return ['Cash/Fee Section', 'Audit Logs'];
+    if (path.includes('/officer/central-library')) return ['Central Library', 'Clearance Queue'];
     if (path.includes('/officer/physics-lab')) return ['Physics Lab', 'Clearance Queue'];
     if (path.includes('/officer/chemistry-lab')) return ['Chemistry Lab', 'Clearance Queue'];
     if (path.includes('/officer/department-lab')) return ['Department Lab', 'Clearance Queue'];
-    if (path.includes('/officer/dashboard')) return ['Officer', 'Overview'];
+    if (path.includes('/officer/dashboard')) return ['Officer', 'Dashboard'];
     if (path.includes('/officer/clearances')) return ['Officer', 'Clearance Queue'];
     if (path.includes('/officer/history')) return ['Officer', 'History'];
     if (path.includes('/teaching-departments')) return ['Faculty', 'Academic Dept'];
@@ -61,7 +62,7 @@ export const Navbar: React.FC = () => {
     if (path.includes('/student/certificates')) return ['Student', 'My Certificates'];
     if (path.includes('/account/settings')) return ['Account', 'Security Settings'];
     if (path.includes('/verify')) return ['Verify', 'QR Verification'];
-    return ['NDC', 'Overview'];
+    return ['NDC', 'Dashboard'];
   };
 
   const [section, page] = getBreadcrumbs();
@@ -69,6 +70,14 @@ export const Navbar: React.FC = () => {
   const userInitials = user?.name
     ? user.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
+
+  const isStaff =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'HOD' ||
+    user?.role === 'DEPARTMENT_OFFICER';
+
+
 
   return (
     <header className="h-14 px-3 sm:px-6 bg-white border-b border-zinc-200/70 sticky top-0 z-20 flex items-center justify-between">
@@ -93,12 +102,14 @@ export const Navbar: React.FC = () => {
       </div>
 
       {/* Action Controls & Profile */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+
+
         {/* Verification Link for Staff */}
-        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'HOD' || user?.role === 'DEPARTMENT_OFFICER') && (
+        {isStaff && (
           <Link
             to="/verify"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 transition-colors"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-zinc-600" />
             <span>Verify QR</span>
@@ -159,6 +170,9 @@ export const Navbar: React.FC = () => {
           </div>
         )}
       </div>
+
+
     </header>
   );
 };
+

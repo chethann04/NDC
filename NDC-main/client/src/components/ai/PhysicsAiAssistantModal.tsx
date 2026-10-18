@@ -13,7 +13,8 @@ import {
   ArrowRight,
   ExternalLink,
   XCircle,
-  Edit3
+  Edit3,
+  RefreshCw
 } from 'lucide-react';
 import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
@@ -45,12 +46,26 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
   departmentCode = 'PHY',
   departmentName = 'Physics Lab'
 }) => {
+  const isLibrary = departmentCode === 'LIB' || departmentName.toLowerCase().includes('library');
+  const isChemistry = departmentCode === 'CHEM' || departmentName.toLowerCase().includes('chemistry');
+
+  const getGreeting = () => {
+    if (isLibrary) {
+      return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student library records, check outstanding book dues (overdue textbooks, reference fines, lost book replacement costs), and stage safe clearance approvals with your confirmation.`;
+    }
+    if (isChemistry) {
+      return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student chemistry lab records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals with your confirmation.`;
+    }
+    return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student clearance records, look up outstanding equipment dues (spectrometers, lasers, optical benches), and stage safe status approvals with your confirmation.`;
+  };
+
   const [messages, setMessages] = useState<MessageItem[]>([
     {
       role: 'model',
-      content: `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student clearance records, look up outstanding equipment dues (spectrometers, lasers, optical benches), and stage safe status approvals with your confirmation.`
+      content: getGreeting()
     }
   ]);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmingToken, setConfirmingToken] = useState<string | null>(null);
@@ -72,8 +87,13 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
+      // If no conversation has taken place yet, update greeting to match active department
+      if (messages.length <= 1) {
+        setMessages([{ role: 'model', content: getGreeting() }]);
+      }
     }
-  }, [messages, isOpen]);
+  }, [messages.length, isOpen, departmentCode, departmentName]);
+
 
   if (!isOpen) return null;
 
@@ -196,12 +216,27 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     }
   };
 
-  const quickPills = [
-    'Who has outstanding dues in Physics Lab?',
-    'Show clearance summary statistics',
-    'Clear dues for 4MC21CS001',
-    'Mark ₹350 due for Spectrometer Prism damage'
-  ];
+  const quickPills = isLibrary
+    ? [
+        'Who has overdue books in Central Library?',
+        'Show library clearance summary statistics',
+        'Clear dues for 4MC21CS001',
+        'Mark ₹150 due for Reference textbook overdue'
+      ]
+    : isChemistry
+    ? [
+        'Who has outstanding dues in Chemistry Lab?',
+        'Show chemistry clearance summary statistics',
+        'Clear dues for 4MC21CS001',
+        'Mark ₹200 due for Burette breakage'
+      ]
+    : [
+        `Who has outstanding dues in ${departmentName}?`,
+        'Show clearance summary statistics',
+        'Clear dues for 4MC21CS001',
+        'Mark ₹350 due for Spectrometer Prism damage'
+      ];
+
 
   return (
     <div
@@ -433,7 +468,7 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                           className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 min-w-[120px]"
                         >
                           {confirmingToken === msg.actionRequired.token ? (
-                            <Clock className="w-3.5 h-3.5 animate-spin" />
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           )}
@@ -457,7 +492,7 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                           className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1 shadow-2xs transition-colors disabled:opacity-50"
                         >
                           {cancellingToken === msg.actionRequired.token ? (
-                            <Clock className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
                           ) : (
                             <XCircle className="w-3.5 h-3.5 text-rose-600" />
                           )}
@@ -480,13 +515,21 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
           ))}
 
           {loading && (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
+            <div className="flex items-center gap-3 animate-in fade-in duration-200">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center text-xs shadow-xs">
                 <Bot className="w-4 h-4" />
               </div>
-              <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-500 flex items-center gap-2 shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                <span>Consulting live database & formulating response...</span>
+              <div className="bg-gradient-to-r from-indigo-50/70 via-white to-purple-50/50 border border-indigo-100 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-700 flex items-center gap-2.5 shadow-xs">
+                <div className="relative flex items-center justify-center">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                  <span className="absolute -inset-1 rounded-full bg-indigo-400/20 animate-ping opacity-60" />
+                </div>
+                <span className="font-medium text-slate-600">Consulting live database & formulating response</span>
+                <span className="inline-flex items-center gap-1 pl-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+                </span>
               </div>
             </div>
           )}
