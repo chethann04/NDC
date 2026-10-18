@@ -23,7 +23,9 @@ import {
   Target,
   Layers,
   Info,
-  Lock
+  Lock,
+  Camera,
+  FlipHorizontal
 } from 'lucide-react';
 import {
   aiService,
@@ -32,6 +34,7 @@ import {
   checkEntryApprovalEligibility,
   parseEntryForensics
 } from '../../services/aiService';
+import { CameraCaptureModal } from './CameraCaptureModal';
 
 interface LogbookScannerModalProps {
   isOpen: boolean;
@@ -70,8 +73,49 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
   const [appliedNotifications, setAppliedNotifications] = useState<Record<string, { deliveryStatus?: string; messageId?: string; lastError?: string }>>({});
   const [showTechnicalDetails, setShowTechnicalDetails] = useState<boolean>(false);
   const [searchFilter, setSearchFilter] = useState<string>('');
+  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraCapture = (capturedFile: File) => {
+    setFile(capturedFile);
+    setErrorMsg(null);
+    setScanJob(null);
+    setApplyResult(null);
+    setPreviewUrl(URL.createObjectURL(capturedFile));
+  };
+
+  const handleFlipPreview = () => {
+    if (!previewUrl || !file) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = previewUrl;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const flippedFile = new File([blob], file.name || 'flipped_logbook.jpg', {
+              type: blob.type || 'image/jpeg',
+              lastModified: Date.now()
+            });
+            setFile(flippedFile);
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(URL.createObjectURL(blob));
+          }
+        },
+        file.type.startsWith('image/png') ? 'image/png' : 'image/jpeg',
+        0.95
+      );
+    };
+  };
 
   if (!isOpen) return null;
 
@@ -293,15 +337,26 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const eligibleEntriesCount = scanJob
-    ? scanJob.entries.filter((e) => checkEntryApprovalEligibility(e).isEligible).length
-    : 0;
 
   const selectedTotal = scanJob
     ? scanJob.entries
         .filter((e) => selectedEntryIds.has(e.id))
         .reduce((sum, e) => sum + (e.correctedAmount ?? e.extractedAmount), 0)
     : 0;
+
+  const eligibleEntriesCount = scanJob
+    ? scanJob.entries.filter((e) => checkEntryApprovalEligibility(e).isEligible && e.status !== 'APPLIED').length
+    : 0;
+
+  const appliedEntriesCount = scanJob
+    ? scanJob.entries.filter((e) => e.status === 'APPLIED').length
+    : 0;
+
+  const pendingReviewCount = scanJob
+    ? scanJob.entries.filter((e) => !checkEntryApprovalEligibility(e).isEligible && e.status !== 'APPLIED').length
+    : 0;
+
+  const isTaskCompleted = appliedEntriesCount > 0 && eligibleEntriesCount === 0;
 
   const filteredEntries = (scanJob?.entries || []).filter((entry) => {
     if (!searchFilter.trim()) return true;
@@ -423,9 +478,23 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                     <p className="text-xs text-slate-500 mt-1">
                       {(file.size / (1024 * 1024)).toFixed(2)} MB • {file.type || 'Document'}
                     </p>
-                    <p className="text-xs text-indigo-600 font-semibold mt-2">
-                      Click to choose another file or drag & drop to replace
-                    </p>
+                    <div className="flex items-center justify-center gap-3 mt-3">
+                      <span className="text-xs text-indigo-600 font-semibold hover:underline">
+                        Choose another file
+                      </span>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsCameraOpen(true);
+                        }}
+                        className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Retake with Camera</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -434,12 +503,26 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                     </h4>
                     <p className="text-xs text-slate-500 mt-1">
                       {isLibrary
-                        ? 'Drag and drop image (JPG, PNG) or PDF of handwritten library register'
-                        : 'Drag and drop image (JPG, PNG) or PDF of handwritten register'}
+                        ? 'Drag and drop image or capture photo of handwritten library register'
+                        : 'Drag and drop image or capture photo of handwritten register'}
                     </p>
-                    <span className="inline-block mt-3 px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full border border-indigo-200">
-                      Browse Files
-                    </span>
+                    <div className="flex flex-wrap items-center justify-center gap-2.5 mt-3.5">
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full border border-indigo-200 transition-colors shadow-2xs">
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>Browse Files</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsCameraOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold rounded-full shadow-sm shadow-emerald-500/20 transition-all cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Capture with Camera</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -448,12 +531,23 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-slate-500">Image Preview:</span>
-                    {extracting && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80 animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" />
-                        AI Optical Scanner Active...
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleFlipPreview}
+                        className="px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Flip horizontally if laptop webcam took a mirrored image"
+                      >
+                        <FlipHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Flip / Un-mirror Photo</span>
+                      </button>
+                      {extracting && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" />
+                          AI Optical Scanner Active...
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="relative max-h-60 overflow-hidden rounded-xl flex items-center justify-center bg-slate-950/90 border border-slate-800">
                     <img src={previewUrl} alt="Preview" className="max-h-60 object-contain rounded-lg" />
@@ -971,46 +1065,97 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
               </div>
 
               {/* Action Bar */}
-              <div className="p-4 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs text-slate-600">
-                  <span className="font-semibold text-slate-800">{selectedEntryIds.size}</span> student dues
-                  selected for application • Total amount:{' '}
-                  <span className="font-bold text-rose-700">₹{selectedTotal}</span>
-                </div>
+              {isTaskCompleted ? (
+                <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 rounded-xl border-2 border-emerald-300 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in duration-300">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-emerald-900">Task Completed: Clearance Dues Recorded</span>
+                        <span className="text-[9px] font-bold uppercase bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                          {appliedEntriesCount} Applied
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700">
+                        {pendingReviewCount > 0
+                          ? `${appliedEntriesCount} due(s) applied. ${pendingReviewCount} row(s) still need USN fix.`
+                          : 'All detected student dues have been approved and saved to clearance records.'}
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 sm:flex-none px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Close
-                  </button>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      className="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>Scan Next</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={handleApplyDues}
-                    disabled={selectedEntryIds.size === 0 || applying || applyingEntryId !== null}
-                    className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {applying ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Saving Dues to Database...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Add {selectedEntryIds.size} Selected Dues to Records</span>
-                      </>
-                    )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 sm:flex-none px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Done & View Queue</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-xs text-slate-600">
+                    <span className="font-semibold text-slate-800">{selectedEntryIds.size}</span> student dues
+                    selected for application • Total amount:{' '}
+                    <span className="font-bold text-rose-700">₹{selectedTotal}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 sm:flex-none px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Close
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyDues}
+                      disabled={selectedEntryIds.size === 0 || applying || applyingEntryId !== null}
+                      className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {applying ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Saving Dues to Database...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>Add {selectedEntryIds.size} Selected Dues to Records</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Live Camera Viewfinder Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={handleCameraCapture}
+        title={`Capture ${departmentName} Logbook Page`}
+      />
     </div>
   );
 };

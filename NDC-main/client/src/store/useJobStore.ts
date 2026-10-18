@@ -39,16 +39,44 @@ export const useJobStore = create<JobState>((set, get) => ({
   isDismissed: false,
   pollInterval: null,
 
-  setActiveJob: (job) => set({ activeJob: job, isDismissed: false }),
+  setActiveJob: (job) => {
+    if (!job) {
+      set({ activeJob: null, isDismissed: false });
+      return;
+    }
+    const isDismissed = localStorage.getItem(`ndc_dismissed_bulk_job_${job.id}`) === 'true';
+    set({ activeJob: job, isDismissed });
+  },
 
-  dismissJob: () => set({ isDismissed: true }),
+  dismissJob: () => {
+    const job = get().activeJob;
+    if (job?.id) {
+      try {
+        localStorage.setItem(`ndc_dismissed_bulk_job_${job.id}`, 'true');
+      } catch {}
+    }
+    set({ isDismissed: true });
+  },
 
   fetchLatestJob: async () => {
     try {
       const res = await api.get('/jobs/latest');
       const job = res.data?.data;
       if (job) {
-        set({ activeJob: job });
+        let isDismissed = localStorage.getItem(`ndc_dismissed_bulk_job_${job.id}`) === 'true';
+
+        // Stale job protection: If job completed more than 90 seconds ago, do not display on refresh
+        if (job.completedAt && ['COMPLETED', 'PARTIALLY_COMPLETED', 'FAILED', 'CANCELLED'].includes(job.status)) {
+          const completedTime = new Date(job.completedAt).getTime();
+          if (Date.now() - completedTime > 90 * 1000) {
+            isDismissed = true;
+            try {
+              localStorage.setItem(`ndc_dismissed_bulk_job_${job.id}`, 'true');
+            } catch {}
+          }
+        }
+
+        set({ activeJob: job, isDismissed });
         return job;
       }
       return null;

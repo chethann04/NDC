@@ -42,6 +42,24 @@ export interface AssistantResponse {
   suggestions?: string[];
 }
 
+export interface ConversationLogItem {
+  id: string;
+  userId: string;
+  departmentCode: string;
+  role: 'user' | 'model';
+  content: string;
+  actionRequired?: ActionRequired | null;
+  metadata?: {
+    suggestions?: string[];
+    notification?: {
+      deliveryStatus?: 'QUEUED' | 'ACCEPTED' | 'FAILED' | 'UNCERTAIN';
+      messageId?: string;
+      lastError?: string;
+    };
+  };
+  createdAt: string;
+}
+
 export interface StageMetrics {
   detectedRowCount: number;
   candidateRowCount: number;
@@ -334,6 +352,25 @@ export const aiService = {
   async cancelAssistantAction(token: string): Promise<any> {
     const res = await api.post('/ai/assistant/cancel', { token });
     return res.data?.data;
+  },
+
+  /**
+   * Retrieve stored conversation history for the officer's department
+   */
+  async getConversationHistory(departmentCode = 'PHY', limit = 50): Promise<ConversationLogItem[]> {
+    const res = await api.get('/ai/assistant/history', {
+      params: { departmentCode, limit }
+    });
+    return res.data?.data || [];
+  },
+
+  /**
+   * Clear active conversation history for the officer's department
+   */
+  async clearConversationHistory(departmentCode = 'PHY'): Promise<void> {
+    await api.delete('/ai/assistant/history', {
+      params: { departmentCode }
+    });
   },
 
   /**

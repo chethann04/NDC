@@ -19,7 +19,8 @@ import {
   ExternalLink,
   XCircle,
   Edit3,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
 import { MarkdownRenderer } from '../../components/common/MarkdownRenderer';
@@ -57,15 +58,24 @@ export const AiAssistantPage: React.FC = () => {
     return `Hello! I am the **Physics Department AI Assistant**.\n\nI can read real-time student clearance data, check outstanding apparatus dues, and stage safe approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
   };
 
-  const [messages, setMessages] = useState<MessageItem[]>([
-    {
-      role: 'model',
-      content: getGreeting()
+  const storageKey = `ndc_ai_chat_${deptCode}`;
+
+  const [messages, setMessages] = useState<MessageItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      // Ignore parse error
     }
-  ]);
+    return [{ role: 'model', content: getGreeting() }];
+  });
   const [input, setInput] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmingToken, setConfirmingToken] = useState<string | null>(null);
   const [cancellingToken, setCancellingToken] = useState<string | null>(null);
   const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null);
@@ -89,6 +99,34 @@ export const AiAssistantPage: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Load persisted history from backend
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true);
+        const historyLogs = await aiService.getConversationHistory(deptCode, 50);
+        if (Array.isArray(historyLogs) && historyLogs.length > 0) {
+          const formatted: MessageItem[] = historyLogs.map((log) => ({
+            role: log.role as 'user' | 'model',
+            content: log.content,
+            actionRequired: log.actionRequired,
+            suggestions: log.metadata?.suggestions,
+            notification: log.metadata?.notification
+          }));
+          setMessages(formatted);
+          localStorage.setItem(storageKey, JSON.stringify(formatted));
+        } else if (messages.length <= 1) {
+          setMessages([{ role: 'model', content: getGreeting() }]);
+        }
+      } catch (err) {
+        console.warn('Failed to load remote chat history:', err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    fetchHistory();
+  }, [deptCode]);
+
   // Load real stats for the side panel
   useEffect(() => {
     const fetchStats = async () => {
@@ -110,6 +148,19 @@ export const AiAssistantPage: React.FC = () => {
     fetchStats();
   }, []);
 
+  const handleClearHistory = async () => {
+    if (!window.confirm(`Clear active conversation history for ${deptName}?`)) return;
+    try {
+      await aiService.clearConversationHistory(deptCode);
+    } catch (err) {
+      console.warn('Error clearing backend history:', err);
+    }
+    localStorage.removeItem(storageKey);
+    setMessages([{ role: 'model', content: getGreeting() }]);
+    setConfirmSuccess('Conversation history reset.');
+    setTimeout(() => setConfirmSuccess(null), 3000);
+  };
+
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
     if (!text || loading) return;
@@ -124,6 +175,7 @@ export const AiAssistantPage: React.FC = () => {
     ];
 
     setMessages(newMessages);
+    localStorage.setItem(storageKey, JSON.stringify(newMessages));
     setInput('');
     setLoading(true);
 
@@ -133,25 +185,29 @@ export const AiAssistantPage: React.FC = () => {
         deptCode
       );
 
-
-      setMessages((prev) => [
-        ...prev,
+      const updatedWithReply: MessageItem[] = [
+        ...newMessages,
         {
           role: 'model',
           content: response.reply,
           actionRequired: response.actionRequired,
           suggestions: response.suggestions
         }
-      ]);
+      ];
+
+      setMessages(updatedWithReply);
+      localStorage.setItem(storageKey, JSON.stringify(updatedWithReply));
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to contact AI assistant.');
-      setMessages((prev) => [
-        ...prev,
+      const updatedWithError: MessageItem[] = [
+        ...newMessages,
         {
           role: 'model',
           content: `⚠️ Sorry, I encountered an issue: ${err.message}`
         }
-      ]);
+      ];
+      setMessages(updatedWithError);
+      localStorage.setItem(storageKey, JSON.stringify(updatedWithError));
     } finally {
       setLoading(false);
     }
@@ -309,6 +365,16 @@ export const AiAssistantPage: React.FC = () => {
 
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleClearHistory}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            title="Start New Chat & Clear Current History"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+            <span>New Chat</span>
+          </button>
+
           <Link
             to="/officer/physics-lab"
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"

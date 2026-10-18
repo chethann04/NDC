@@ -23,6 +23,8 @@ router.use(authorizeRoles(
 router.post('/assistant/chat', AiAssistantController.chat);
 router.post('/assistant/confirm', AiAssistantController.confirmAction);
 router.post('/assistant/cancel', AiAssistantController.cancelAction);
+router.get('/assistant/history', AiAssistantController.getHistory);
+router.delete('/assistant/history', AiAssistantController.clearHistory);
 
 // ─────────────────────────────────────────────────────────────
 // AI LOGBOOK SCANNER ROUTES

@@ -513,3 +513,18 @@ model AiConfirmationToken {
   @@index([expiresAt])
   @@map("ai_confirmation_tokens")
 }
+
+model AiConversationLog {
+  id             String    @id @default(uuid())
+  userId         String
+  departmentCode String
+  role           String    // 'user' | 'model' | 'system'
+  content        String    @db.Text
+  actionRequired Json?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, departmentCode, createdAt])
+  @@map("ai_conversation_logs")
+}
+

@@ -11,8 +11,8 @@ export const GlobalJobIndicator: React.FC = () => {
   const { activeJob, isDismissed, dismissJob, startGlobalPolling, stopGlobalPolling } = useJobStore();
 
   useEffect(() => {
-    // Only poll for staff/admins who have access to bulk import
-    if (user && ['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER'].includes(user.role)) {
+    // Only poll for admins who manage bulk student CSV/Excel imports
+    if (user && ['SUPER_ADMIN', 'ADMIN'].includes(user.role)) {
       startGlobalPolling();
     }
     return () => {
@@ -20,7 +20,22 @@ export const GlobalJobIndicator: React.FC = () => {
     };
   }, [user, startGlobalPolling, stopGlobalPolling]);
 
+  // Auto-dismiss completed job notifications after 7 seconds
+  useEffect(() => {
+    if (activeJob && (activeJob.status === 'COMPLETED' || activeJob.status === 'PARTIALLY_COMPLETED')) {
+      const timer = setTimeout(() => {
+        dismissJob();
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeJob, dismissJob]);
+
   if (!activeJob || isDismissed) return null;
+
+  // Extra check against localStorage in case of component re-render
+  if (localStorage.getItem(`ndc_dismissed_bulk_job_${activeJob.id}`) === 'true') {
+    return null;
+  }
 
   const isRunning = activeJob.status === 'RUNNING' || activeJob.status === 'QUEUED';
   const isCompleted = activeJob.status === 'COMPLETED' || activeJob.status === 'PARTIALLY_COMPLETED';

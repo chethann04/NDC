@@ -30,7 +30,9 @@ import {
   Layers,
   Info,
   Lock,
-  XCircle
+  XCircle,
+  Camera,
+  FlipHorizontal
 } from 'lucide-react';
 import {
   aiService,
@@ -41,6 +43,7 @@ import {
   ParsedForensicDetails
 } from '../../services/aiService';
 import { useAuthStore } from '../../store/useAuthStore';
+import { CameraCaptureModal } from '../../components/ai/CameraCaptureModal';
 
 export const LogbookScannerPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -72,8 +75,49 @@ export const LogbookScannerPage: React.FC = () => {
   const [showProcessed, setShowProcessed] = useState<boolean>(false);
   const [appliedNotifications, setAppliedNotifications] = useState<Record<string, { deliveryStatus?: string; messageId?: string; lastError?: string }>>({});
   const [showTechnicalDetails, setShowTechnicalDetails] = useState<boolean>(false);
+  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraCapture = (capturedFile: File) => {
+    setFile(capturedFile);
+    setErrorMsg(null);
+    setScanJob(null);
+    setApplyResult(null);
+    setPreviewUrl(URL.createObjectURL(capturedFile));
+  };
+
+  const handleFlipPreview = () => {
+    if (!previewUrl || !file) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = previewUrl;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const flippedFile = new File([blob], file.name || 'flipped_logbook.jpg', {
+              type: blob.type || 'image/jpeg',
+              lastModified: Date.now()
+            });
+            setFile(flippedFile);
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(URL.createObjectURL(blob));
+          }
+        },
+        file.type.startsWith('image/png') ? 'image/png' : 'image/jpeg',
+        0.95
+      );
+    };
+  };
 
   // Load recent scan jobs
   const loadRecentJobs = async () => {
@@ -329,8 +373,18 @@ export const LogbookScannerPage: React.FC = () => {
     : [];
 
   const eligibleEntriesCount = scanJob
-    ? scanJob.entries.filter((e) => checkEntryApprovalEligibility(e).isEligible).length
+    ? scanJob.entries.filter((e) => checkEntryApprovalEligibility(e).isEligible && e.status !== 'APPLIED').length
     : 0;
+
+  const appliedEntriesCount = scanJob
+    ? scanJob.entries.filter((e) => e.status === 'APPLIED').length
+    : 0;
+
+  const pendingReviewCount = scanJob
+    ? scanJob.entries.filter((e) => !checkEntryApprovalEligibility(e).isEligible && e.status !== 'APPLIED').length
+    : 0;
+
+  const isTaskCompleted = appliedEntriesCount > 0 && eligibleEntriesCount === 0;
 
   const selectedTotal = scanJob
     ? scanJob.entries
@@ -459,9 +513,23 @@ export const LogbookScannerPage: React.FC = () => {
                   <p className="text-xs text-slate-500 mt-1">
                     {(file.size / (1024 * 1024)).toFixed(2)} MB • {file.type || 'Document'}
                   </p>
-                  <p className="text-xs text-indigo-600 font-semibold mt-2">
-                    Click to choose another file or drag & drop to replace
-                  </p>
+                  <div className="flex items-center justify-center gap-3 mt-3">
+                    <span className="text-xs text-indigo-600 font-semibold hover:underline">
+                      Choose another file
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsCameraOpen(true);
+                      }}
+                      className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Retake with Camera</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -469,11 +537,25 @@ export const LogbookScannerPage: React.FC = () => {
                     Upload Laboratory Due / Breakage Register
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
-                    Accepts clear photos (JPEG, PNG, WEBP) or PDF scans of handwritten student due logs
+                    Accepts clear photos (JPEG, PNG, WEBP), live camera snapshots, or PDF scans of handwritten due logs
                   </p>
-                  <span className="inline-block mt-3 px-4 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl shadow-xs">
-                    Browse File from Computer
-                  </span>
+                  <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+                    <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors">
+                      <UploadCloud className="w-4 h-4" />
+                      <span>Browse File</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsCameraOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-emerald-500/20 transition-all cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>Capture with Camera</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -482,12 +564,23 @@ export const LogbookScannerPage: React.FC = () => {
               <div className="bg-white p-4 rounded-xl border border-slate-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-slate-500">Image Preview:</span>
-                  {extracting && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80 animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" />
-                      AI Optical Scanner Active...
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleFlipPreview}
+                      className="px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Flip horizontally if laptop webcam took a mirrored image"
+                    >
+                      <FlipHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Flip / Un-mirror Photo</span>
+                    </button>
+                    {extracting && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" />
+                        AI Optical Scanner Active...
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="relative max-h-72 overflow-hidden rounded-xl flex items-center justify-center bg-slate-950/90 border border-slate-800">
                   <img src={previewUrl} alt="Preview" className="max-h-72 object-contain rounded-lg" />
@@ -599,6 +692,62 @@ export const LogbookScannerPage: React.FC = () => {
               <span className="text-2xl font-black text-indigo-800 mt-1">{scanJob.appliedEntries}</span>
             </div>
           </div>
+
+          {/* Task Completed & Dues Applied Notification Card */}
+          {applyResult && (
+            <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-emerald-900">Clearance Dues Successfully Applied!</h4>
+                  <p className="text-xs text-emerald-700">{applyResult.message}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <Link
+                  to={queuePath}
+                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+                >
+                  <span>View in Queue</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setApplyResult(null)}
+                  className="p-1 rounded-lg text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* All Ready Items Completed Card (if applyResult dismissed but tasks completed) */}
+          {!applyResult && isTaskCompleted && (
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-emerald-900">Task Completed: All Ready Dues Applied</h4>
+                  <p className="text-xs text-emerald-700">
+                    {appliedEntriesCount} student due(s) recorded in clearance database.
+                    {pendingReviewCount > 0 ? ` ${pendingReviewCount} entry(s) still require USN fix to match student records.` : ''}
+                  </p>
+                </div>
+              </div>
+              <Link
+                to={queuePath}
+                className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors self-end sm:self-center"
+              >
+                <span>View Clearance Queue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          )}
 
           {/* Original Document Inspection & Forensic Review Viewer */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs p-4">
@@ -1063,47 +1212,98 @@ export const LogbookScannerPage: React.FC = () => {
           </div>
 
           {/* Action Footer */}
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-xs text-slate-600">
-              <span className="font-bold text-slate-900">{selectedEntryIds.size}</span> student dues
-              selected for batch application • Total amount:{' '}
-              <span className="font-bold text-rose-700">₹{selectedTotal}</span>
-              <span className="block text-[11px] text-slate-500 mt-0.5">
-                Note: Ineligible or unresolved candidate rows are excluded from approval until manually corrected.
-              </span>
-            </div>
+          {isTaskCompleted ? (
+            <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 rounded-2xl border-2 border-emerald-300 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-emerald-900">Task Completed: Clearance Dues Recorded</span>
+                    <span className="text-[10px] font-bold uppercase bg-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                      {appliedEntriesCount} Applied
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    {pendingReviewCount > 0
+                      ? `${appliedEntriesCount} due(s) applied. ${pendingReviewCount} remaining row(s) require USN correction to match student records.`
+                      : 'All detected student dues from this logbook register have been applied to clearance records.'}
+                  </p>
+                </div>
+              </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-              >
-                Cancel / Reset
-              </button>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Scan Next Register</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleApplyDues}
-                disabled={selectedEntryIds.size === 0 || applying || applyingEntryId !== null}
-                className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {applying ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Applying to Database...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Add {selectedEntryIds.size} Selected Dues to Records</span>
-                  </>
-                )}
-              </button>
+                <Link
+                  to={queuePath}
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Go to Clearance Queue</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-xs text-slate-600">
+                <span className="font-bold text-slate-900">{selectedEntryIds.size}</span> student dues
+                selected for batch application • Total amount:{' '}
+                <span className="font-bold text-rose-700">₹{selectedTotal}</span>
+                <span className="block text-[11px] text-slate-500 mt-0.5">
+                  Note: Ineligible or unresolved candidate rows are excluded from approval until manually corrected.
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel / Reset
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleApplyDues}
+                  disabled={selectedEntryIds.size === 0 || applying || applyingEntryId !== null}
+                  className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {applying ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Applying to Database...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Add {selectedEntryIds.size} Selected Dues to Records</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Live Camera Viewfinder Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={handleCameraCapture}
+        title={`Capture ${deptName} Logbook Page`}
+      />
     </div>
   );
 };

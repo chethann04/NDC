@@ -14,9 +14,10 @@ import {
   ExternalLink,
   XCircle,
   Edit3,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
-import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
+import { aiService, AssistantMessage, ActionRequired, ConversationLogItem } from '../../services/aiService';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 
 interface PhysicsAiAssistantModalProps {
@@ -59,15 +60,24 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student clearance records, look up outstanding equipment dues (spectrometers, lasers, optical benches), and stage safe status approvals with your confirmation.`;
   };
 
-  const [messages, setMessages] = useState<MessageItem[]>([
-    {
-      role: 'model',
-      content: getGreeting()
+  const storageKey = `ndc_ai_chat_${departmentCode}`;
+
+  const [messages, setMessages] = useState<MessageItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      // Ignore parse error
     }
-  ]);
+    return [{ role: 'model', content: getGreeting() }];
+  });
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmingToken, setConfirmingToken] = useState<string | null>(null);
   const [cancellingToken, setCancellingToken] = useState<string | null>(null);
   const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null);
@@ -84,16 +94,55 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Fetch persisted history from backend when opened
   useEffect(() => {
-    if (isOpen) {
-      scrollToBottom();
-      // If no conversation has taken place yet, update greeting to match active department
-      if (messages.length <= 1) {
-        setMessages([{ role: 'model', content: getGreeting() }]);
-      }
-    }
-  }, [messages.length, isOpen, departmentCode, departmentName]);
+    if (!isOpen) return;
 
+    scrollToBottom();
+
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true);
+        const historyLogs = await aiService.getConversationHistory(departmentCode, 50);
+        if (Array.isArray(historyLogs) && historyLogs.length > 0) {
+          const formatted: MessageItem[] = historyLogs.map((log) => ({
+            role: log.role as 'user' | 'model',
+            content: log.content,
+            actionRequired: log.actionRequired,
+            suggestions: log.metadata?.suggestions,
+            notification: log.metadata?.notification
+          }));
+          setMessages(formatted);
+          localStorage.setItem(storageKey, JSON.stringify(formatted));
+        } else if (messages.length <= 1) {
+          setMessages([{ role: 'model', content: getGreeting() }]);
+        }
+      } catch (err) {
+        console.warn('Failed to load remote chat history, using local cache:', err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    fetchHistory();
+  }, [isOpen, departmentCode]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length]);
+
+  const handleClearHistory = async () => {
+    if (!window.confirm(`Clear active conversation history for ${departmentName}?`)) return;
+    try {
+      await aiService.clearConversationHistory(departmentCode);
+    } catch (err) {
+      console.warn('Error clearing backend history:', err);
+    }
+    localStorage.removeItem(storageKey);
+    setMessages([{ role: 'model', content: getGreeting() }]);
+    setConfirmSuccess('Conversation history reset.');
+    setTimeout(() => setConfirmSuccess(null), 3000);
+  };
 
   if (!isOpen) return null;
 
@@ -111,6 +160,7 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     ];
 
     setMessages(newMessages);
+    localStorage.setItem(storageKey, JSON.stringify(newMessages));
     setInput('');
     setLoading(true);
 
@@ -120,24 +170,29 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
         departmentCode
       );
 
-      setMessages((prev) => [
-        ...prev,
+      const updatedWithReply: MessageItem[] = [
+        ...newMessages,
         {
           role: 'model',
           content: response.reply,
           actionRequired: response.actionRequired,
           suggestions: response.suggestions
         }
-      ]);
+      ];
+
+      setMessages(updatedWithReply);
+      localStorage.setItem(storageKey, JSON.stringify(updatedWithReply));
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to contact AI assistant.');
-      setMessages((prev) => [
-        ...prev,
+      const updatedWithError: MessageItem[] = [
+        ...newMessages,
         {
           role: 'model',
           content: `⚠️ Sorry, I encountered an issue contacting the clearance engine: ${err.message}`
         }
-      ]);
+      ];
+      setMessages(updatedWithError);
+      localStorage.setItem(storageKey, JSON.stringify(updatedWithError));
     } finally {
       setLoading(false);
     }
@@ -269,13 +324,24 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            title="Close Assistant"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleClearHistory}
+              className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1 text-xs"
+              title="Start New Chat & Clear History"
+            >
+              <Trash2 className="w-4 h-4 text-rose-300" />
+              <span className="hidden sm:inline text-[11px] text-indigo-100 font-medium">New Chat</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              title="Close Assistant"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Messages Body */}
