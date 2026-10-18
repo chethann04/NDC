@@ -15,6 +15,8 @@ export interface ActionRequired {
   amount?: number;
   reason?: string;
   labName?: string;
+  departmentName?: string;
+  consequences?: string;
   expiresAt: string;
 }
 
@@ -307,6 +309,14 @@ export const aiService = {
    */
   async confirmAssistantAction(token: string): Promise<any> {
     const res = await api.post('/ai/assistant/confirm', { token });
+    return res.data?.data;
+  },
+
+  /**
+   * Cancel a staged mutation before execution
+   */
+  async cancelAssistantAction(token: string): Promise<any> {
+    const res = await api.post('/ai/assistant/cancel', { token });
     return res.data?.data;
   },
 

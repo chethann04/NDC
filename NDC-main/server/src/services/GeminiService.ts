@@ -221,63 +221,107 @@ export class GeminiService {
   /**
    * Fallback mock for chat when GEMINI_API_KEY is unconfigured or unavailable.
    * Performs structured semantic intent extraction adhering to strict schema without generic greetings.
+   * Understands multi-turn conversational context, cancellation, action editing, and pronoun references.
    */
   private static mockChatResponse(options: GeminiChatOptions): string {
-    const lastUserMsg = [...options.messages].reverse().find((m) => m.role === 'user')?.content || '';
+    const messages = options.messages || [];
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
     const lower = lastUserMsg.toLowerCase();
 
-    // 1. Extract USN
-    const usnMatch = lastUserMsg.match(/\b([1-4][A-Z]{2}\d{2}[A-Z]{2}\d{3})\b/i);
-    const usn = usnMatch ? usnMatch[1].toUpperCase() : null;
+    // 1. Extract USN from last message or fallback to conversation history
+    let usnMatch = lastUserMsg.match(/\b([1-4][A-Z]{2}\d{2}[A-Z]{2}\d{3})\b/i);
+    let usn = usnMatch ? usnMatch[1].toUpperCase() : null;
 
-    // 2. Extract Amount
+    if (!usn) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const histMatch = messages[i].content.match(/\b([1-4][A-Z]{2}\d{2}[A-Z]{2}\d{3})\b/i);
+        if (histMatch) {
+          usn = histMatch[1].toUpperCase();
+          break;
+        }
+      }
+    }
+
+    // 2. Extract Amount (Strip USN first to avoid matching initial digits of USN)
+    const msgWithoutUsn = lastUserMsg.replace(/\b([1-4][a-z]{2}\d{2}[a-z]{2}\d{3})\b/gi, '');
     const currMatch =
-      lastUserMsg.match(/(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)/i) ||
-      lastUserMsg.match(/(?:due|fine|penalty|fee|amount|charge)\s*(?:of)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)/i) ||
-      lastUserMsg.match(/(\d+(?:\.\d+)?)\s*(?:₹|rs\.?|inr|rupees?)/i);
+      msgWithoutUsn.match(/(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)/i) ||
+      msgWithoutUsn.match(/(?:to|it\s+to|amount\s+to|fine\s+to|due\s+to)\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)/i) ||
+      msgWithoutUsn.match(/(?:due|fine|penalty|fee|amount|charge)\s*(?:of)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)(?!\w)/i) ||
+      msgWithoutUsn.match(/(\d+(?:\.\d+)?)\s*(?:₹|rs\.?|inr|rupees?)/i);
     const amount = currMatch ? parseFloat(currMatch[1]) : null;
 
     // 3. Extract Reason
     let reason: string | null = null;
-    const damageMatch = lastUserMsg.match(/\b((?:broken|breakage|breaking|damaged?|lost|missing)\s+[a-z\s]+)/i);
+    const damageMatch = lastUserMsg.match(/\b((?:broken|breakage|breaking|damaged?|lost|missing|snapped)\s+[a-z\s]+)/i);
     if (damageMatch) {
       reason = damageMatch[1].trim();
     } else {
-      const forMatch = lastUserMsg.match(
-        /(?:due\s+for|fine\s+for|penalty\s+for|fee\s+for|reason\s*[:\-]?|because\s+of)\s+([a-z0-9\s]+?)(?:\s+(?:for|to|at)\s+(?:usn|student)?\s*$|$)/i
-      );
-      if (forMatch) {
-        reason = forMatch[1].trim();
+      const editedReasonMatch = lastUserMsg.match(/\breason\s+is\s+(?:a\s+)?(.+?)(?:,\s*not\s+.*|\.|$)/i) ||
+        lastUserMsg.match(/(?:change|update|set|make)\s+(?:the\s+)?reason\s+to\s+(?:a\s+)?(.+?)(?:\.|$)/i);
+      if (editedReasonMatch) {
+        reason = editedReasonMatch[1].trim();
+      } else {
+        const forMatch = lastUserMsg.match(
+          /(?:due\s+for|fine\s+for|penalty\s+for|fee\s+for|reason\s*[:\-]?|because\s+of)\s+([a-z0-9\s]+?)(?:\s+(?:for|to|at)\s+(?:usn|student)?\s*$|$)/i
+        );
+        if (forMatch) {
+          reason = forMatch[1].trim();
+        }
       }
     }
 
-    // 4. Check Contradiction
+    // 4. Cancellation Check
+    const isCancellation = /\b(cancel\s+(?:that|it|action|due|the\s+due|request)|cancel|never\s*mind|abort|don't\s+do\s+that|drop\s+that\s+charge)\b/i.test(lower);
+
+    // 5. Edit Staged Action Check
+    const isEdit = /\b(change|update|make|set)\s+(?:it\s+)?to\s+(?:₹|rs\.?|inr)?\s*\d+/i.test(lower) ||
+      /\b(?:the\s+)?reason\s+is\s+.*?(?:not\s+.*?)?$/i.test(lower) ||
+      /\bchange\s+reason\s+to\b/i.test(lower);
+
+    // 6. Check Clearing vs Due vs Contradiction
+    const isClearingCharge =
+      /\b(remove|waive|drop|cancel|clear)\s+(?:that\s+|the\s+)?(?:charge|due|fine)\b/i.test(lower) ||
+      /\breturned\s+(?:the\s+)?apparatus\b/i.test(lower);
+
     const hasClear =
-      /\b(clear|approve|waive|cleared|forgive)\b/i.test(lower) || /\bno[ _-]?dues?\b/i.test(lower);
-    const hasDue =
+      isClearingCharge ||
+      /\b(clear|approve|waive|cleared|forgive)\b/i.test(lower) ||
+      /\bno[ _-]?dues?\b/i.test(lower) ||
+      /\bmark\b.*?\b(?:as\s+)?(?:cleared|complete|completed)\b/i.test(lower);
+
+    const hasDue = !isClearingCharge && (
       /\b(add|mark|record|charge|impose|fine|penalize)\b.*?\b(due|fine|penalty)\b/i.test(lower) ||
       /\b(fine|penalty)\b/i.test(lower) ||
-      (/\b(broken|damage|lost)\b/i.test(lower) && amount !== null);
+      /\bput\s+(?:a\s+)?(?:fine|due|charge)\s+of\b/i.test(lower) ||
+      (/\b(broke|broken|damage|lost)\b/i.test(lower) && (amount !== null || /\b(charge|fine|fee)\b/i.test(lower)))
+    );
 
     let intent = 'CONVERSATIONAL';
     let contradictionDetected = false;
     let contradictionReason: string | null = null;
     let clarificationQuestion: string | null = null;
 
-    if (hasClear && hasDue) {
+    if (isCancellation) {
+      intent = 'CANCEL_ACTION';
+    } else if (isEdit) {
+      intent = 'EDIT_ACTION';
+    } else if (hasClear && hasDue && !isEdit) {
       intent = 'CONTRADICTORY';
       contradictionDetected = true;
       contradictionReason = 'User requested both clearance approval (No Due) and due creation in the same query.';
       clarificationQuestion = `You requested both clearance approval ("No Due") and due creation (${amount ? `₹${amount}` : 'due'}) for student ${usn || 'specified'}. Please clarify which action you intend to take.`;
+    } else if (/\bwho\s+(?:hasn't|has\s+not|has)\s+cleared\b/i.test(lower) || /\bwho\s+has\s+dues?\b/i.test(lower) || (!usn && /\b(pending|outstanding)\s+dues?\b/i.test(lower))) {
+      intent = 'LIST_PENDING_DUES';
+    } else if (/\bshow\s+(?:me\s+)?(?:the\s+)?pending\s+details\s+again\b/i.test(lower) || /\bshow\s+details\s+again\b/i.test(lower)) {
+      intent = usn ? 'READ_LAB_CLEARANCE' : 'LIST_PENDING_DUES';
+    } else if (isClearingCharge || hasClear || /\bmark.*?cleared\b/i.test(lower)) {
+      intent = 'CLEAR_LAB';
     } else if (hasDue || (/\b(add|record|charge|fine|impose)\b/i.test(lower) && (amount !== null || usn !== null))) {
       intent = 'ADD_DUE';
-    } else if (hasClear || /\bmark.*?cleared\b/i.test(lower)) {
-      intent = 'CLEAR_LAB';
-    } else if (/\b(pending|outstanding)\s+dues?\b/i.test(lower) || /\bwho\s+has\s+dues?\b/i.test(lower)) {
-      intent = 'LIST_PENDING_DUES';
     } else if (/\b(report|summary|stats|statistics|overview)\b/i.test(lower)) {
       intent = 'DEPARTMENT_REPORT';
-    } else if (usn !== null) {
+    } else if (usn !== null || /\b(check|lookup|inspect|view)\b/i.test(lower)) {
       intent = 'READ_LAB_CLEARANCE';
     }
 
@@ -286,7 +330,7 @@ export class GeminiService {
         intent,
         usn,
         amount,
-        reason: reason || 'Apparatus / Lab Equipment Damage',
+        reason: reason || (intent === 'CLEAR_LAB' ? 'Clearance verified and approved as No Due' : 'Apparatus / Lab Equipment Damage'),
         contradictionDetected,
         contradictionReason,
         clarificationQuestion,

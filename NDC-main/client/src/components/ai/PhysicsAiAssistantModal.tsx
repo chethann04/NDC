@@ -11,7 +11,9 @@ import {
   RotateCcw,
   AlertTriangle,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  XCircle,
+  Edit3
 } from 'lucide-react';
 import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
@@ -27,11 +29,13 @@ interface PhysicsAiAssistantModalProps {
 interface MessageItem extends AssistantMessage {
   actionRequired?: ActionRequired | null;
   actionExecuted?: boolean;
+  actionCancelled?: boolean;
   notification?: {
     deliveryStatus?: 'QUEUED' | 'ACCEPTED' | 'FAILED' | 'UNCERTAIN';
     messageId?: string;
     lastError?: string;
   };
+  suggestions?: string[];
 }
 
 export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = ({
@@ -50,8 +54,14 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmingToken, setConfirmingToken] = useState<string | null>(null);
+  const [cancellingToken, setCancellingToken] = useState<string | null>(null);
   const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Edit state
+  const [editingToken, setEditingToken] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState<number | string>('');
+  const [editReason, setEditReason] = useState<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +83,7 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
 
     setErrorMsg(null);
     setConfirmSuccess(null);
+    setEditingToken(null);
 
     const newMessages: MessageItem[] = [
       ...messages,
@@ -94,7 +105,8 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
         {
           role: 'model',
           content: response.reply,
-          actionRequired: response.actionRequired
+          actionRequired: response.actionRequired,
+          suggestions: response.suggestions
         }
       ]);
     } catch (err: any) {
@@ -137,6 +149,44 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     } finally {
       setConfirmingToken(null);
     }
+  };
+
+  const handleCancelAction = async (token: string, messageIndex: number) => {
+    try {
+      setCancellingToken(token);
+      setErrorMsg(null);
+      const res = await aiService.cancelAssistantAction(token);
+      setConfirmSuccess(res.message || 'Action cancelled successfully. No changes were applied.');
+      setMessages((prev) =>
+        prev.map((m, idx) =>
+          idx === messageIndex
+            ? { ...m, actionCancelled: true, actionRequired: null }
+            : m
+        )
+      );
+      setEditingToken(null);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to cancel action.');
+    } finally {
+      setCancellingToken(null);
+    }
+  };
+
+  const handleStartEdit = (action: ActionRequired) => {
+    setEditingToken(action.token);
+    setEditAmount(action.amount !== undefined ? action.amount : '');
+    setEditReason(action.reason || '');
+  };
+
+  const handleSubmitEdit = () => {
+    if (!editingToken) return;
+    const parts: string[] = [];
+    if (editAmount !== '') parts.push(`Change amount to ₹${editAmount}`);
+    if (editReason.trim()) parts.push(`Change reason to ${editReason.trim()}`);
+    if (parts.length > 0) {
+      handleSend(parts.join(' and '));
+    }
+    setEditingToken(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -283,6 +333,66 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                       )}
                     </div>
 
+                    {/* Consequences */}
+                    {msg.actionRequired.consequences && (
+                      <div className="p-2 rounded-lg bg-amber-100/70 border border-amber-300 text-amber-950 text-[11px] leading-relaxed flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block">Consequences:</span>
+                          <span>{msg.actionRequired.consequences}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Inline Edit Form */}
+                    {editingToken === msg.actionRequired.token && (
+                      <div className="p-2.5 rounded-lg bg-white border border-amber-200 space-y-2 mt-2">
+                        <span className="font-semibold text-slate-700 block text-[11px]">
+                          Edit Staged Action:
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {msg.actionRequired.amount !== undefined && (
+                            <div>
+                              <label className="text-[10px] text-slate-500 block">New Amount (₹):</label>
+                              <input
+                                type="number"
+                                value={editAmount}
+                                onChange={(e) => setEditAmount(e.target.value)}
+                                className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                                placeholder="Amount"
+                              />
+                            </div>
+                          )}
+                          <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
+                            <label className="text-[10px] text-slate-500 block">New Reason:</label>
+                            <input
+                              type="text"
+                              value={editReason}
+                              onChange={(e) => setEditReason(e.target.value)}
+                              className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                              placeholder="Reason"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleSubmitEdit}
+                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
+                          >
+                            Request Fresh Confirmation
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingToken(null)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs"
+                          >
+                            Cancel Edit
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {msg.actionExecuted ? (
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-100/70 p-2 rounded-lg border border-emerald-200 text-xs">
@@ -315,22 +425,54 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                         )}
                       </div>
                     ) : (
-                      <div className="pt-1 flex items-center gap-2">
+                      <div className="pt-1 flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
-                          disabled={confirmingToken === msg.actionRequired.token}
-                          className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50"
+                          disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                          className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 min-w-[120px]"
                         >
                           {confirmingToken === msg.actionRequired.token ? (
                             <Clock className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <CheckCircle2 className="w-3.5 h-3.5" />
                           )}
-                          <span>Confirm & Save Change</span>
+                          <span>Confirm & Save</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(msg.actionRequired!)}
+                          disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                          className="py-1.5 px-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold rounded-lg text-xs flex items-center justify-center gap-1 shadow-2xs transition-colors disabled:opacity-50"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCancelAction(msg.actionRequired!.token, idx)}
+                          disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                          className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1 shadow-2xs transition-colors disabled:opacity-50"
+                        >
+                          {cancellingToken === msg.actionRequired.token ? (
+                            <Clock className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                          ) : (
+                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                          )}
+                          <span>Cancel</span>
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Cancelled state */}
+                {msg.actionCancelled && (
+                  <div className="mt-3 p-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 text-xs flex items-center gap-2">
+                    <XCircle className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span><strong>Action Cancelled:</strong> Token invalidated. No changes were made.</span>
                   </div>
                 )}
               </div>
@@ -379,14 +521,14 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
 
         {/* Quick Suggestion Pills */}
         <div className="px-4 py-2 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
-          <span className="text-[11px] font-semibold text-slate-400 shrink-0">Try:</span>
-          {quickPills.map((pill, idx) => (
+          <span className="text-[11px] font-semibold text-slate-400 shrink-0">Suggested:</span>
+          {(([...messages].reverse().find((m) => m.role === 'model' && m.suggestions && m.suggestions.length > 0)?.suggestions) || quickPills).map((pill, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => handleSend(pill)}
               disabled={loading}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200 rounded-full text-xs text-slate-700 transition-colors shrink-0 disabled:opacity-50"
+              className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200 rounded-full text-xs text-slate-700 transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
             >
               {pill}
             </button>

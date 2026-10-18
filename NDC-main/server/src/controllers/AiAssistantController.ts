@@ -77,7 +77,7 @@ export class AiAssistantController {
         return;
       }
 
-      const { token } = req.body;
+      const { token, action, usn, amount, reason } = req.body;
       if (!token || typeof token !== 'string') {
         res.status(400).json({
           success: false,
@@ -89,7 +89,8 @@ export class AiAssistantController {
       const result = await AiAssistantService.confirmAndExecute(
         token.trim(),
         user.id || user._id,
-        req
+        req,
+        action || usn || amount !== undefined || reason ? { action, usn, amount, reason } : undefined
       );
 
       res.status(200).json({
@@ -101,6 +102,45 @@ export class AiAssistantController {
       res.status(400).json({
         success: false,
         message: err.message || 'Failed to execute confirmed action.'
+      });
+    }
+  }
+
+  /**
+   * Explicit cancellation of staged mutation
+   */
+  public static async cancelAction(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { token } = req.body;
+      if (!token || typeof token !== 'string') {
+        res.status(400).json({
+          success: false,
+          message: 'Bad Request: "token" string is required to cancel action.'
+        });
+        return;
+      }
+
+      const result = await AiAssistantService.cancelAction(
+        token.trim(),
+        user.id || user._id,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (err: any) {
+      console.error('[AiAssistantController] cancelAction error:', err);
+      res.status(400).json({
+        success: false,
+        message: err.message || 'Failed to cancel staged action.'
       });
     }
   }

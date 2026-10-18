@@ -33,6 +33,8 @@ export interface AssistantChatResponse {
     amount?: number;
     reason?: string;
     labName?: string;
+    departmentName?: string;
+    consequences?: string;
     expiresAt: string;
   } | null;
   suggestions?: string[];
@@ -40,11 +42,12 @@ export interface AssistantChatResponse {
 
 export class AiAssistantService {
   /**
-   * Main entrypoint for processing conversational messages with reliable intent detection
+   * Main entrypoint for processing conversational messages with reliable multi-turn intent detection
    */
   public static async processMessage(req: AssistantChatRequest): Promise<AssistantChatResponse> {
     const { user, messages, departmentCode = 'PHY' } = req;
     const lastMessage = messages[messages.length - 1]?.content || '';
+    const lowerLastMessage = lastMessage.toLowerCase().trim();
 
     // 1. Resolve Target Department (Default: Physics Lab 'PHY')
     const department = await this.resolveDepartment(user, departmentCode);
@@ -58,16 +61,49 @@ export class AiAssistantService {
     // 2. Fetch real departmental stats & top dues for context
     const stats = await this.getDepartmentStats(department.id);
 
-    // 3. Extract entities from user prompt
-    const mentionedUsn = this.extractUsnFromText(lastMessage);
+    // 3. Multi-turn context resolution:
+    // Check if there is an active, unconsumed confirmation token for this officer
+    const activeStagedToken = await prisma.aiConfirmationToken.findFirst({
+      where: {
+        userId: user.id,
+        consumed: false,
+        expiresAt: { gt: new Date() }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const stagedPayload = (activeStagedToken?.payload as any) || null;
+
+    // Resolve USN: directly in last message, or from previous turns, or from active staged token
+    let contextUsn = this.extractUsnFromText(lastMessage);
+    if (!contextUsn) {
+      // Scan previous messages in reverse
+      for (let i = messages.length - 2; i >= 0; i--) {
+        const prevUsn = this.extractUsnFromText(messages[i].content);
+        if (prevUsn) {
+          contextUsn = prevUsn;
+          break;
+        }
+      }
+      if (!contextUsn && stagedPayload?.usn) {
+        contextUsn = stagedPayload.usn;
+      }
+    }
+
+    // 4. Extract entities from user prompt
     const extractedAmount = this.extractAmountFromText(lastMessage);
     const labName = this.extractLabNameFromText(lastMessage, department.name);
-    const detectedIntent = this.detectIntent(lastMessage, extractedAmount);
+    const detectedIntent = this.detectIntent(
+      lastMessage,
+      extractedAmount,
+      Boolean(contextUsn),
+      Boolean(activeStagedToken)
+    );
 
-    // 4. Resolve student context if USN or student name was mentioned
+    // 5. Resolve student context if USN or student name was mentioned or resolved from context
     let studentContext: any = null;
-    if (mentionedUsn) {
-      studentContext = await this.getStudentDetailContext(mentionedUsn, department.id);
+    if (contextUsn) {
+      studentContext = await this.getStudentDetailContext(contextUsn, department.id);
     } else {
       const potentialName = this.extractPotentialName(lastMessage);
       if (potentialName) {
@@ -75,17 +111,81 @@ export class AiAssistantService {
       }
     }
 
-    // 5. Handle Contradictory Requests (Requirement: Ask for clarification, never silently choose)
-    if (detectedIntent.intent === 'CONTRADICTORY') {
-      return this.handleContradictory(lastMessage, department, studentContext, extractedAmount, mentionedUsn);
+    // 6. Handle "Please do it" / "Confirm" in chat text (Strict Safety: Never execute directly from chat text)
+    if (
+      /\b(please\s+(?:do|execute|apply|confirm)\s+(?:it|this)|just\s+do\s+it|go\s+ahead|do\s+it\s+now)\b/i.test(lowerLastMessage) ||
+      (lowerLastMessage === 'confirm' || lowerLastMessage === 'confirm it' || lowerLastMessage === 'please do it')
+    ) {
+      if (activeStagedToken) {
+        return {
+          reply: `⚠️ **Explicit Confirmation Required**:\n\nFor institutional compliance and audit integrity, administrative database modifications cannot be executed from chat text alone.\n\nPlease review the staged action summary in the confirmation card above and click **Confirm & Save to Records** to execute.`,
+          actionRequired: {
+            token: activeStagedToken.token,
+            action: activeStagedToken.action as any,
+            studentId: activeStagedToken.studentId,
+            studentName: stagedPayload.studentName,
+            usn: stagedPayload.usn,
+            clearanceId: activeStagedToken.clearanceId!,
+            amount: stagedPayload.amount,
+            reason: stagedPayload.reason,
+            labName: stagedPayload.labName || department.name,
+            departmentName: stagedPayload.departmentName || department.name,
+            consequences: stagedPayload.consequences,
+            expiresAt: activeStagedToken.expiresAt.toISOString()
+          },
+          suggestions: [`Cancel that`, `Show me the pending details again`]
+        };
+      }
     }
 
-    // 6. Handle Deterministic Intents (Fast Semantic Path)
+    // 7. Handle Cancellation ("Cancel that", "Abort", "Cancel the due")
+    if (detectedIntent.intent === 'CANCEL_ACTION') {
+      if (activeStagedToken) {
+        await this.cancelAction(activeStagedToken.token, user.id, req.reqObj);
+        return {
+          reply: `❌ **Action Cancelled**: The staged action (**${activeStagedToken.action === 'MARK_DUE' ? `Add Due of ₹${stagedPayload.amount}` : 'Clear Clearance'}**) for **${stagedPayload.studentName || 'the student'}** (\`${stagedPayload.usn}\`) has been cancelled.\n\nNo changes have been made to the live database.`,
+          actionRequired: null,
+          suggestions: [
+            `Show pending dues in ${department.name}`,
+            `Lookup student ${stagedPayload.usn || '4MC24IS022'}`,
+            `Show ${department.name} clearance summary`
+          ]
+        };
+      } else {
+        return {
+          reply: `There is currently no pending staged action to cancel. All live database records remain unchanged.`,
+          actionRequired: null,
+          suggestions: [
+            `Show pending dues in ${department.name}`,
+            `Show ${department.name} clearance summary`
+          ]
+        };
+      }
+    }
+
+    // 8. Handle Conversational Action Edit ("Change it to ₹450", "The reason is a broken lens, not a thermometer")
+    if (detectedIntent.intent === 'EDIT_STAGED_ACTION') {
+      return this.handleEditStagedAction(
+        lastMessage,
+        activeStagedToken,
+        stagedPayload,
+        extractedAmount,
+        department,
+        user
+      );
+    }
+
+    // 9. Handle Contradictory Requests (Requirement: Ask for clarification, never silently choose)
+    if (detectedIntent.intent === 'CONTRADICTORY') {
+      return this.handleContradictory(lastMessage, department, studentContext, extractedAmount, contextUsn);
+    }
+
+    // 10. Handle Deterministic Intents (Fast Grounded Semantic Path)
     if (detectedIntent.intent === 'ADD_DUE') {
-      const extractedReason = this.extractReasonFromText(lastMessage, mentionedUsn, extractedAmount);
+      const extractedReason = this.extractReasonFromText(lastMessage, contextUsn, extractedAmount);
       return this.handleOperationalMutation(
         'MARK_DUE',
-        mentionedUsn,
+        contextUsn,
         extractedAmount,
         extractedReason,
         labName,
@@ -96,10 +196,18 @@ export class AiAssistantService {
     }
 
     if (detectedIntent.intent === 'CLEAR_DUE') {
-      const extractedReason = this.extractReasonFromText(lastMessage, mentionedUsn, 0) || 'Clearance verified and approved as No Due';
+      let extractedReason = this.extractReasonFromText(lastMessage, contextUsn, 0);
+      if (/\breturned\s+(?:the\s+)?apparatus\b/i.test(lastMessage)) {
+        extractedReason = 'Returned apparatus / charge removed';
+      } else if (/\bmark\s+(?:this\s+student(?:'s)?\s+)?(?:physics\s+lab\s+)?clearance\s+as\s+complete\b/i.test(lastMessage)) {
+        extractedReason = 'Physics Lab clearance marked as complete';
+      } else if (!extractedReason || extractedReason === 'Apparatus / Lab Equipment Damage') {
+        extractedReason = 'Clearance verified and approved as No Due';
+      }
+
       return this.handleOperationalMutation(
         'CLEAR_DUE',
-        mentionedUsn,
+        contextUsn,
         0,
         extractedReason,
         labName,
@@ -117,11 +225,14 @@ export class AiAssistantService {
       return this.handleDepartmentReport(department, stats);
     }
 
-    if ((detectedIntent.intent === 'STUDENT_LOOKUP' || (detectedIntent as any).intent === 'READ_LAB_CLEARANCE') && mentionedUsn) {
-      return this.handleStudentLookup(studentContext, mentionedUsn, department);
+    if (
+      (detectedIntent.intent === 'STUDENT_LOOKUP' || (detectedIntent as any).intent === 'READ_LAB_CLEARANCE') &&
+      contextUsn
+    ) {
+      return this.handleStudentLookup(studentContext, contextUsn, department);
     }
 
-    // 7. Conversational & Complex Operational Model Invocation with Safe Grounded Fallback
+    // 11. Conversational & Complex Operational Model Invocation with Safe Grounded Fallback
     const topDues = await this.getTopDepartmentDues(department.id, 10);
     const systemPrompt = this.buildSystemPrompt({
       userName: user.name,
@@ -130,7 +241,8 @@ export class AiAssistantService {
       departmentCode: department.code,
       stats,
       topDues,
-      studentContext
+      studentContext,
+      activeStagedToken: activeStagedToken ? { action: activeStagedToken.action, payload: stagedPayload } : null
     });
 
     const geminiMessages: GeminiMessage[] = messages.map((m) => ({
@@ -161,7 +273,7 @@ export class AiAssistantService {
       const modelIntent = typeof parsed.intent === 'string' ? parsed.intent.toUpperCase() : null;
       const modelUsn = typeof parsed.usn === 'string' && /^[1-4][A-Z]{2}\d{2}[A-Z]{2}\d{3}$/i.test(parsed.usn.trim())
         ? parsed.usn.trim().toUpperCase()
-        : mentionedUsn;
+        : contextUsn;
       const modelAmount = typeof parsed.amount === 'number' && !isNaN(parsed.amount) && parsed.amount > 0
         ? parsed.amount
         : extractedAmount;
@@ -171,6 +283,28 @@ export class AiAssistantService {
 
       if (parsed.contradictionDetected || modelIntent === 'CONTRADICTORY') {
         return this.handleContradictory(lastMessage, department, studentContext, modelAmount, modelUsn);
+      }
+
+      if (modelIntent === 'CANCEL_ACTION') {
+        if (activeStagedToken) {
+          await this.cancelAction(activeStagedToken.token, user.id, req.reqObj);
+          return {
+            reply: `❌ **Action Cancelled**: The staged action for **${stagedPayload.studentName || 'the student'}** (\`${stagedPayload.usn}\`) has been cancelled.\n\nNo changes have been made to the live database.`,
+            actionRequired: null,
+            suggestions: [`Show pending dues in ${department.name}`, `Show ${department.name} clearance summary`]
+          };
+        }
+      }
+
+      if (modelIntent === 'EDIT_ACTION' && activeStagedToken) {
+        return this.handleEditStagedAction(
+          lastMessage,
+          activeStagedToken,
+          stagedPayload,
+          modelAmount,
+          department,
+          user
+        );
       }
 
       if (modelIntent === 'ADD_DUE') {
@@ -229,15 +363,64 @@ export class AiAssistantService {
       }
     }
 
-    // 8. Grounded Fallback Response when LLM is unconfigured or returns unparsable output
+    // 12. Grounded Fallback Response when LLM is unconfigured or returns unparsable output
     return this.buildGroundedGeneralReply(department, stats, studentContext, lastMessage);
   }
 
   /**
    * Execute an authorized mutation using a verified HMAC/durable confirmation token.
-   * Enforces database transaction verification, clearance state machine, aggregate lab rules, and audit logging.
+   * Enforces database transaction verification, clearance state machine, aggregate lab rules, concurrency/replay protection, and audit logging.
    */
-  public static async confirmAndExecute(tokenString: string, userId: string, reqObj?: any): Promise<any> {
+  public static async confirmAndExecute(
+    tokenString: string,
+    userId: string,
+    reqObj?: any,
+    expectedParams?: {
+      action?: string;
+      usn?: string;
+      amount?: number;
+      reason?: string;
+    }
+  ): Promise<any> {
+    // 1. Atomic Concurrency & Replay Protection:
+    // Update token to consumed atomically. Only the first concurrent caller will get count === 1.
+    const updateResult = await prisma.aiConfirmationToken.updateMany({
+      where: {
+        token: tokenString,
+        consumed: false,
+        expiresAt: { gt: new Date() }
+      },
+      data: {
+        consumed: true,
+        consumedAt: new Date()
+      }
+    });
+
+    if (updateResult.count === 0) {
+      const existing = await prisma.aiConfirmationToken.findUnique({
+        where: { token: tokenString }
+      });
+
+      if (!existing) {
+        throw new Error('Invalid or non-existent confirmation token.');
+      }
+
+      const p = (existing.payload as any) || {};
+      if (p.cancelled) {
+        throw new Error('This confirmation token has been cancelled and cannot be executed.');
+      }
+
+      if (existing.consumed) {
+        throw new Error('This action has already been confirmed and executed.');
+      }
+
+      if (new Date() > existing.expiresAt) {
+        throw new Error('This confirmation token has expired. Please initiate the request again.');
+      }
+
+      throw new Error('Confirmation token is not available for execution.');
+    }
+
     const confirmation = await prisma.aiConfirmationToken.findUnique({
       where: { token: tokenString }
     });
@@ -246,15 +429,13 @@ export class AiAssistantService {
       throw new Error('Invalid or non-existent confirmation token.');
     }
 
-    if (confirmation.consumed) {
-      throw new Error('This action has already been confirmed and executed.');
-    }
-
-    if (new Date() > confirmation.expiresAt) {
-      throw new Error('This confirmation token has expired. Please initiate the request again.');
-    }
-
+    // 2. User Account Binding Check
     if (confirmation.userId !== userId) {
+      // Revert the consumption since user account didn't match
+      await prisma.aiConfirmationToken.update({
+        where: { token: tokenString },
+        data: { consumed: false, consumedAt: null }
+      });
       throw new Error('Unauthorized: This confirmation token was generated for a different officer account.');
     }
 
@@ -262,28 +443,64 @@ export class AiAssistantService {
       throw new Error('No target clearance record associated with this token.');
     }
 
-    // Verify user authorization for target department
+    const payload = (confirmation.payload as any) || {};
+
+    // 3. Staged Parameters Revalidation
+    const effectiveParams = expectedParams || (reqObj && (reqObj.action || reqObj.usn || reqObj.amount !== undefined) ? reqObj : undefined);
+    if (effectiveParams) {
+      if (effectiveParams.action && effectiveParams.action !== confirmation.action) {
+        throw new Error(`Parameter mismatch: Expected action [${confirmation.action}], but received [${effectiveParams.action}].`);
+      }
+      if (effectiveParams.usn && effectiveParams.usn.toUpperCase() !== String(payload.usn || '').toUpperCase()) {
+        throw new Error(`Parameter mismatch: Expected USN [${payload.usn}], but received [${effectiveParams.usn}].`);
+      }
+      if (effectiveParams.amount !== undefined && confirmation.action === 'MARK_DUE') {
+        if (Number(effectiveParams.amount) !== Number(payload.amount)) {
+          throw new Error(`Parameter mismatch: Expected amount [₹${payload.amount}], but received [₹${effectiveParams.amount}].`);
+        }
+      }
+    }
+
+    // 4. Live Record and Authorization Revalidation
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, departmentId: true }
+      select: { id: true, name: true, role: true, departmentId: true }
     });
 
     if (!user) {
       throw new Error('Executing user account not found.');
     }
 
-    const payload = confirmation.payload as any;
-    const targetDepartmentId = payload.departmentId;
-
-    const isAuthorized = await DueManagementService.verifyOfficerDepartmentAuthorization(userId, {
-      departmentId: targetDepartmentId,
-      labId: null,
-      studentId: confirmation.studentId
+    const student = await prisma.student.findUnique({
+      where: { id: confirmation.studentId },
+      include: { department: true }
     });
-    if (!isAuthorized.authorized) {
-      throw new Error(`Unauthorized: You do not have permission to modify clearances for ${payload.departmentName || 'this department'}: ${isAuthorized.reason}`);
+
+    if (!student || !student.isActive) {
+      throw new Error('Student record not found or student account is inactive.');
     }
 
+    const clearance = await prisma.ndcClearance.findUnique({
+      where: { id: confirmation.clearanceId },
+      include: { department: true }
+    });
+
+    if (!clearance) {
+      throw new Error('Target clearance record not found in database.');
+    }
+
+    const targetDepartmentId = payload.departmentId || clearance.departmentId;
+    const isAuthorized = await DueManagementService.verifyOfficerDepartmentAuthorization(userId, {
+      departmentId: targetDepartmentId,
+      labId: clearance.labId,
+      studentId: confirmation.studentId
+    });
+
+    if (!isAuthorized.authorized) {
+      throw new Error(`Unauthorized: You do not have permission to modify clearances for ${payload.departmentName || clearance.department?.name || 'this department'}: ${isAuthorized.reason}`);
+    }
+
+    // 5. Execute Business Mutation via Canonical Services
     let targetStatus: DepartmentClearanceStatus;
     let remarks = payload.reason || 'Updated via Physics AI Assistant';
     let dueAmount = 0;
@@ -292,7 +509,7 @@ export class AiAssistantService {
     switch (confirmation.action) {
       case 'CLEAR_DUE':
         targetStatus = DepartmentClearanceStatus.CLEARED;
-        remarks = payload.reason || 'Physics Lab clearance verified and approved as No Due via AI Assistant';
+        remarks = payload.reason || 'Clearance verified and approved as No Due via AI Assistant';
         dueAmount = 0;
         dueDetails = '';
         break;
@@ -317,7 +534,6 @@ export class AiAssistantService {
 
     let verifiedRecord: any = null;
     let finalDueAmount = dueAmount;
-
     let notificationResult: any = null;
 
     if (confirmation.action === 'MARK_DUE') {
@@ -373,18 +589,9 @@ export class AiAssistantService {
       notificationResult = await NotificationQueueService.getJobByIdempotencyKey(notifKey);
     }
 
-    // Mark token as consumed (Durable Replay Protection)
-    await prisma.aiConfirmationToken.update({
-      where: { token: tokenString },
-      data: {
-        consumed: true,
-        consumedAt: new Date()
-      }
-    });
-
-    // Record high-priority audit log
+    // 6. Record High-Priority Audit Log
     await AuditService.log(
-      reqObj || null,
+      reqObj || ({ user: { id: userId, name: user.name || user.role, role: user.role } } as any),
       `AI_ASSISTANT_${confirmation.action}`,
       'NdcClearance',
       `Officer confirmed AI Assistant action [${confirmation.action}] for student ${payload.usn} (${payload.studentName}) in ${payload.labName || 'Physics Lab'}. Status: ${verifiedRecord.status}. Amount: ₹${verifiedRecord.dueAmount}`,
@@ -400,10 +607,212 @@ export class AiAssistantService {
       usn: payload.usn,
       studentName: payload.studentName,
       labName: payload.labName || 'Physics Lab',
+      departmentName: payload.departmentName || clearance.department?.name,
       status: targetStatus,
-      dueAmount,
+      dueAmount: finalDueAmount,
       clearance: verifiedRecord,
       notification: notificationResult
+    };
+  }
+
+  /**
+   * Cancel an active confirmation token explicitly before execution.
+   */
+  public static async cancelAction(tokenString: string, userId: string, reqObj?: any): Promise<any> {
+    const confirmation = await prisma.aiConfirmationToken.findUnique({
+      where: { token: tokenString }
+    });
+
+    if (!confirmation) {
+      throw new Error('Invalid or non-existent confirmation token.');
+    }
+
+    if (confirmation.userId !== userId) {
+      throw new Error('Unauthorized: This confirmation token belongs to a different officer account.');
+    }
+
+    const payload = (confirmation.payload as any) || {};
+
+    if (confirmation.consumed) {
+      if (payload.cancelled) {
+        return {
+          success: true,
+          message: 'This action was already cancelled.',
+          cancelled: true,
+          token: tokenString,
+          action: confirmation.action,
+          usn: payload.usn,
+          studentName: payload.studentName
+        };
+      }
+      throw new Error('Cannot cancel: This action has already been confirmed and executed.');
+    }
+
+    await prisma.aiConfirmationToken.update({
+      where: { token: tokenString },
+      data: {
+        consumed: true,
+        consumedAt: new Date(),
+        payload: {
+          ...payload,
+          cancelled: true,
+          cancelledAt: new Date().toISOString(),
+          cancellationReason: 'Explicitly cancelled by officer'
+        }
+      }
+    });
+
+    await AuditService.log(
+      reqObj || null,
+      'AI_ASSISTANT_CANCEL_ACTION',
+      'AiConfirmationToken',
+      `Officer cancelled staged AI Assistant action [${confirmation.action}] for student ${payload.usn} (${payload.studentName}) in ${payload.labName || 'Physics Lab'}.`,
+      confirmation.id,
+      null,
+      { token: tokenString, action: confirmation.action, payload }
+    );
+
+    return {
+      success: true,
+      message: `Cancelled staged action [${confirmation.action}] for ${payload.studentName} (${payload.usn}). No changes were made to the database.`,
+      cancelled: true,
+      token: tokenString,
+      action: confirmation.action,
+      usn: payload.usn,
+      studentName: payload.studentName
+    };
+  }
+
+  /**
+   * Helper to invalidate any previous active tokens for this officer
+   */
+  public static async invalidateActiveStagedTokens(
+    userId: string,
+    clearanceId?: string | null,
+    reason: string = 'Superseded by new staged action'
+  ): Promise<void> {
+    const whereClause: any = {
+      userId,
+      consumed: false,
+      expiresAt: { gt: new Date() }
+    };
+    if (clearanceId) {
+      whereClause.clearanceId = clearanceId;
+    }
+
+    const activeTokens = await prisma.aiConfirmationToken.findMany({
+      where: whereClause
+    });
+
+    for (const t of activeTokens) {
+      const p = (t.payload as any) || {};
+      await prisma.aiConfirmationToken.update({
+        where: { id: t.id },
+        data: {
+          consumed: true,
+          consumedAt: new Date(),
+          payload: {
+            ...p,
+            cancelled: true,
+            cancelledAt: new Date().toISOString(),
+            cancellationReason: reason
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * Handle Conversational Staged Action Editing ("Change it to ₹450", "The reason is a broken lens, not a thermometer")
+   */
+  private static async handleEditStagedAction(
+    text: string,
+    activeStagedToken: any,
+    stagedPayload: any,
+    extractedAmount: number | null,
+    department: any,
+    user: any
+  ): Promise<AssistantChatResponse> {
+    if (!activeStagedToken) {
+      return {
+        reply: `⚠️ There is no currently pending staged action to modify. Please specify what action you would like to stage (e.g. \`Add ₹450 due for broken lens for USN 4MC24IS022\`).`,
+        actionRequired: null,
+        suggestions: [
+          `Show pending dues in ${department.name}`,
+          `Lookup student 4MC24IS022`
+        ]
+      };
+    }
+
+    const currentAction = activeStagedToken.action as 'MARK_DUE' | 'CLEAR_DUE';
+    const newAmount = extractedAmount !== null && extractedAmount > 0 ? extractedAmount : (stagedPayload.amount || 0);
+    const newReason = this.extractEditedReason(text) || stagedPayload.reason || 'Apparatus / Lab Equipment Due';
+
+    // Invalidate old token
+    await this.invalidateActiveStagedTokens(user.id, null, 'Superseded by user edit');
+
+    const updatedStudent = await prisma.student.findUnique({
+      where: { id: activeStagedToken.studentId },
+      include: { department: true }
+    });
+
+    const tokenStr = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const labName = stagedPayload.labName || department.name;
+
+    const consequences = currentAction === 'MARK_DUE'
+      ? `Recording an outstanding due of ₹${newAmount} for "${newReason}" will set ${updatedStudent?.fullName || stagedPayload.studentName}'s (${stagedPayload.usn}) status in ${labName} to DUE. Overall NDC status will become BLOCKED, and an official notification will be queued.`
+      : `Setting clearance to NO DUE will approve clearance as CLEARED with ₹0 dues. Overall NDC status will advance towards APPROVED.`;
+
+    await prisma.aiConfirmationToken.create({
+      data: {
+        token: tokenStr,
+        userId: user.id,
+        action: currentAction,
+        studentId: activeStagedToken.studentId,
+        clearanceId: activeStagedToken.clearanceId,
+        payload: {
+          studentName: updatedStudent?.fullName || stagedPayload.studentName,
+          usn: stagedPayload.usn,
+          amount: newAmount,
+          reason: newReason,
+          departmentId: stagedPayload.departmentId || department.id,
+          departmentName: stagedPayload.departmentName || department.name,
+          labName,
+          consequences
+        },
+        expiresAt
+      }
+    });
+
+    return {
+      reply: `I have updated the staged action for **${updatedStudent?.fullName || stagedPayload.studentName}** (\`${stagedPayload.usn}\`) in **${labName}**.\n\n` +
+        `The previous confirmation token has been invalidated. Please review the updated details below and confirm to apply to the live database:\n\n` +
+        `- **Student**: ${updatedStudent?.fullName || stagedPayload.studentName} (\`${stagedPayload.usn}\`)\n` +
+        `- **Target Laboratory**: ${labName}\n` +
+        `- **Operation**: ${currentAction === 'MARK_DUE' ? 'Add Outstanding Due' : 'Set Clearance to NO DUE'}\n` +
+        (currentAction === 'MARK_DUE' ? `- **Updated Due Amount**: ₹${newAmount}\n` : '') +
+        `- **Updated Apparatus / Reason**: ${newReason}\n\n` +
+        `⚠️ **Consequences**: ${consequences}\n\n` +
+        `*No changes have been committed to the live database yet. Please click Confirm below to execute.*`,
+      actionRequired: {
+        token: tokenStr,
+        action: currentAction,
+        studentId: activeStagedToken.studentId,
+        studentName: updatedStudent?.fullName || stagedPayload.studentName,
+        usn: stagedPayload.usn,
+        clearanceId: activeStagedToken.clearanceId!,
+        amount: newAmount,
+        reason: newReason,
+        labName,
+        departmentName: stagedPayload.departmentName || department.name,
+        consequences,
+        expiresAt: expiresAt.toISOString()
+      },
+      suggestions: [
+        `Cancel that`,
+        `Show me the pending details again`
+      ]
     };
   }
 
@@ -481,6 +890,9 @@ export class AiAssistantService {
       };
     }
 
+    // Invalidate any previously unconsumed active tokens for this officer
+    await this.invalidateActiveStagedTokens(user.id, clearance.id, 'Superseded by new staged action');
+
     // 5. Action-specific validation
     if (action === 'MARK_DUE') {
       const finalAmount = amount && amount > 0 ? amount : 0;
@@ -495,6 +907,8 @@ export class AiAssistantService {
       // Generate confirmation token (Action Staged — NO DATABASE MUTATION YET)
       const tokenStr = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const finalReason = reason || 'Apparatus / Lab Equipment Damage';
+      const consequences = `Recording an outstanding due of ₹${finalAmount} for "${finalReason}" will update ${student.fullName}'s (${student.usn}) status in ${labName} to DUE. Overall NDC status will become BLOCKED, preventing certificate generation until dues are settled. An official email notification will be queued to ${student.email || student.usn}.`;
 
       await prisma.aiConfirmationToken.create({
         data: {
@@ -507,10 +921,11 @@ export class AiAssistantService {
             studentName: student.fullName,
             usn: student.usn,
             amount: finalAmount,
-            reason: reason || 'Apparatus / Lab Equipment Damage',
+            reason: finalReason,
             departmentId: department.id,
             departmentName: department.name,
-            labName
+            labName,
+            consequences
           },
           expiresAt
         }
@@ -523,8 +938,9 @@ export class AiAssistantService {
           `- **Target Laboratory**: ${labName}\n` +
           `- **Operation**: Add Outstanding Due\n` +
           `- **Due Amount**: ₹${finalAmount}\n` +
-          `- **Apparatus / Reason**: ${reason}\n\n` +
-          `⚠️ **Confirmation Required**: No changes have been made to the database yet. Please review the details in the confirmation card below and click **Confirm & Apply to Live Database** to execute.`,
+          `- **Apparatus / Reason**: ${finalReason}\n\n` +
+          `⚠️ **Consequences**: ${consequences}\n\n` +
+          `⚠️ **Confirmation Required**: No changes have been made to the live database yet. Please review the details in the confirmation card below and click **Confirm & Save to Records** to execute, or **Cancel** to abort.`,
         actionRequired: {
           token: tokenStr,
           action: 'MARK_DUE',
@@ -533,11 +949,15 @@ export class AiAssistantService {
           usn: student.usn,
           clearanceId: clearance.id,
           amount: finalAmount,
-          reason,
+          reason: finalReason,
           labName,
+          departmentName: department.name,
+          consequences,
           expiresAt: expiresAt.toISOString()
         },
         suggestions: [
+          `Change it to ₹450`,
+          `Cancel that`,
           `Clear ${student.usn}'s Physics Lab clearance as No Due`,
           `Lookup student ${student.usn}`
         ]
@@ -548,6 +968,8 @@ export class AiAssistantService {
     const currentDueAmount = Number(clearance.dueAmount || 0);
     const tokenStr = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const finalReason = reason || 'Clearance verified and approved as No Due';
+    const consequences = `Approving clearance as NO DUE will set outstanding dues to ₹0 and update ${student.fullName}'s (${student.usn}) status in ${labName} to CLEARED. If all other department clearances are satisfied, the student's NDC request will advance towards APPROVED, enabling final certificate generation. An official notification will be queued.`;
 
     await prisma.aiConfirmationToken.create({
       data: {
@@ -560,10 +982,11 @@ export class AiAssistantService {
           studentName: student.fullName,
           usn: student.usn,
           amount: 0,
-          reason: reason || 'Clearance verified and approved as No Due',
+          reason: finalReason,
           departmentId: department.id,
           departmentName: department.name,
-          labName
+          labName,
+          consequences
         },
         expiresAt
       }
@@ -581,6 +1004,7 @@ export class AiAssistantService {
         `- **Operation**: Set Clearance to NO DUE (Approval)\n` +
         `- **Resulting Dues**: ₹0` +
         contextNote +
+        `\n\n⚠️ **Consequences**: ${consequences}` +
         `\n\n⚠️ **Confirmation Required**: Please confirm below to apply this clearance update to the live database.`,
       actionRequired: {
         token: tokenStr,
@@ -590,11 +1014,14 @@ export class AiAssistantService {
         usn: student.usn,
         clearanceId: clearance.id,
         amount: 0,
-        reason: reason || 'Clearance verified and approved as No Due',
+        reason: finalReason,
         labName,
+        departmentName: department.name,
+        consequences,
         expiresAt: expiresAt.toISOString()
       },
       suggestions: [
+        `Cancel that`,
         `Add ₹300 due for breaking a thermometer for USN ${student.usn}`,
         `Lookup student ${student.usn}`
       ]
@@ -803,26 +1230,66 @@ export class AiAssistantService {
 
   public static detectIntent(
     text: string,
-    extractedAmount: number | null
+    extractedAmount: number | null,
+    hasContextStudent: boolean = false,
+    hasActiveToken: boolean = false
   ): {
-    intent: 'CONTRADICTORY' | 'ADD_DUE' | 'CLEAR_DUE' | 'VIEW_PENDING_DUES' | 'DEPARTMENT_REPORT' | 'LIST_RECORDS' | 'READ_LAB_CLEARANCE' | 'STUDENT_LOOKUP' | 'GENERAL_QUERY';
+    intent:
+      | 'CONTRADICTORY'
+      | 'CANCEL_ACTION'
+      | 'EDIT_STAGED_ACTION'
+      | 'ADD_DUE'
+      | 'CLEAR_DUE'
+      | 'VIEW_PENDING_DUES'
+      | 'DEPARTMENT_REPORT'
+      | 'LIST_RECORDS'
+      | 'READ_LAB_CLEARANCE'
+      | 'STUDENT_LOOKUP'
+      | 'GENERAL_QUERY';
     reason?: string;
   } {
-    const lower = text.toLowerCase();
+    const lower = text.toLowerCase().trim();
 
-    // Contradiction detection: both CLEAR/NO_DUE and ADD_DUE/FINE present
+    // 1. Cancellation Check ("Cancel that", "Cancel the due", "Abort", "Never mind")
+    if (
+      /\b(cancel\s+(?:that|it|action|due|the\s+due|request)|cancel|never\s*mind|abort|don't\s+do\s+that|drop\s+that\s+charge|dismiss)\b/i.test(lower)
+    ) {
+      return { intent: 'CANCEL_ACTION' };
+    }
+
+    // 2. Edit Staged Action Check ("Change it to ₹450", "The reason is a broken lens, not a thermometer")
+    if (
+      hasActiveToken &&
+      (/\b(change|update|make|set)\s+(?:it\s+)?to\s+(?:₹|rs\.?|inr)?\s*\d+/i.test(lower) ||
+        /\b(?:the\s+)?reason\s+is\s+.*?(?:not\s+.*?)?$/i.test(lower) ||
+        /\bchange\s+reason\s+to\b/i.test(lower) ||
+        /\b(change|update|make|set)\s+(?:the\s+)?amount\b/i.test(lower))
+    ) {
+      return { intent: 'EDIT_STAGED_ACTION' };
+    }
+
+    // 3. Contradiction detection: both CLEAR/NO_DUE and ADD_DUE/FINE present in same message
+    const isClearingCharge =
+      /\b(remove|waive|drop|cancel|clear)\s+(?:that\s+|the\s+)?(?:charge|due|fine)\b/i.test(lower) ||
+      /\breturned\s+(?:the\s+)?apparatus\b/i.test(lower);
+
     const hasClearSignal =
+      isClearingCharge ||
       /\b(clear|cleared|approve|approved|waive|waived|forgive)\b/i.test(lower) ||
       /\bno[ _-]?dues?\b/i.test(lower) ||
-      /\bmark\b.*?\b(?:as\s+)?cleared\b/i.test(lower);
+      /\bmark\b.*?\b(?:as\s+)?(?:cleared|complete|completed|no[ _-]?due)\b/i.test(lower) ||
+      /\bmark\s+(?:this\s+student(?:'s)?\s+)?(?:physics\s+lab\s+)?clearance\s+as\s+complete\b/i.test(lower);
 
-    const hasDueSignal =
+    const hasDueSignal = !isClearingCharge && (
       /\b(add|mark|record|charge|impose|fine|penalize|bill)\b.*?\b(dues?|fine|penalty|fee)\b/i.test(lower) ||
       /\b(fine|penalty|due|charge|fee)\s+(?:of\s+)?(?:₹|rs\.?|inr)?\s*\d+/i.test(lower) ||
+      /\bput\s+(?:a\s+)?(?:fine|due|charge|penalty)\s+of\s+(?:₹|rs\.?|inr)?\s*\d+/i.test(lower) ||
       /\b(?:fine|penalty|charge|impose|penalize)\b/i.test(lower) ||
-      (/\b(broken|damage|breaking|damaged|breakage|lost|missing)\b/i.test(lower) && (extractedAmount !== null || /\b(charge|fine|fee|due|penalize|cost)\b/i.test(lower))) ||
+      (/\b(broke|damage|breaking|damaged|breakage|lost|missing|snapped)\b/i.test(lower) &&
+        (extractedAmount !== null || /\b(charge|fine|fee|due|penalize|cost)\b/i.test(lower))) ||
       /\badding\s+(?:an\s+)?outstanding\s+due\b/i.test(lower) ||
-      (/\b(add|record|charge|impose|bill)\b/i.test(lower) && extractedAmount !== null);
+      (/\b(add|record|charge|impose|bill)\b/i.test(lower) && extractedAmount !== null)
+    );
 
     if (hasClearSignal && hasDueSignal) {
       return {
@@ -831,24 +1298,37 @@ export class AiAssistantService {
       };
     }
 
-    // 1. ADD_DUE
+    // 4. VIEW_PENDING_DUES / WHO HASN'T CLEARED
     if (
-      hasDueSignal ||
-      /\b(add|mark|charge|record|fine|impose|bill|penalize)\b.*?\bdues?\b/i.test(lower) ||
-      /\bdues?\s+of\b/i.test(lower) ||
-      /\b(fine|penalty)\s+(?:of\s+)?/i.test(lower) ||
-      (/\b(add|mark|charge|record|impose|bill|penalize)\b/i.test(lower) && (extractedAmount !== null || /\b(thermometer|caliper|prism|beaker|apparatus|equipment|manual|lens|spectrometer|resistor)\b/i.test(lower))) ||
-      (/\b(damage|breakage|broken|breaking|lost|missing)\b/i.test(lower) && (extractedAmount !== null || /\b(charge|fine|fee|due)\b/i.test(lower)))
+      !hasContextStudent && (
+        /\bwho\s+(?:hasn't|has\s+not|has)\s+(?:cleared|paid)\b/i.test(lower) ||
+        /\bwho\s+has\s+(?:pending\s+)?dues?\b/i.test(lower) ||
+        /\bpending\s+dues?\b/i.test(lower) ||
+        /\boutstanding\s+dues?\b/i.test(lower) ||
+        /\blist\s+(?:pending\s+)?dues?\b/i.test(lower) ||
+        /\bshow\s+(?:pending\s+)?dues?\b/i.test(lower) ||
+        /\bstudents?\s+with\s+(?:pending\s+)?dues?\b/i.test(lower)
+      )
     ) {
-      return { intent: 'ADD_DUE' };
+      return { intent: 'VIEW_PENDING_DUES' };
     }
 
-    // 2. CLEAR_DUE
+    // 5. PENDING DETAILS AGAIN
     if (
+      /\bshow\s+(?:me\s+)?(?:the\s+)?pending\s+details\s+again\b/i.test(lower) ||
+      /\bshow\s+details\s+again\b/i.test(lower)
+    ) {
+      return hasContextStudent ? { intent: 'STUDENT_LOOKUP' } : { intent: 'VIEW_PENDING_DUES' };
+    }
+
+    // 6. CLEAR_DUE / REMOVE CHARGE / APPROVE CLEARANCE
+    if (
+      isClearingCharge ||
       hasClearSignal ||
+      /\breturned\s+(?:the\s+)?apparatus\b/i.test(lower) ||
+      /\bremove\s+(?:that\s+)?(?:charge|due|fine)\b/i.test(lower) ||
       /\b(clear|approve|waive)\b.*?\b(clearance|dues?|status|lab)\b/i.test(lower) ||
       /\b(set|mark)\b.*?\bno[ _-]?dues?\b/i.test(lower) ||
-      /\bmark\b.*?\b(?:as\s+)?cleared\b/i.test(lower) ||
       /\bclearance\s+as\s+no[ _-]?dues?\b/i.test(lower) ||
       /\bclear\b\s+[1-4][a-z]{2}\d{2}[a-z]{2}\d{3}/i.test(lower) ||
       /\bclear\s+all\s+(?:outstanding\s+)?dues\b/i.test(lower) ||
@@ -858,19 +1338,22 @@ export class AiAssistantService {
       return { intent: 'CLEAR_DUE' };
     }
 
-    // 3. VIEW_PENDING_DUES
+    // 7. ADD_DUE
     if (
-      /\bpending\s+dues?\b/i.test(lower) ||
-      /\boutstanding\s+dues?\b/i.test(lower) ||
-      /\bwho\s+has\s+dues?\b/i.test(lower) ||
-      /\blist\s+(?:pending\s+)?dues?\b/i.test(lower) ||
-      /\bshow\s+(?:pending\s+)?dues?\b/i.test(lower) ||
-      /\bstudents?\s+with\s+(?:pending\s+)?dues?\b/i.test(lower)
+      hasDueSignal ||
+      /\b(add|mark|charge|record|fine|impose|bill|penalize)\b.*?\bdues?\b/i.test(lower) ||
+      /\bdues?\s+of\b/i.test(lower) ||
+      /\b(fine|penalty)\s+(?:of\s+)?/i.test(lower) ||
+      (/\b(add|mark|charge|record|impose|bill|penalize)\b/i.test(lower) &&
+        (extractedAmount !== null ||
+          /\b(thermometer|caliper|prism|beaker|apparatus|equipment|manual|lens|spectrometer|resistor)\b/i.test(lower))) ||
+      (/\b(damage|breakage|broken|breaking|lost|missing)\b/i.test(lower) &&
+        (extractedAmount !== null || /\b(charge|fine|fee|due)\b/i.test(lower)))
     ) {
-      return { intent: 'VIEW_PENDING_DUES' };
+      return { intent: 'ADD_DUE' };
     }
 
-    // 4. DEPARTMENT_REPORT
+    // 8. DEPARTMENT_REPORT
     if (
       /\b(department\s+report|clearance\s+report|authorized\s+report|report)\b/i.test(lower) ||
       /\b(summary|statistics|stats|overview)\b/i.test(lower) ||
@@ -880,20 +1363,35 @@ export class AiAssistantService {
       return { intent: 'DEPARTMENT_REPORT' };
     }
 
-    // 5. READ_LAB_CLEARANCE
+    // 9. READ_LAB_CLEARANCE
     if (
       /\b(read|check|inspect|view|get)\b.*?\b(clearance|physics\s+lab|details|status)\b/i.test(lower) ||
-      /\bphysics\s+lab\s+(?:clearance\s+)?(?:details|record|status)\b/i.test(lower)
+      /\bphysics\s+lab\s+(?:clearance\s+)?(?:details|record|status)\b/i.test(lower) ||
+      /\bcheck\s+(?:whether|if)\b/i.test(lower)
     ) {
       return { intent: 'READ_LAB_CLEARANCE' };
     }
 
-    // 6. STUDENT_LOOKUP
+    // 10. STUDENT_LOOKUP
     if (this.extractUsnFromText(text) !== null) {
       return { intent: 'STUDENT_LOOKUP' };
     }
 
     return { intent: 'GENERAL_QUERY' };
+  }
+
+  public static extractEditedReason(text: string): string | null {
+    const isMatch = text.match(/\breason\s+is\s+(?:a\s+)?(.+?)(?:,\s*not\s+.*|\.|$)/i);
+    if (isMatch && isMatch[1]) {
+      let r = isMatch[1].trim();
+      return r.charAt(0).toUpperCase() + r.slice(1);
+    }
+    const toMatch = text.match(/(?:change|update|set|make)\s+(?:the\s+)?reason\s+to\s+(?:a\s+)?(.+?)(?:\.|$)/i);
+    if (toMatch && toMatch[1]) {
+      let r = toMatch[1].trim();
+      return r.charAt(0).toUpperCase() + r.slice(1);
+    }
+    return null;
   }
 
   public static extractUsnFromText(text: string): string | null {
@@ -902,16 +1400,23 @@ export class AiAssistantService {
   }
 
   public static extractAmountFromText(text: string): number | null {
+    // Strip USN first so digits in USN (e.g. 4MC24IS022) are never mistakenly matched as an amount
+    const textWithoutUsn = text.replace(/\b([1-4][A-Z]{2}\d{2}[A-Z]{2}\d{3})\b/gi, '');
+
     // Pattern 1: currency symbol before amount (e.g. ₹300, Rs. 300, INR 300)
-    const currMatch = text.match(/(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)/i);
+    const currMatch = textWithoutUsn.match(/(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)/i);
     if (currMatch) return parseFloat(currMatch[1]);
 
-    // Pattern 2: due/fine/penalty/fee followed by optional "of" and number (e.g. due of 300, fine 500)
-    const dueMatch = text.match(/(?:due|fine|penalty|fee|amount|charge)\s*(?:of)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)/i);
+    // Pattern 2: "to ₹450" or "to 450" (e.g. Change it to ₹450)
+    const toMatch = textWithoutUsn.match(/(?:to|it\s+to|amount\s+to|fine\s+to|due\s+to)\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)/i);
+    if (toMatch) return parseFloat(toMatch[1]);
+
+    // Pattern 3: due/fine/penalty/fee followed by optional "of" and number (e.g. due of 300, fine 500)
+    const dueMatch = textWithoutUsn.match(/(?:due|fine|penalty|fee|amount|charge)\s*(?:of)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)(?!\w)/i);
     if (dueMatch) return parseFloat(dueMatch[1]);
 
-    // Pattern 3: number followed by rupees/rs/inr
-    const suffixMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:₹|rs\.?|inr|rupees?)/i);
+    // Pattern 4: number followed by rupees/rs/inr
+    const suffixMatch = textWithoutUsn.match(/(\d+(?:\.\d+)?)\s*(?:₹|rs\.?|inr|rupees?)/i);
     if (suffixMatch) return parseFloat(suffixMatch[1]);
 
     return null;
@@ -926,6 +1431,23 @@ export class AiAssistantService {
 
     cleaned = cleaned.replace(/(?:₹|rs\.?|inr)\s*\d+(?:\.\d+)?/gi, '');
     cleaned = cleaned.replace(/\b\d+(?:\.\d+)?\s*(?:₹|rs\.?|inr|rupees?)\b/gi, '');
+
+    // Pattern for "broke a thermometer", "missing prism", "lost manual", etc.
+    const brokeMatch = cleaned.match(/\b(broke|breaking|damaged?|lost|missing|snapped)\s+(?:a\s+|an\s+|the\s+)?([a-z\s]+?)(?:\.|\s+charge|\s+fine|\s+bill|\s+for|$)/i);
+    if (brokeMatch && brokeMatch[2]) {
+      const verb = brokeMatch[1].toLowerCase();
+      let r = brokeMatch[2].trim();
+      let prefix = 'Broken ';
+      if (verb === 'missing') prefix = 'Missing ';
+      else if (verb === 'lost') prefix = 'Lost ';
+      else if (verb.startsWith('damage')) prefix = 'Damaged ';
+      else if (verb === 'snapped') prefix = 'Snapped ';
+
+      if (!r.toLowerCase().startsWith(prefix.toLowerCase().trim())) {
+        return prefix + r;
+      }
+      return r.charAt(0).toUpperCase() + r.slice(1);
+    }
 
     const reasonPatterns = [
       /(?:due\s+for|dues\s+for|fine\s+for|penalty\s+for|fee\s+for)\s+(.+?)(?:\s+(?:for|to|at)\s+(?:usn|student)?\s*$|$)/i,
@@ -1019,14 +1541,30 @@ export class AiAssistantService {
   }
 
   private static async getDepartmentStats(departmentId: string) {
-    const [total, pending, due, cleared] = await Promise.all([
-      prisma.ndcClearance.count({ where: { departmentId } }),
-      prisma.ndcClearance.count({ where: { departmentId, status: DepartmentClearanceStatus.PENDING as any } }),
-      prisma.ndcClearance.count({ where: { departmentId, status: DepartmentClearanceStatus.DUE as any } }),
-      prisma.ndcClearance.count({ where: { departmentId, status: DepartmentClearanceStatus.CLEARED as any } })
-    ]);
+    try {
+      const groups = await prisma.ndcClearance.groupBy({
+        by: ['status'],
+        where: { departmentId },
+        _count: { _all: true }
+      });
 
-    return { total, pending, due, cleared };
+      let total = 0;
+      let pending = 0;
+      let due = 0;
+      let cleared = 0;
+
+      for (const g of groups) {
+        const count = g._count._all;
+        total += count;
+        if (g.status === DepartmentClearanceStatus.PENDING) pending += count;
+        else if (g.status === DepartmentClearanceStatus.DUE) due += count;
+        else if (g.status === DepartmentClearanceStatus.CLEARED) cleared += count;
+      }
+
+      return { total, pending, due, cleared };
+    } catch {
+      return { total: 0, pending: 0, due: 0, cleared: 0 };
+    }
   }
 
   private static async getTopDepartmentDues(departmentId: string, limit = 10) {
@@ -1147,6 +1685,7 @@ export class AiAssistantService {
     stats: { total: number; pending: number; due: number; cleared: number };
     topDues: any[];
     studentContext: any;
+    activeStagedToken?: { action: string; payload: any } | null;
   }): string {
     return `You are the specialized AI Assistant for the ${ctx.departmentName} (${ctx.departmentCode}) clearance desk at Malnad College of Engineering (MCE).
 Officer Interacting: ${ctx.userName} (${ctx.userRole}).
@@ -1177,20 +1716,33 @@ ${
     : ''
 }
 
+${
+  ctx.activeStagedToken
+    ? `ACTIVE PENDING CONFIRMATION TOKEN IN DESK:
+- Action: ${ctx.activeStagedToken.action}
+- Student: ${ctx.activeStagedToken.payload.studentName} (${ctx.activeStagedToken.payload.usn})
+- Amount: ₹${ctx.activeStagedToken.payload.amount}
+- Reason: ${ctx.activeStagedToken.payload.reason}
+- Note: If the user says "change it to ₹X", "the reason is Y", or "cancel that", interpret as EDIT_ACTION or CANCEL_ACTION for this pending action.`
+    : ''
+}
+
 OPERATIONAL GUIDELINES:
-1. Identify the user's operational intent from the message:
+1. Identify the user's operational intent from the message and conversation context:
+   - "CANCEL_ACTION": Officer wants to cancel or abort a staged action ("cancel that", "cancel the due", "never mind").
+   - "EDIT_ACTION": Officer wants to modify a pending staged action ("change it to ₹450", "reason is a broken lens, not a thermometer").
    - "ADD_DUE": Officer wants to record or add an outstanding fee/due/fine for a student.
-   - "CLEAR_LAB": Officer wants to clear clearance or approve No Due.
+   - "CLEAR_LAB": Officer wants to clear clearance, approve No Due, or remove a charge because apparatus was returned.
    - "READ_LAB_CLEARANCE": Officer wants to inspect clearance details for a student.
    - "SEARCH_STUDENT": Officer wants to find/search a student by USN or name.
-   - "LIST_PENDING_DUES": Officer asks for pending dues or students with dues.
+   - "LIST_PENDING_DUES": Officer asks for pending dues or students who haven't cleared dues.
    - "DEPARTMENT_REPORT": Officer requests summary/report/statistics for the department.
    - "CONTRADICTORY": User requests conflicting operations in the same command (e.g. mark No Due AND add a due).
    - "CLARIFICATION_NEEDED": Command is missing essential parameters (like missing USN or missing due amount).
    - "CONVERSATIONAL": General greeting, FAQ, or query.
 2. Formulate your output strictly as valid JSON matching this schema:
 {
-  "intent": "ADD_DUE" | "CLEAR_LAB" | "READ_LAB_CLEARANCE" | "SEARCH_STUDENT" | "LIST_PENDING_DUES" | "DEPARTMENT_REPORT" | "CONTRADICTORY" | "CLARIFICATION_NEEDED" | "CONVERSATIONAL",
+  "intent": "CANCEL_ACTION" | "EDIT_ACTION" | "ADD_DUE" | "CLEAR_LAB" | "READ_LAB_CLEARANCE" | "SEARCH_STUDENT" | "LIST_PENDING_DUES" | "DEPARTMENT_REPORT" | "CONTRADICTORY" | "CLARIFICATION_NEEDED" | "CONVERSATIONAL",
   "usn": "Student USN if mentioned or in context, else null",
   "amount": "Numeric amount if mentioned (e.g. 300), else null",
   "reason": "Apparatus or due reason if mentioned, else null",
