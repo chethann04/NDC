@@ -8,6 +8,9 @@ import { GeminiService, GeminiMessage } from './GeminiService';
 import { DueManagementService } from './DueManagementService';
 import { departmentCache } from '../utils/departmentCache';
 import { NotificationQueueService } from './NotificationQueueService';
+import { DepartmentAgentRegistry } from './ai/DepartmentAgentRegistry';
+import { MultiActionExtractionService, ExtractedActionItem } from './ai/MultiActionExtractionService';
+import { AgentToolExecutionService } from './ai/AgentToolExecutionService';
 
 export interface AssistantChatRequest {
   user: {
@@ -25,7 +28,7 @@ export interface AssistantChatResponse {
   reply: string;
   actionRequired?: {
     token: string;
-    action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD';
+    action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD' | 'BATCH_OPERATION';
     studentId: string;
     studentName: string;
     usn: string;
@@ -36,6 +39,7 @@ export interface AssistantChatResponse {
     departmentName?: string;
     consequences?: string;
     expiresAt: string;
+    batchActions?: ExtractedActionItem[];
   } | null;
   suggestions?: string[];
 }
@@ -60,6 +64,58 @@ export class AiAssistantService {
 
     // 2. Fetch real departmental stats & top dues for context
     const stats = await this.getDepartmentStats(department.id);
+
+    // 2.1 Multi-Agent Specialization & Multi-Action Extraction
+    const deptConfig = DepartmentAgentRegistry.getConfig(department.code);
+    const multiActionResult = await MultiActionExtractionService.parseActions(lastMessage, department, deptConfig);
+
+    if (multiActionResult.needsClarification) {
+      return {
+        reply: `⚠️ **Ambiguity Detected**:\n\n${multiActionResult.clarificationPrompt}\n\n*Note: To ensure complete operational integrity, please specify each student USN and their corresponding amount or reason.*`,
+        actionRequired: null,
+        suggestions: [
+          `For 4MC22EC002 add ₹300, for 4MC24IS022 add ₹1,500`,
+          `Cancel that`
+        ]
+      };
+    }
+
+    if (multiActionResult.isMultiAction && multiActionResult.actions.length > 1) {
+      // Enforce strict server-side authorization
+      const auth = await AgentToolExecutionService.authorizeOfficerForDepartment(user.id, department.id);
+      if (!auth.authorized) {
+        return {
+          reply: `🚫 **Permission Restriction**: ${auth.reason}`,
+          actionRequired: null
+        };
+      }
+
+      const stagedBatch = await AgentToolExecutionService.stageActionsForConfirmation(user.id, department, multiActionResult.actions);
+
+      const itemsMarkdown = multiActionResult.actions
+        .map((a, idx) => `${idx + 1}. **${a.studentName}** (\`${a.usn}\`) — **${a.action === 'MARK_DUE' ? `Add Due: ₹${a.amount || 0}` : 'Clear Clearance'}** — Reason: *${a.reason}*`)
+        .join('\n');
+
+      return {
+        reply: `📋 **Multi-Action Review Required**:\nI have identified ${multiActionResult.actions.length} operations for **${department.name}**:\n\n${itemsMarkdown}\n\n**Explicit Human Confirmation Required**: Review the operations in the batch confirmation card below and click **Confirm & Save to Records** to apply them atomically to the database.`,
+        actionRequired: {
+          token: stagedBatch.token,
+          action: 'BATCH_OPERATION' as any,
+          studentId: multiActionResult.actions[0].studentId,
+          studentName: `${multiActionResult.actions.length} Students`,
+          usn: multiActionResult.actions.map((a) => a.usn).join(', '),
+          clearanceId: multiActionResult.actions[0].clearanceId,
+          amount: multiActionResult.actions.reduce((sum, a) => sum + (a.amount || 0), 0),
+          reason: multiActionResult.actions.map((a) => `${a.usn}: ${a.reason} (₹${a.amount || 0})`).join('; '),
+          labName: department.name,
+          departmentName: department.name,
+          consequences: `Atomic batched update: ${multiActionResult.actions.length} student clearances in ${department.name}.`,
+          expiresAt: stagedBatch.expiresAt.toISOString(),
+          batchActions: multiActionResult.actions
+        },
+        suggestions: [`Confirm All`, `Cancel that`]
+      };
+    }
 
     // 3. Multi-turn context resolution:
     // Check if there is an active, unconsumed confirmation token for this officer
@@ -444,6 +500,21 @@ export class AiAssistantService {
     }
 
     const payload = (confirmation.payload as any) || {};
+
+    // 2.1 Multi-Action Batch Confirmation Handling
+    if (payload.actions && Array.isArray(payload.actions) && payload.actions.length > 1) {
+      const batchResult = await AgentToolExecutionService.executeConfirmedToken(tokenString, userId, reqObj);
+      if (!batchResult.success) {
+        throw new Error(batchResult.message || 'Batch execution failed.');
+      }
+      return {
+        success: true,
+        message: batchResult.message,
+        action: 'BATCH_OPERATION',
+        executedCount: batchResult.executedCount,
+        results: batchResult.results
+      };
+    }
 
     // 3. Staged Parameters Revalidation
     const effectiveParams = expectedParams || (reqObj && (reqObj.action || reqObj.usn || reqObj.amount !== undefined) ? reqObj : undefined);
@@ -1687,8 +1758,15 @@ export class AiAssistantService {
     studentContext: any;
     activeStagedToken?: { action: string; payload: any } | null;
   }): string {
+    const config = DepartmentAgentRegistry.getConfig(ctx.departmentCode);
+    const domainInstructions = config ? `\nDEPARTMENT SPECIALIZED INSTRUCTIONS & VOCABULARY:\n${config.assistantInstructions}\n` : '';
+    const knowledge = config?.knowledgeSources
+      ? `\nDEPARTMENT APPARATUS / RULES / KNOWLEDGE BASE:\n${JSON.stringify(config.knowledgeSources, null, 2)}\n`
+      : '';
+
     return `You are the specialized AI Assistant for the ${ctx.departmentName} (${ctx.departmentCode}) clearance desk at Malnad College of Engineering (MCE).
 Officer Interacting: ${ctx.userName} (${ctx.userRole}).
+${domainInstructions}${knowledge}
 
 REAL-TIME DATABASE CONTEXT:
 - Total Student Records in Desk: ${ctx.stats.total}
@@ -1753,20 +1831,20 @@ OPERATIONAL GUIDELINES:
 }`;
   }
 
-  private static generateSuggestions(stats: any, studentContext: any): string[] {
+  private static generateSuggestions(stats: any, studentContext: any, departmentName = 'this department'): string[] {
     if (studentContext) {
       return [
-        `Clear ${studentContext.usn}'s Physics Lab clearance as No Due`,
-        `Add ₹300 due for breaking a thermometer for USN ${studentContext.usn}`,
-        `Show pending dues in Physics Lab`
+        `Clear ${studentContext.usn}'s ${departmentName} clearance as No Due`,
+        `Add due for USN ${studentContext.usn} in ${departmentName}`,
+        `Show pending dues in ${departmentName}`
       ];
     }
 
     return [
-      `Show pending dues in Physics Lab`,
-      `Show Physics Lab clearance summary`,
-      `Add ₹300 due for breaking a thermometer for USN 4MC24IS022`,
-      `Clear 4MC24IS022's Physics Lab clearance as No Due`
+      `Show pending dues in ${departmentName}`,
+      `Show ${departmentName} clearance summary`,
+      `Add due for USN 4MC24IS022 in ${departmentName}`,
+      `Clear 4MC24IS022's ${departmentName} clearance as No Due`
     ];
   }
 }

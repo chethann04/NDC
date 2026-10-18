@@ -244,6 +244,9 @@ export class DueManagementService {
       );
 
       return updated;
+    }, {
+      maxWait: 10000,
+      timeout: 15000
     });
 
     // 6. Recalculate NDC overall status (outside the sub-transaction for deadlock avoidance)

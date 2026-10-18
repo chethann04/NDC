@@ -7,6 +7,7 @@ import { DueManagementService } from './DueManagementService';
 import { GeminiService, ExtractedLogbookEntry, DocumentAnalysisResult } from './GeminiService';
 import { ImagePreprocessingService } from './ImagePreprocessingService';
 import { departmentCache } from '../utils/departmentCache';
+import { DepartmentAgentRegistry } from './ai/DepartmentAgentRegistry';
 
 export interface CreateScanJobParams {
   lecturerUserId: string;
@@ -101,16 +102,18 @@ export class LogbookScannerService {
 
       // 5. Construct High-Precision Multi-Row Forensic Vision Prompt
       const base64Data = preprocessed.preprocessedBuffer.toString('base64');
+      const deptConfig = DepartmentAgentRegistry.getConfig(targetDept?.code || '');
+      const scannerCustomInstructions = deptConfig?.scannerInstructions || '';
       const prompt = `You are a forensic institutional register OCR assistant for ${deptName} (${targetDept?.code || 'GEN'}) at an engineering college.
 CRITICAL INSTRUCTIONS FOR MULTI-ROW ${isLibrary ? 'CENTRAL LIBRARY REGISTER' : 'LOGBOOK'} EXTRACTION:
-${isLibrary ? `
+${scannerCustomInstructions || (isLibrary ? `
 - This is a Central Institutional Library circulation, book issue, overdue fine, or lost book replacement register.
 - Columns typically include: Sl No / Date / Student USN / Student Name / Book Title & Accession Number / Due Amount.
 - Reason: The book title, accession number, or overdue description (e.g. "Overdue book: Engineering Physics", "Lost textbook replacement: Data Structures", "Damaged binding", "Book Bank scheme fee").
 ` : `
 - This is a laboratory equipment and manual breakage register.
 - Columns typically include: Sl No / Date / Student USN / Student Name / Apparatus Damaged / Broken / Fine Amount.
-`}
+`)}
 1. PAGE LAYOUT ANALYSIS:
    - "layoutType": Classify layout into "TABLE" (ruled grid), "LIST" (vertical unruled entries), "IRREGULAR" (varying row spacing or annotations without visible borders), "SINGLE_ENTRY" (isolated single row), or "EMPTY".
    - "pageCount": Total pages processed (${preprocessed.pageCount}).

@@ -394,51 +394,102 @@ export const AiAssistantPage: React.FC = () => {
                       <div className="flex items-center justify-between font-semibold text-amber-900 border-b border-amber-200/60 pb-2">
                         <div className="flex items-center gap-1.5">
                           <ShieldAlert className="w-4 h-4 text-amber-600" />
-                          <span>Action Staged — Confirmation Required</span>
+                          <span>
+                            {msg.actionRequired.batchActions && msg.actionRequired.batchActions.length > 1
+                              ? `Batch Staged (${msg.actionRequired.batchActions.length} Operations) — Confirmation Required`
+                              : 'Action Staged — Confirmation Required'}
+                          </span>
                         </div>
-                        <span className="text-[10px] font-mono bg-amber-200/60 px-1.5 py-0.5 rounded text-amber-900">
-                          {msg.actionRequired.action}
+                        <span className="text-[10px] font-mono bg-amber-200/60 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">
+                          {msg.actionRequired.action === 'BATCH_OPERATION'
+                            ? `BATCH (${msg.actionRequired.batchActions?.length || 0})`
+                            : msg.actionRequired.action}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div>
-                          <span className="text-slate-500 block">Student Name:</span>
-                          <span className="font-semibold">{msg.actionRequired.studentName}</span>
+                      {/* Batch Actions Table / List if multiple actions */}
+                      {msg.actionRequired.batchActions && msg.actionRequired.batchActions.length > 1 ? (
+                        <div className="space-y-2">
+                          <div className="overflow-x-auto rounded-lg border border-amber-200 bg-white">
+                            <table className="w-full text-[11px] text-left">
+                              <thead className="bg-amber-100/60 text-amber-950 font-semibold border-b border-amber-200">
+                                <tr>
+                                  <th className="p-2">#</th>
+                                  <th className="p-2">Student</th>
+                                  <th className="p-2">Operation</th>
+                                  <th className="p-2">Amount</th>
+                                  <th className="p-2">Reason / Apparatus</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-amber-100">
+                                {msg.actionRequired.batchActions.map((act, bIdx) => (
+                                  <tr key={bIdx} className="hover:bg-amber-50/50">
+                                    <td className="p-2 font-mono text-slate-500">{bIdx + 1}</td>
+                                    <td className="p-2">
+                                      <div className="font-semibold text-slate-800">{act.studentName || 'Student'}</div>
+                                      <div className="font-mono text-[10px] text-slate-500">{act.usn}</div>
+                                    </td>
+                                    <td className="p-2">
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                        act.action === 'MARK_DUE' 
+                                          ? 'bg-rose-100 text-rose-800' 
+                                          : 'bg-emerald-100 text-emerald-800'
+                                      }`}>
+                                        {act.action === 'MARK_DUE' ? 'ADD DUE' : 'CLEAR DUE'}
+                                      </span>
+                                    </td>
+                                    <td className="p-2 font-bold text-rose-700">
+                                      {act.amount !== undefined ? `₹${act.amount}` : '—'}
+                                    </td>
+                                    <td className="p-2 text-slate-700 max-w-[140px] truncate" title={act.reason}>
+                                      {act.reason || 'Clearance Update'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-slate-500 block">Student USN:</span>
-                          <span className="font-mono font-semibold">{msg.actionRequired.usn}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block">Target Laboratory:</span>
-                          <span className="font-semibold text-indigo-900">
-                            {msg.actionRequired.labName || 'Physics Lab'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block">Operation:</span>
-                          <span className="font-semibold text-slate-900">
-                            {msg.actionRequired.action === 'CLEAR_DUE'
-                              ? 'Set Clearance to NO DUE'
-                              : msg.actionRequired.action === 'MARK_DUE'
-                              ? 'Add Outstanding Due'
-                              : 'Hold Clearance'}
-                          </span>
-                        </div>
-                        {msg.actionRequired.amount !== undefined && (
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
                           <div>
-                            <span className="text-slate-500 block">Due Amount:</span>
-                            <span className="font-bold text-rose-700">₹{msg.actionRequired.amount}</span>
+                            <span className="text-slate-500 block">Student Name:</span>
+                            <span className="font-semibold">{msg.actionRequired.studentName}</span>
                           </div>
-                        )}
-                        {msg.actionRequired.reason && (
-                          <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
-                            <span className="text-slate-500 block">Apparatus / Reason:</span>
-                            <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
+                          <div>
+                            <span className="text-slate-500 block">Student USN:</span>
+                            <span className="font-mono font-semibold">{msg.actionRequired.usn}</span>
                           </div>
-                        )}
-                      </div>
+                          <div>
+                            <span className="text-slate-500 block">Target Section:</span>
+                            <span className="font-semibold text-indigo-900">
+                              {msg.actionRequired.labName || deptName || 'Department Section'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block">Operation:</span>
+                            <span className="font-semibold text-slate-900">
+                              {msg.actionRequired.action === 'CLEAR_DUE'
+                                ? 'Set Clearance to NO DUE'
+                                : msg.actionRequired.action === 'MARK_DUE'
+                                ? 'Add Outstanding Due'
+                                : 'Hold Clearance'}
+                            </span>
+                          </div>
+                          {msg.actionRequired.amount !== undefined && (
+                            <div>
+                              <span className="text-slate-500 block">Due Amount:</span>
+                              <span className="font-bold text-rose-700">₹{msg.actionRequired.amount}</span>
+                            </div>
+                          )}
+                          {msg.actionRequired.reason && (
+                            <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
+                              <span className="text-slate-500 block">Apparatus / Reason:</span>
+                              <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Consequences of Action */}
                       {msg.actionRequired.consequences && (
@@ -587,20 +638,21 @@ export const AiAssistantPage: React.FC = () => {
             ))}
 
             {loading && (
-              <div className="flex items-center gap-3 animate-in fade-in duration-200">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center text-xs shadow-xs">
-                  <Bot className="w-4 h-4" />
+              <div className="flex items-center gap-3 animate-fade-in-up">
+                <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center text-xs shadow-xs shrink-0">
+                  <Bot className="w-4 h-4 relative z-10" />
+                  <span className="absolute -inset-1 rounded-full bg-indigo-400/30 animate-aura-pulse pointer-events-none" />
                 </div>
                 <div className="bg-gradient-to-r from-indigo-50/70 via-white to-purple-50/50 border border-indigo-100 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-700 flex items-center gap-2.5 shadow-xs">
                   <div className="relative flex items-center justify-center">
                     <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
-                    <span className="absolute -inset-1 rounded-full bg-indigo-400/20 animate-ping opacity-60" />
+                    <span className="absolute -inset-1 rounded-full bg-indigo-400/25 animate-ping opacity-60" />
                   </div>
-                  <span className="font-medium text-slate-600">Consulting live database & formulating response</span>
-                  <span className="inline-flex items-center gap-1 pl-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+                  <span className="font-medium text-slate-700">Consulting live database & formulating response</span>
+                  <span className="inline-flex items-center gap-1.5 pl-1">
+                    <span className="ai-typing-dot ai-typing-dot-1" />
+                    <span className="ai-typing-dot ai-typing-dot-2" />
+                    <span className="ai-typing-dot ai-typing-dot-3" />
                   </span>
                 </div>
               </div>

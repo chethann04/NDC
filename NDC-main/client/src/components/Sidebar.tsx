@@ -737,13 +737,13 @@ const NavItem: React.FC<{
       to={to}
       onClick={onClick}
       className={({ isActive }) =>
-        `group relative flex items-center transition-all duration-120 ${
+        `group relative flex items-center transition-all duration-150 ease-out active:scale-[0.98] ${
           collapsed
             ? 'w-9 h-9 mx-auto justify-center rounded-lg text-xs'
-            : 'gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium'
+            : 'gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium hover:translate-x-0.5'
         } ${
           isActive
-            ? 'bg-zinc-100 text-zinc-950 font-semibold'
+            ? 'bg-zinc-100 text-zinc-950 font-semibold shadow-2xs'
             : 'text-zinc-500 hover:text-zinc-950 hover:bg-zinc-50'
         }`
       }
@@ -762,7 +762,7 @@ const NavItem: React.FC<{
 
           {/* Floating Tooltip in Collapsed Mode */}
           {collapsed && (
-            <div className="absolute left-full ml-3 px-2 py-1 bg-zinc-900 text-white text-[11px] font-medium rounded-md whitespace-nowrap shadow-md opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+            <div className="absolute left-full ml-3 px-2.5 py-1 bg-zinc-900 text-white text-[11px] font-medium rounded-lg whitespace-nowrap shadow-lg opacity-0 -translate-x-1 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 z-50">
               {label}
             </div>
           )}

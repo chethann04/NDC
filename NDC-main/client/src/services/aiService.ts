@@ -5,9 +5,24 @@ export interface AssistantMessage {
   content: string;
 }
 
+export interface ExtractedActionItem {
+  actionId: string;
+  action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD';
+  usn: string;
+  studentId: string;
+  studentName: string;
+  clearanceId: string;
+  amount?: number;
+  reason: string;
+  labName?: string;
+  departmentCode: string;
+  departmentName: string;
+  consequences: string;
+}
+
 export interface ActionRequired {
   token: string;
-  action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD';
+  action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD' | 'BATCH_OPERATION';
   studentId: string;
   studentName: string;
   usn: string;
@@ -18,6 +33,7 @@ export interface ActionRequired {
   departmentName?: string;
   consequences?: string;
   expiresAt: string;
+  batchActions?: ExtractedActionItem[];
 }
 
 export interface AssistantResponse {

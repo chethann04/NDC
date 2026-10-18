@@ -480,9 +480,29 @@ export const LogbookScannerPage: React.FC = () => {
 
             {previewUrl && (
               <div className="bg-white p-4 rounded-xl border border-slate-200">
-                <span className="text-xs font-semibold text-slate-500 block mb-2">Image Preview:</span>
-                <div className="max-h-72 overflow-hidden rounded-lg flex items-center justify-center bg-slate-900/5">
-                  <img src={previewUrl} alt="Preview" className="max-h-72 object-contain" />
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500">Image Preview:</span>
+                  {extracting && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" />
+                      AI Optical Scanner Active...
+                    </span>
+                  )}
+                </div>
+                <div className="relative max-h-72 overflow-hidden rounded-xl flex items-center justify-center bg-slate-950/90 border border-slate-800">
+                  <img src={previewUrl} alt="Preview" className="max-h-72 object-contain rounded-lg" />
+                  {extracting && (
+                    <>
+                      {/* High-tech Laser Beam Sweep */}
+                      <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_3px_rgba(34,211,238,0.85)] animate-laser-sweep pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-cyan-500/10 pointer-events-none animate-pulse" />
+                      {/* Reticle corner targeting brackets */}
+                      <div className="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 border-cyan-400 pointer-events-none" />
+                      <div className="absolute top-2.5 right-2.5 w-4 h-4 border-t-2 border-r-2 border-cyan-400 pointer-events-none" />
+                      <div className="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 border-cyan-400 pointer-events-none" />
+                      <div className="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 border-cyan-400 pointer-events-none" />
+                    </>
+                  )}
                 </div>
               </div>
             )}
