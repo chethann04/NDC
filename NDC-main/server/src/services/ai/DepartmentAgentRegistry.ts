@@ -10,10 +10,10 @@ export interface DepartmentKnowledge {
 export interface DepartmentAgentConfig {
   departmentCode: string;
   displayName: string;
-  category: 'LABORATORY' | 'CENTRAL_DESK' | 'ACADEMIC_BRANCH';
+  category: 'LABORATORY' | 'CENTRAL_DESK' | 'ACADEMIC_BRANCH' | 'ADMINISTRATION';
   assistantInstructions: string;
   scannerInstructions: string;
-  supportedOperations: Array<'ADD_DUE' | 'CLEAR_DUE' | 'HOLD' | 'LOOKUP_STUDENT' | 'CHECK_STATUS' | 'LIST_DUES'>;
+  supportedOperations: Array<'ADD_DUE' | 'CLEAR_DUE' | 'HOLD' | 'LOOKUP_STUDENT' | 'CHECK_STATUS' | 'LIST_DUES' | 'INSTITUTION_SUMMARY' | 'AUDIT_REVIEW'>;
   extractionSchema: {
     recordType: string;
     fields: Array<{
@@ -42,6 +42,45 @@ export class DepartmentAgentRegistry {
   private static registry: Map<string, DepartmentAgentConfig> = new Map();
 
   static {
+    // 0. Administration Block / Institutional Clearance Governance (ADM)
+    this.register({
+      departmentCode: 'ADM',
+      displayName: 'Administration Block',
+      category: 'ADMINISTRATION',
+      assistantInstructions: `You are the specialized AI Assistant for the Administration Block / Dean & Principal Academic Office at Malnad College of Engineering (MCE).
+You provide institution-wide clearance governance, monitor cross-department clearance progress, identify department bottlenecks, look up student clearance across all departments, and inspect certificate issuance workflows.
+Domain Terms: institutional clearance, graduation eligibility, No Due Certificate issuance, multi-department bottleneck, audit history, batch clearance verification.
+Clearance Rules: Administrators can inspect all departments, review overall NDC requests (PENDING, IN_PROGRESS, BLOCKED, APPROVED), check certificate status, and examine departmental dues. Never assume Physics Lab apparatus context.`,
+      scannerInstructions: `Extract administrative records, clearance acknowledgments, or consolidated clearance submission ledgers.`,
+      supportedOperations: ['LOOKUP_STUDENT', 'CHECK_STATUS', 'LIST_DUES', 'INSTITUTION_SUMMARY', 'AUDIT_REVIEW'],
+      extractionSchema: {
+        recordType: 'ADMINISTRATIVE_CLEARANCE_DOCUMENT',
+        fields: [
+          { name: 'usn', label: 'USN', type: 'string', required: true },
+          { name: 'studentName', label: 'Student Name', type: 'string', required: false },
+          { name: 'reason', label: 'Particulars / Description', type: 'string', required: false },
+          { name: 'amount', label: 'Due / Fee (₹)', type: 'number', required: false }
+        ]
+      },
+      validationRules: {
+        minDueAmount: 0,
+        maxDueAmount: 500000,
+        requiresReason: false,
+        allowedClearanceStatuses: ['PENDING', 'DUE', 'CLEARED', 'ON_HOLD', 'NOT_APPLICABLE'],
+        strictUsnPattern: /^4MC\d{2}[A-Z]{2}\d{3}$/i
+      },
+      clearanceTarget: 'Institution-Wide Clearance Governance',
+      requiredFields: ['usn'],
+      knowledgeSources: {
+        policies: [
+          'Full NDC approval requires all individual sections (Physics, Chemistry, Department Lab, Library, Sports, Hostel, Fee) to be CLEARED or NOT_APPLICABLE.',
+          'Administrators have institution-wide governance and read authority across all clearance queues.'
+        ]
+      },
+      enabled: true,
+      version: '1.0.0'
+    });
+
     // 1. Engineering Physics Laboratory (PHY)
     this.register({
       departmentCode: 'PHY',
@@ -418,10 +457,86 @@ Columns: Sl No, USN, Student Name, Laboratory / Kit Name, Damage / Missing Compo
     this.registry.set(config.departmentCode.toUpperCase(), config);
   }
 
-  public static getConfig(departmentCode: string): DepartmentAgentConfig | null {
+  public static synthesizeConfig(
+    code: string,
+    meta?: { name?: string; category?: string; isAcademicBranch?: boolean }
+  ): DepartmentAgentConfig {
+    const normalized = code.trim().toUpperCase();
+    const displayName = meta?.name || `${normalized} Department`;
+    const isAcademic = meta?.isAcademicBranch ?? false;
+    const category: DepartmentAgentConfig['category'] =
+      (meta?.category as any) || (isAcademic ? 'ACADEMIC_BRANCH' : 'CENTRAL_DESK');
+
+    return {
+      departmentCode: normalized,
+      displayName,
+      category,
+      assistantInstructions: `You are the specialized AI Assistant for ${displayName} (${normalized}) at Malnad College of Engineering (MCE).
+You manage student clearances, equipment/resource loans, outstanding dues, and departmental sign-offs for ${displayName}.
+Domain Terms: ${displayName.toLowerCase()} clearance, student records, departmental dues, equipment loan, No Due Certificate sign-off.
+Clearance Rules: Verify student dues before issuing clearance approvals. If equipment, fines, or items are overdue, record them with clear descriptions and amounts. Once resolved, approvals can be staged for officer confirmation.`,
+      scannerInstructions: `Extract ${displayName} register or logbook records. Look for columns: USN, Student Name, Description / Particulars, Due Amount, Date, and Signature.`,
+      supportedOperations: ['ADD_DUE', 'CLEAR_DUE', 'HOLD', 'LOOKUP_STUDENT', 'CHECK_STATUS', 'LIST_DUES'],
+      extractionSchema: {
+        recordType: `${normalized}_CLEARANCE_REGISTER`,
+        fields: [
+          { name: 'usn', label: 'USN', type: 'string', required: true, description: 'Student University Seat Number' },
+          { name: 'studentName', label: 'Student Name', type: 'string', required: false },
+          { name: 'reason', label: 'Description / Particulars', type: 'string', required: true },
+          { name: 'amount', label: 'Due Amount (₹)', type: 'number', required: false }
+        ]
+      },
+      validationRules: {
+        minDueAmount: 0,
+        maxDueAmount: 100000,
+        requiresReason: true,
+        allowedClearanceStatuses: ['PENDING', 'DUE', 'CLEARED', 'ON_HOLD'],
+        strictUsnPattern: /^4MC\d{2}[A-Z]{2}\d{3}$/i
+      },
+      clearanceTarget: `${displayName} Clearance`,
+      requiredFields: ['usn', 'reason'],
+      knowledgeSources: {
+        policies: [
+          `Clearance for ${displayName} requires all departmental equipment, lab items, and fines to be cleared.`,
+          'Pending dues prevent full institutional No Due Certificate approval.'
+        ]
+      },
+      enabled: true,
+      version: '1.0.0'
+    };
+  }
+
+  public static getConfig(
+    departmentCode: string,
+    fallbackMeta?: { name?: string; category?: string; isAcademicBranch?: boolean }
+  ): DepartmentAgentConfig | null {
     if (!departmentCode) return null;
-    const normalized = departmentCode.trim().toUpperCase();
-    return this.registry.get(normalized) || null;
+    let normalized = departmentCode.trim().toUpperCase();
+    if (normalized === 'ADMIN' || normalized === 'OFFICE' || normalized === 'COLLEGE_OFFICE') {
+      normalized = 'ADM';
+    }
+    const existing = this.registry.get(normalized);
+    if (existing) return existing;
+
+    // Dynamically synthesize configuration when fallback department metadata is provided
+    if (fallbackMeta) {
+      const synthesized = this.synthesizeConfig(normalized, fallbackMeta);
+      this.register(synthesized);
+      return synthesized;
+    }
+
+    return null;
+  }
+
+  public static getOrSynthesizeConfig(
+    departmentCode: string,
+    fallbackMeta?: { name?: string; category?: string; isAcademicBranch?: boolean }
+  ): DepartmentAgentConfig {
+    const existing = this.getConfig(departmentCode);
+    if (existing) return existing;
+    const synthesized = this.synthesizeConfig(departmentCode, fallbackMeta);
+    this.register(synthesized);
+    return synthesized;
   }
 
   public static getAllConfigs(): DepartmentAgentConfig[] {
@@ -430,6 +545,10 @@ Columns: Sl No, USN, Student Name, Laboratory / Kit Name, Damage / Missing Compo
 
   public static isSupported(departmentCode: string): boolean {
     if (!departmentCode) return false;
-    return this.registry.has(departmentCode.trim().toUpperCase());
+    let normalized = departmentCode.trim().toUpperCase();
+    if (normalized === 'ADMIN' || normalized === 'OFFICE' || normalized === 'COLLEGE_OFFICE') {
+      normalized = 'ADM';
+    }
+    return this.registry.has(normalized);
   }
 }

@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { aiService, AssistantMessage, ActionRequired, ConversationLogItem } from '../../services/aiService';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
+import { useAuthStore } from '../../store/useAuthStore';
+import { usePortalContext } from '../../context/PortalContext';
 
 interface PhysicsAiAssistantModalProps {
   isOpen: boolean;
@@ -44,23 +46,36 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
   isOpen,
   onClose,
   onActionApplied,
-  departmentCode = 'PHY',
-  departmentName = 'Physics Lab'
+  departmentCode: propDeptCode,
+  departmentName: propDeptName
 }) => {
+  const { user } = useAuthStore();
+  const { context } = usePortalContext();
+
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const departmentCode = propDeptCode || context?.department?.code || (isAdmin ? 'ADM' : 'PHY');
+  const departmentName = propDeptName || context?.department?.name || (isAdmin ? 'Administration Block' : 'Clearance Desk');
+
   const isLibrary = departmentCode === 'LIB' || departmentName.toLowerCase().includes('library');
   const isChemistry = departmentCode === 'CHEM' || departmentName.toLowerCase().includes('chemistry');
 
   const getGreeting = () => {
+    if (context?.assistantConfig?.greeting && !propDeptCode) {
+      return context.assistantConfig.greeting;
+    }
+    if (departmentCode === 'ADM' || isAdmin) {
+      return `Hello! I am your **Administration Block AI Assistant**.\n\nI can help you review institutional clearance records, monitor overall clearance queues, and check certificate generation status across all departments.`;
+    }
     if (isLibrary) {
       return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student library records, check outstanding book dues (overdue textbooks, reference fines, lost book replacement costs), and stage safe clearance approvals with your confirmation.`;
     }
     if (isChemistry) {
       return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student chemistry lab records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals with your confirmation.`;
     }
-    return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student clearance records, look up outstanding equipment dues (spectrometers, lasers, optical benches), and stage safe status approvals with your confirmation.`;
+    return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student clearance records, look up outstanding equipment dues, and stage safe status approvals with your confirmation.`;
   };
 
-  const storageKey = `ndc_ai_chat_${departmentCode}`;
+  const storageKey = `ndc_ai_chat_${user?.id || 'officer'}_${departmentCode}`;
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
     try {
@@ -206,14 +221,26 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
 
       setConfirmSuccess(result.message || 'Action executed successfully.');
 
-      // Mark message action as executed and store notification status
-      setMessages((prev) =>
-        prev.map((m, idx) =>
+      // Mark message action as executed and append completion message
+      setMessages((prev) => {
+        const updated = prev.map((m, idx) =>
           idx === messageIndex
             ? { ...m, actionExecuted: true, notification: result.notification }
             : m
-        )
-      );
+        );
+        if (result.completionReply) {
+          updated.push({
+            role: 'model',
+            content: result.completionReply,
+            suggestions: [
+              `Show pending dues in ${departmentName}`,
+              ...(result.usn ? [`Lookup student ${result.usn}`] : []),
+              `Show ${departmentName} clearance summary`
+            ]
+          });
+        }
+        return updated;
+      });
 
       // Trigger table refresh in parent component
       if (onActionApplied) {
@@ -232,13 +259,24 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
       setErrorMsg(null);
       const res = await aiService.cancelAssistantAction(token);
       setConfirmSuccess(res.message || 'Action cancelled successfully. No changes were applied.');
-      setMessages((prev) =>
-        prev.map((m, idx) =>
+      setMessages((prev) => {
+        const updated = prev.map((m, idx) =>
           idx === messageIndex
             ? { ...m, actionCancelled: true, actionRequired: null }
             : m
-        )
-      );
+        );
+        if (res.completionReply) {
+          updated.push({
+            role: 'model',
+            content: res.completionReply,
+            suggestions: [
+              `Show pending dues in ${departmentName}`,
+              `Show ${departmentName} clearance summary`
+            ]
+          });
+        }
+        return updated;
+      });
       setEditingToken(null);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to cancel action.');
@@ -271,26 +309,36 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     }
   };
 
-  const quickPills = isLibrary
-    ? [
-        'Who has overdue books in Central Library?',
-        'Show library clearance summary statistics',
-        'Clear dues for 4MC21CS001',
-        'Mark ₹150 due for Reference textbook overdue'
-      ]
-    : isChemistry
-    ? [
-        'Who has outstanding dues in Chemistry Lab?',
-        'Show chemistry clearance summary statistics',
-        'Clear dues for 4MC21CS001',
-        'Mark ₹200 due for Burette breakage'
-      ]
-    : [
-        `Who has outstanding dues in ${departmentName}?`,
-        'Show clearance summary statistics',
-        'Clear dues for 4MC21CS001',
-        'Mark ₹350 due for Spectrometer Prism damage'
-      ];
+  const quickPills =
+    context?.assistantConfig?.suggestedQueries && context.assistantConfig.suggestedQueries.length > 0 && !propDeptCode
+      ? context.assistantConfig.suggestedQueries
+      : departmentCode === 'ADM' || isAdmin
+      ? [
+          'Show institution-wide clearance summary',
+          'Which departments have pending clearance requests?',
+          'Lookup student 4MC21CS001 across all departments',
+          'Show students blocked from certificate generation'
+        ]
+      : isLibrary
+      ? [
+          'Who has overdue books in Central Library?',
+          'Show library clearance summary statistics',
+          'Clear dues for 4MC21CS001',
+          'Mark ₹150 due for Reference textbook overdue'
+        ]
+      : isChemistry
+      ? [
+          'Who has outstanding dues in Chemistry Lab?',
+          'Show chemistry clearance summary statistics',
+          'Clear dues for 4MC21CS001',
+          'Mark ₹200 due for Burette breakage'
+        ]
+      : [
+          `Who has outstanding dues in ${departmentName}?`,
+          `Show ${departmentName} clearance summary`,
+          'Clear dues for 4MC21CS001',
+          `Add due for USN 4MC21CS001 in ${departmentName}`
+        ];
 
 
   return (
@@ -722,3 +770,5 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     </div>
   );
 };
+
+export const AiAssistantModal = PhysicsAiAssistantModal;

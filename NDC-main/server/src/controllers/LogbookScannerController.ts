@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { LogbookScannerService } from '../services/LogbookScannerService';
 import { ImagePreprocessingService } from '../services/ImagePreprocessingService';
 import { UserRole } from '../constants/roles';
+import { ContextResolutionService } from '../services/ai/ContextResolutionService';
 
 export class LogbookScannerController {
   /**
@@ -40,7 +41,20 @@ export class LogbookScannerController {
         return;
       }
 
-      const departmentId = req.body.departmentId || user.departmentId;
+      // Authoritative department resolution
+      const requestedDept = req.body.departmentId || req.body.departmentCode;
+      const resolvedCtx = await ContextResolutionService.resolveUserContext(
+        {
+          id: user.id || user._id,
+          role: user.role,
+          departmentId: user.departmentId,
+          name: user.name,
+          email: user.email
+        },
+        requestedDept
+      );
+
+      const departmentId = resolvedCtx.department.id;
       const labId = req.body.labId;
 
       const job = await LogbookScannerService.processUpload({

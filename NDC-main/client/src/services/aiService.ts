@@ -328,13 +328,26 @@ export function checkEntryApprovalEligibility(entry: ScanEntry): {
 
 export const aiService = {
   /**
-   * Chat with Department AI Assistant
+   * Authoritative AI and scanner context resolution
+   */
+  async getAiContext(departmentCode?: string): Promise<{ context: any; stats: any }> {
+    const res = await api.get('/ai/assistant/context', {
+      params: departmentCode ? { departmentCode } : {}
+    });
+    return res.data?.data;
+  },
+
+  /**
+   * Chat with Department or Administration AI Assistant
    */
   async chatWithAssistant(
     messages: AssistantMessage[],
-    departmentCode = 'PHY'
+    departmentCode?: string
   ): Promise<AssistantResponse> {
-    const res = await api.post('/ai/assistant/chat', { messages, departmentCode });
+    const res = await api.post('/ai/assistant/chat', {
+      messages,
+      ...(departmentCode ? { departmentCode } : {})
+    });
     return res.data?.data;
   },
 
@@ -355,21 +368,21 @@ export const aiService = {
   },
 
   /**
-   * Retrieve stored conversation history for the officer's department
+   * Retrieve stored conversation history for the officer's or admin's department
    */
-  async getConversationHistory(departmentCode = 'PHY', limit = 50): Promise<ConversationLogItem[]> {
+  async getConversationHistory(departmentCode?: string, limit = 50): Promise<ConversationLogItem[]> {
     const res = await api.get('/ai/assistant/history', {
-      params: { departmentCode, limit }
+      params: { ...(departmentCode ? { departmentCode } : {}), limit }
     });
     return res.data?.data || [];
   },
 
   /**
-   * Clear active conversation history for the officer's department
+   * Clear active conversation history for the officer's or admin's department
    */
-  async clearConversationHistory(departmentCode = 'PHY'): Promise<void> {
+  async clearConversationHistory(departmentCode?: string): Promise<void> {
     await api.delete('/ai/assistant/history', {
-      params: { departmentCode }
+      params: departmentCode ? { departmentCode } : {}
     });
   },
 

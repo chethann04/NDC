@@ -3,8 +3,50 @@ import { AuthRequest } from '../middleware/auth';
 import { AiAssistantService } from '../services/AiAssistantService';
 import { UserRole } from '../constants/roles';
 import prisma from '../config/prisma';
+import { ContextResolutionService } from '../services/ai/ContextResolutionService';
 
 export class AiAssistantController {
+  /**
+   * Authoritative AI context and metrics resolution
+   */
+  public static async getContext(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const requestedDept = (req.query.departmentCode as string) || undefined;
+      const context = await ContextResolutionService.resolveUserContext(
+        {
+          id: user.id || user._id,
+          role: user.role,
+          departmentId: user.departmentId,
+          name: user.name,
+          email: user.email
+        },
+        requestedDept
+      );
+
+      const stats = await ContextResolutionService.getContextStats(context);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          context,
+          stats
+        }
+      });
+    } catch (err: any) {
+      console.error('[AiAssistantController] getContext error:', err);
+      res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to resolve AI assistant context.'
+      });
+    }
+  }
+
   /**
    * Conversational query endpoint with automatic conversation persistence
    */
@@ -32,7 +74,7 @@ export class AiAssistantController {
         return;
       }
 
-      const { messages, departmentCode = 'PHY' } = req.body;
+      const { messages, departmentCode } = req.body;
 
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({
@@ -42,7 +84,19 @@ export class AiAssistantController {
         return;
       }
 
-      const deptCode = String(departmentCode).toUpperCase();
+      // Authoritative context resolution - never blindly trust frontend departmentCode or default to PHY
+      const resolvedCtx = await ContextResolutionService.resolveUserContext(
+        {
+          id: user.id || user._id,
+          role: user.role,
+          departmentId: user.departmentId,
+          name: user.name,
+          email: user.email
+        },
+        departmentCode
+      );
+
+      const deptCode = resolvedCtx.department.code;
       const userId = user.id || user._id;
 
       // 1. Persist incoming user message to aiConversationLog
@@ -119,7 +173,18 @@ export class AiAssistantController {
         return;
       }
 
-      const departmentCode = ((req.query.departmentCode as string) || 'PHY').toUpperCase();
+      const requestedDept = (req.query.departmentCode as string) || undefined;
+      const resolvedCtx = await ContextResolutionService.resolveUserContext(
+        {
+          id: user.id || user._id,
+          role: user.role,
+          departmentId: user.departmentId,
+          name: user.name,
+          email: user.email
+        },
+        requestedDept
+      );
+      const departmentCode = resolvedCtx.department.code;
       const limit = Math.min(parseInt((req.query.limit as string) || '50', 10), 100);
       const userId = user.id || user._id;
 
@@ -156,12 +221,18 @@ export class AiAssistantController {
         return;
       }
 
-      const departmentCode = (
-        (req.query.departmentCode as string) ||
-        (req.body?.departmentCode as string) ||
-        'PHY'
-      ).toUpperCase();
-
+      const requestedDept = (req.query.departmentCode as string) || req.body?.departmentCode || undefined;
+      const resolvedCtx = await ContextResolutionService.resolveUserContext(
+        {
+          id: user.id || user._id,
+          role: user.role,
+          departmentId: user.departmentId,
+          name: user.name,
+          email: user.email
+        },
+        requestedDept
+      );
+      const departmentCode = resolvedCtx.department.code;
       const userId = user.id || user._id;
 
       await (prisma as any).aiConversationLog.deleteMany({
@@ -211,6 +282,29 @@ export class AiAssistantController {
         action || usn || amount !== undefined || reason ? { action, usn, amount, reason } : undefined
       );
 
+      // Persist verified completion to AI Conversation history
+      try {
+        const departmentCode = (req.body?.departmentCode as string) || (result.clearance?.department?.code as string) || (user.department?.code as string);
+        if (departmentCode && result.completionReply) {
+          await prisma.aiConversationLog.create({
+            data: {
+              userId: user.id || user._id,
+              departmentCode,
+              role: 'model',
+              content: result.completionReply,
+              metadata: {
+                action: result.action,
+                status: 'ACTION_SUCCEEDED',
+                usn: result.usn,
+                dueAmount: result.dueAmount
+              }
+            }
+          });
+        }
+      } catch (logErr) {
+        console.warn('[AiAssistantController] Notice: failed to persist confirmation log:', logErr);
+      }
+
       res.status(200).json({
         success: true,
         data: result
@@ -249,6 +343,28 @@ export class AiAssistantController {
         user.id || user._id,
         req
       );
+
+      // Persist cancellation to AI Conversation history
+      try {
+        const departmentCode = (req.body?.departmentCode as string) || (user.department?.code as string);
+        if (departmentCode && result.completionReply) {
+          await prisma.aiConversationLog.create({
+            data: {
+              userId: user.id || user._id,
+              departmentCode,
+              role: 'model',
+              content: result.completionReply,
+              metadata: {
+                action: result.action,
+                status: 'ACTION_CANCELLED',
+                usn: result.usn
+              }
+            }
+          });
+        }
+      } catch (logErr) {
+        console.warn('[AiAssistantController] Notice: failed to persist cancellation log:', logErr);
+      }
 
       res.status(200).json({
         success: true,

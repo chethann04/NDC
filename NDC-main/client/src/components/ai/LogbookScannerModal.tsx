@@ -35,6 +35,7 @@ import {
   parseEntryForensics
 } from '../../services/aiService';
 import { CameraCaptureModal } from './CameraCaptureModal';
+import { usePortalContext } from '../../context/PortalContext';
 
 interface LogbookScannerModalProps {
   isOpen: boolean;
@@ -48,9 +49,12 @@ export const LogbookScannerModal: React.FC<LogbookScannerModalProps> = ({
   isOpen,
   onClose,
   onDuesApplied,
-  departmentId,
-  departmentName = 'Physics Lab'
+  departmentId: propDeptId,
+  departmentName: propDeptName
 }) => {
+  const { context } = usePortalContext();
+  const departmentId = propDeptId || context?.department?.id;
+  const departmentName = propDeptName || context?.department?.name || 'Department Register';
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);

@@ -4,6 +4,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { AuthLayout } from './layouts/AuthLayout';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ErrorModal } from './components/ErrorModal';
+import { PortalProvider } from './context/PortalContext';
 
 const PageLoadingFallback = () => (
   <div className="flex items-center justify-center p-12 min-h-[40vh]">
@@ -75,7 +76,8 @@ export const App: React.FC = () => {
   }, [initAuth]);
 
   return (
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <PortalProvider>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
           {/* Auth Layout */}
@@ -331,5 +333,6 @@ export const App: React.FC = () => {
       <ErrorModal />
       </Suspense>
     </Router>
+    </PortalProvider>
   );
 };

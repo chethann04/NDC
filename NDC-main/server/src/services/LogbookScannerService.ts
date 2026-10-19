@@ -51,23 +51,37 @@ export class LogbookScannerService {
       throw new Error(fileValidation.error || 'Invalid file format or size.');
     }
 
-    // 2. Resolve target department (support code or UUID, default to Physics Lab PHY if not explicitly given)
-    let departmentId = params.departmentId;
+    // 2. Resolve target department (support code or UUID, never default to PHY)
+    let departmentId: string = params.departmentId || '';
     if (departmentId) {
       const resolved = await departmentCache.getDepartmentByCodeOrName(departmentId);
       if (resolved) {
         departmentId = resolved.id;
       }
     } else {
-      const phyDept = await departmentCache.getDepartmentByCodeOrName('PHY');
-      if (phyDept) {
-        departmentId = phyDept.id;
+      // Resolve officer's authorized department from database
+      const userRecord = await prisma.user.findUnique({
+        where: { id: lecturerUserId },
+        include: {
+          associatedOfficer: {
+            include: { departmentMappings: true }
+          }
+        }
+      });
+      if (userRecord?.departmentId) {
+        departmentId = userRecord.departmentId;
+      } else if (userRecord?.associatedOfficer?.departmentMappings?.[0]?.departmentId) {
+        departmentId = userRecord.associatedOfficer.departmentMappings[0].departmentId;
+      } else if (userRecord?.role === 'SUPER_ADMIN' || userRecord?.role === 'ADMIN') {
+        const adm = await prisma.clearanceDepartment.findFirst({ where: { code: 'ADM' } });
+        departmentId = adm?.id || '';
       } else {
-        const fallback = await prisma.clearanceDepartment.findFirst({
-          where: { code: 'PHY' }
-        });
-        departmentId = fallback?.id || '';
+        throw new Error('Unable to resolve authorized department for scan job. Please select a department.');
       }
+    }
+
+    if (!departmentId) {
+      throw new Error('Department ID is required to process scan job.');
     }
 
     const targetDept = departmentId ? await departmentCache.getDepartmentById(departmentId) : null;
@@ -102,7 +116,9 @@ export class LogbookScannerService {
 
       // 5. Construct High-Precision Multi-Row Forensic Vision Prompt
       const base64Data = preprocessed.preprocessedBuffer.toString('base64');
-      const deptConfig = DepartmentAgentRegistry.getConfig(targetDept?.code || '');
+      const deptConfig = DepartmentAgentRegistry.getConfig(targetDept?.code || '', {
+        name: deptName
+      });
       const scannerCustomInstructions = deptConfig?.scannerInstructions || '';
       const prompt = `You are a forensic institutional register OCR assistant for ${deptName} (${targetDept?.code || 'GEN'}) at an engineering college.
 CRITICAL INSTRUCTIONS FOR MULTI-ROW ${isLibrary ? 'CENTRAL LIBRARY REGISTER' : 'LOGBOOK'} EXTRACTION:

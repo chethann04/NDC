@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUiStore } from '../store/useUiStore';
+import { usePortalContext } from '../context/PortalContext';
 import {
   LayoutDashboard,
   Users2,
@@ -32,6 +33,7 @@ import {
 export const Sidebar: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { mobileMenuOpen, closeMobileMenu } = useUiStore();
+  const { context } = usePortalContext();
   const location = useLocation();
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -387,13 +389,16 @@ export const Sidebar: React.FC = () => {
                 to="/officer/ai-assistant"
                 icon={<Sparkles className="w-4 h-4 text-indigo-600" />}
                 label={
-                  isLibraryOfficer
-                    ? 'Library AI Assistant'
-                    : isChemistryOfficer
-                    ? 'Chemistry Assistant'
-                    : isPhysicsOfficer
-                    ? 'Physics Assistant'
-                    : 'AI Assistant'
+                  isAdmin
+                    ? 'Administration AI Assistant'
+                    : context?.assistantConfig?.title ||
+                      (isLibraryOfficer
+                        ? 'Library AI Assistant'
+                        : isChemistryOfficer
+                        ? 'Chemistry Assistant'
+                        : isPhysicsOfficer
+                        ? 'Physics Assistant'
+                        : 'AI Assistant')
                 }
                 collapsed={isCollapsed}
                 onClick={onItemClick}
@@ -402,11 +407,14 @@ export const Sidebar: React.FC = () => {
                 to="/officer/logbook-scanner"
                 icon={<ScanLine className="w-4 h-4 text-cyan-600" />}
                 label={
-                  isLibraryOfficer
-                    ? 'Scan Library Register'
-                    : isChemistryOfficer || isPhysicsOfficer
-                    ? 'Scan Lab Register'
-                    : 'Scan Register'
+                  isAdmin
+                    ? 'Document & Logbook Scanner'
+                    : context?.scannerConfig?.title ||
+                      (isLibraryOfficer
+                        ? 'Scan Library Register'
+                        : isChemistryOfficer || isPhysicsOfficer
+                        ? 'Scan Lab Register'
+                        : 'Scan Register')
                 }
                 collapsed={isCollapsed}
                 onClick={onItemClick}

@@ -20,12 +20,14 @@ import {
   XCircle,
   Edit3,
   RefreshCw,
-  Trash2
+  Trash2,
+  Building
 } from 'lucide-react';
 import { aiService, AssistantMessage, ActionRequired } from '../../services/aiService';
 import { MarkdownRenderer } from '../../components/common/MarkdownRenderer';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
+import { usePortalContext } from '../../context/PortalContext';
 
 interface MessageItem extends AssistantMessage {
   actionRequired?: ActionRequired | null;
@@ -41,24 +43,33 @@ interface MessageItem extends AssistantMessage {
 
 export const AiAssistantPage: React.FC = () => {
   const { user } = useAuthStore();
-  const officerDeptObj = ((user?.officerProfile as any)?.department || user?.department) as any;
-  const deptCode = (officerDeptObj?.code || (typeof user?.department === 'object' ? (user?.department as any)?.code : undefined) || 'PHY').toUpperCase();
-  const deptName = officerDeptObj?.name || (typeof user?.department === 'object' ? (user?.department as any)?.name : '') || (deptCode === 'LIB' ? 'Central Library' : 'Physics Lab');
+  const {
+    context,
+    stats: portalStats,
+    activeDepartmentCode,
+    setActiveDepartmentCode,
+    availableDepartments
+  } = usePortalContext();
 
-  const isLibrary = deptCode === 'LIB' || deptName.toLowerCase().includes('library');
-  const isChemistry = deptCode === 'CHEM' || deptName.toLowerCase().includes('chemistry');
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  const deptCode = context?.department?.code || activeDepartmentCode || (isAdmin ? 'ADM' : 'PHY');
+  const deptName = context?.department?.name || (isAdmin ? 'Administration Block' : 'Clearance Desk');
+  const assistantTitle = context?.assistantConfig?.title || (isAdmin ? 'Administration Block AI Assistant' : `${deptName} Assistant`);
+  const assistantBadge = context?.assistantConfig?.badge || deptCode;
 
   const getGreeting = () => {
-    if (isLibrary) {
-      return `Hello! I am the **Central Library AI Assistant**.\n\nI can read real-time circulation dues, check overdue textbooks, reference books, and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your circulation desk today?`;
+    if (context?.assistantConfig?.greeting) {
+      return context.assistantConfig.greeting;
     }
-    if (isChemistry) {
-      return `Hello! I am the **Chemistry Lab AI Assistant**.\n\nI can read real-time laboratory records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
+    if (isAdmin) {
+      return `Hello! I am the **Administration Block AI Assistant** at Malnad College of Engineering (MCE).\n\nI provide institution-wide administrative intelligence across all clearance desks, monitor overall student clearance queues, and check certificate generation eligibility.\n\nHow can I assist administrative operations today?`;
     }
-    return `Hello! I am the **Physics Department AI Assistant**.\n\nI can read real-time student clearance data, check outstanding apparatus dues, and stage safe approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
+    return `Hello! I am the **${deptName} AI Assistant**.\n\nI can read real-time clearance records, check outstanding dues, and stage safe approvals with your explicit confirmation.\n\nHow can I assist your desk today?`;
   };
 
-  const storageKey = `ndc_ai_chat_${deptCode}`;
+  const storageKey = `ndc_ai_chat_${user?.id || 'officer'}_${deptCode}`;
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
     try {
@@ -99,6 +110,13 @@ export const AiAssistantPage: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Reset or load greeting when department context changes
+  useEffect(() => {
+    if (messages.length <= 1) {
+      setMessages([{ role: 'model', content: getGreeting() }]);
+    }
+  }, [deptCode, context?.assistantConfig?.greeting]);
+
   // Load persisted history from backend
   useEffect(() => {
     const fetchHistory = async () => {
@@ -115,7 +133,7 @@ export const AiAssistantPage: React.FC = () => {
           }));
           setMessages(formatted);
           localStorage.setItem(storageKey, JSON.stringify(formatted));
-        } else if (messages.length <= 1) {
+        } else {
           setMessages([{ role: 'model', content: getGreeting() }]);
         }
       } catch (err) {
@@ -125,28 +143,7 @@ export const AiAssistantPage: React.FC = () => {
       }
     };
     fetchHistory();
-  }, [deptCode]);
-
-  // Load real stats for the side panel
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await api.get('/ndc/officer/stats');
-        if (res.data?.data) {
-          const d = res.data.data;
-          setStats({
-            total: d.TOTAL || 0,
-            pending: d.PENDING || 0,
-            due: d.DUE || 0,
-            cleared: d.CLEARED || 0
-          });
-        }
-      } catch (err) {
-        console.error('Failed to load stats:', err);
-      }
-    };
-    fetchStats();
-  }, []);
+  }, [deptCode, user?.id]);
 
   const handleClearHistory = async () => {
     if (!window.confirm(`Clear active conversation history for ${deptName}?`)) return;
@@ -221,13 +218,25 @@ export const AiAssistantPage: React.FC = () => {
 
       setConfirmSuccess(result.message || 'Action executed successfully.');
 
-      setMessages((prev) =>
-        prev.map((m, idx) =>
+      setMessages((prev) => {
+        const updated = prev.map((m, idx) =>
           idx === messageIndex
             ? { ...m, actionExecuted: true, notification: result.notification }
             : m
-        )
-      );
+        );
+        if (result.completionReply) {
+          updated.push({
+            role: 'model',
+            content: result.completionReply,
+            suggestions: [
+              `Show pending dues in ${deptName}`,
+              ...(result.usn ? [`Lookup student ${result.usn}`] : []),
+              `Show ${deptName} clearance summary`
+            ]
+          });
+        }
+        return updated;
+      });
 
       // Re-fetch stats
       const statsRes = await api.get('/ndc/officer/stats');
@@ -253,13 +262,24 @@ export const AiAssistantPage: React.FC = () => {
       setErrorMsg(null);
       const res = await aiService.cancelAssistantAction(token);
       setConfirmSuccess(res.message || 'Action cancelled successfully. No changes were applied.');
-      setMessages((prev) =>
-        prev.map((m, idx) =>
+      setMessages((prev) => {
+        const updated = prev.map((m, idx) =>
           idx === messageIndex
             ? { ...m, actionCancelled: true, actionRequired: null }
             : m
-        )
-      );
+        );
+        if (res.completionReply) {
+          updated.push({
+            role: 'model',
+            content: res.completionReply,
+            suggestions: [
+              `Show pending dues in ${deptName}`,
+              `Show ${deptName} clearance summary`
+            ]
+          });
+        }
+        return updated;
+      });
       setEditingToken(null);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to cancel action.');
@@ -292,79 +312,93 @@ export const AiAssistantPage: React.FC = () => {
     }
   };
 
-  const quickPills = isLibrary
-    ? [
-        'Who has overdue books in Central Library?',
-        'What is the current library clearance summary?',
-        'Clear dues for USN 4MC21CS001',
-        'Mark ₹150 due for Reference textbook overdue',
-        'Show guidelines for library book replacement'
-      ]
-    : isChemistry
-    ? [
-        'Who has outstanding dues in Chemistry Lab?',
-        'What is the current chemistry clearance summary?',
-        'Clear dues for USN 4MC21CS001',
-        'Mark ₹200 due for Burette breakage',
-        'Show guidelines for lab glassware replacement'
-      ]
-    : [
-        `Who has outstanding dues in ${deptName}?`,
-        'What is the current clearance summary?',
-        'Clear dues for USN 4MC21CS001',
-        'Mark ₹350 due for Spectrometer Prism damage',
-        'Show guidelines for laboratory clearances'
-      ];
+  const quickPills =
+    context?.assistantConfig?.suggestedQueries && context.assistantConfig.suggestedQueries.length > 0
+      ? context.assistantConfig.suggestedQueries
+      : isAdmin
+      ? [
+          'Show institution-wide clearance summary',
+          'Which departments have the most pending clearance requests?',
+          'Lookup student 4MC21CS001 across all departments',
+          'Show students blocked from certificate generation'
+        ]
+      : [
+          `Who has outstanding dues in ${deptName}?`,
+          `What is the current clearance summary for ${deptName}?`,
+          'Clear dues for USN 4MC21CS001',
+          'Show guidelines for clearances'
+        ];
 
-  const apparatusPresets = isLibrary
-    ? [
-        { label: 'Overdue textbook fine (Standard)', amount: 50 },
-        { label: 'Reference section overdue fine', amount: 150 },
-        { label: 'Lost textbook replacement fee', amount: 500 },
-        { label: 'Damaged book binding / spine penalty', amount: 200 },
-        { label: 'Library card / RFID tag lost fine', amount: 100 }
-      ]
-    : isChemistry
-    ? [
-        { label: 'Standard Burette / Pipette Breakage', amount: 200 },
-        { label: 'Volumetric Flask Damage', amount: 300 },
-        { label: 'Chemical Spill / Reagent Fee', amount: 150 },
-        { label: 'Glass Beaker / Test Tube Damage', amount: 100 },
-        { label: 'Lab Manual Overdue', amount: 0 }
-      ]
-    : [
-        { label: 'Spectrometer Prism / Grating', amount: 350 },
-        { label: 'Laser Optics Kit Component', amount: 500 },
-        { label: 'Torsional Pendulum Wire Snap', amount: 150 },
-        { label: 'Optical Bench Component', amount: 250 },
-        { label: 'Observation Manual Overdue', amount: 0 }
-      ];
+  const presets =
+    context?.assistantConfig?.presets && context.assistantConfig.presets.length > 0
+      ? context.assistantConfig.presets
+      : isAdmin
+      ? [
+          { label: 'Administrative Clearance Approval', reason: 'Administrative review cleared' },
+          { label: 'Institutional Fee Clearance Hold', amount: 500, reason: 'Pending college administrative dues' },
+          { label: 'Certificate Sign-off Review', reason: 'Final institutional verification completed' }
+        ]
+      : [
+          { label: 'Standard Clearance No Due', amount: 0, reason: 'Clearance verified and approved' },
+          { label: 'Breakage / Equipment Replacement Due', amount: 300, reason: 'Equipment damage charge' },
+          { label: 'Overdue Fine', amount: 100, reason: 'Late return / overdue penalty' }
+        ];
+
+  const clearanceQueueUrl = isAdmin
+    ? '/admin/ndc'
+    : deptCode === 'LIB'
+    ? '/officer/central-library'
+    : deptCode === 'CHEM'
+    ? '/officer/chemistry-lab'
+    : deptCode === 'PHY'
+    ? '/officer/physics-lab'
+    : '/officer/clearances';
 
   return (
     <div className="space-y-5">
-      {/* Compact Page Header */}
+      {/* Compact Page Header with Department Switcher for Admin */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
-            <Sparkles className="w-5 h-5 text-indigo-600" />
+            {isAdmin ? <Building className="w-5 h-5 text-indigo-600" /> : <Sparkles className="w-5 h-5 text-indigo-600" />}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold text-slate-900">
-                {deptName} Assistant
+                {assistantTitle}
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {deptCode}
+                {assistantBadge}
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Check student dues, review clearance records, or ask questions.
+              {isAdmin
+                ? 'Institutional clearance intelligence, cross-department searches, and NDC analytics.'
+                : `Authorized clearance desk operations, student dues, and records for ${deptName}.`}
             </p>
           </div>
         </div>
 
+        <div className="flex items-center flex-wrap gap-2 shrink-0">
+          {/* Department Scope Selector for Admins */}
+          {isAdmin && availableDepartments.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+              <span className="text-[11px] font-semibold text-slate-500">Scope:</span>
+              <select
+                value={deptCode}
+                onChange={(e) => setActiveDepartmentCode(e.target.value)}
+                className="text-xs font-bold text-slate-700 bg-transparent border-none focus:outline-hidden cursor-pointer"
+              >
+                <option value="ADM">🏛️ Administration (All Desks)</option>
+                {availableDepartments.map((d) => (
+                  <option key={d.code} value={d.code}>
+                    {d.name} ({d.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleClearHistory}
@@ -376,11 +410,11 @@ export const AiAssistantPage: React.FC = () => {
           </button>
 
           <Link
-            to="/officer/physics-lab"
+            to={clearanceQueueUrl}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
           >
             <Atom className="w-3.5 h-3.5 text-cyan-600" />
-            <span>Clearance Queue</span>
+            <span>{isAdmin ? 'NDC Clearance Monitor' : 'Clearance Queue'}</span>
           </Link>
 
           <Link
@@ -388,7 +422,7 @@ export const AiAssistantPage: React.FC = () => {
             className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            <span>Scan Lab Register</span>
+            <span>{isAdmin ? 'Document Scanner' : 'Scan Register'}</span>
           </Link>
         </div>
       </div>
@@ -750,7 +784,11 @@ export const AiAssistantPage: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about Physics dues, student status, or clear approvals..."
+              placeholder={
+                isAdmin
+                  ? 'Ask about administrative clearance, student status across departments, or institutional metrics...'
+                  : `Ask about ${deptName} dues, student status, or clear approvals...`
+              }
               disabled={loading}
               className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all disabled:opacity-50"
             />
@@ -772,46 +810,87 @@ export const AiAssistantPage: React.FC = () => {
           {/* Live KPI Statistics */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
             <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Atom className="w-4 h-4 text-cyan-600" />
-              <span>Physics Lab Live Overview</span>
+              {isAdmin ? <Building className="w-4 h-4 text-indigo-600" /> : <Atom className="w-4 h-4 text-cyan-600" />}
+              <span>
+                {context?.scope === 'INSTITUTION_WIDE'
+                  ? 'Institution-Wide Live Overview'
+                  : `${deptName} Overview`}
+              </span>
             </h3>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Students</span>
-                <span className="text-lg font-black text-slate-800">{stats.total}</span>
+            {context?.scope === 'INSTITUTION_WIDE' ? (
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Students</span>
+                  <span className="text-lg font-black text-slate-800">{portalStats?.totalStudents ?? stats.total}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60">
+                  <span className="text-[10px] uppercase font-bold text-emerald-700 block">Fully Cleared</span>
+                  <span className="text-lg font-black text-emerald-800">{portalStats?.fullyCleared ?? stats.cleared}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60">
+                  <span className="text-[10px] uppercase font-bold text-amber-700 block">Pending Queue</span>
+                  <span className="text-lg font-black text-amber-800">{portalStats?.pending ?? stats.pending}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/60">
+                  <span className="text-[10px] uppercase font-bold text-rose-700 block">Blocked With Dues</span>
+                  <span className="text-lg font-black text-rose-800">{portalStats?.blocked ?? stats.due}</span>
+                </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60">
-                <span className="text-[10px] uppercase font-bold text-amber-700 block">Pending</span>
-                <span className="text-lg font-black text-amber-800">{stats.pending}</span>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Records</span>
+                  <span className="text-lg font-black text-slate-800">{portalStats?.total ?? stats.total}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60">
+                  <span className="text-[10px] uppercase font-bold text-amber-700 block">Pending</span>
+                  <span className="text-lg font-black text-amber-800">{portalStats?.pending ?? stats.pending}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/60">
+                  <span className="text-[10px] uppercase font-bold text-rose-700 block">Dues Flagged</span>
+                  <span className="text-lg font-black text-rose-800">{portalStats?.due ?? stats.due}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60">
+                  <span className="text-[10px] uppercase font-bold text-emerald-700 block">Cleared</span>
+                  <span className="text-lg font-black text-emerald-800">{portalStats?.cleared ?? stats.cleared}</span>
+                </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/60">
-                <span className="text-[10px] uppercase font-bold text-rose-700 block">Dues Flagged</span>
-                <span className="text-lg font-black text-rose-800">{stats.due}</span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60">
-                <span className="text-[10px] uppercase font-bold text-emerald-700 block">Cleared</span>
-                <span className="text-lg font-black text-emerald-800">{stats.cleared}</span>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Common Apparatus Presets */}
+          {/* Role & Department Aware Presets */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
             <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-indigo-600" />
-              <span>Physics Apparatus Presets</span>
+              <span>
+                {context?.scope === 'INSTITUTION_WIDE'
+                  ? 'Administrative Actions & Presets'
+                  : `${deptName} Presets`}
+              </span>
             </h3>
 
             <div className="space-y-1.5 text-xs">
-              {apparatusPresets.map((preset, i) => (
+              {presets.map((preset, i) => (
                 <div
                   key={i}
-                  onClick={() => handleSend(`Mark ₹${preset.amount} due for ${preset.label}`)}
+                  onClick={() =>
+                    handleSend(
+                      preset.amount !== undefined && preset.amount > 0
+                        ? `Mark ₹${preset.amount} due for ${preset.label}`
+                        : preset.reason
+                        ? `${preset.label}: ${preset.reason}`
+                        : preset.label
+                    )
+                  }
                   className="p-2 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 flex items-center justify-between cursor-pointer transition-colors"
                 >
                   <span className="text-slate-700 font-medium">{preset.label}</span>
-                  <span className="font-bold text-rose-600">₹{preset.amount}</span>
+                  {preset.amount !== undefined && preset.amount > 0 ? (
+                    <span className="font-bold text-rose-600">₹{preset.amount}</span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">Action</span>
+                  )}
                 </div>
               ))}
             </div>

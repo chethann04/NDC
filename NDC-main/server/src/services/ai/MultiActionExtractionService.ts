@@ -148,7 +148,9 @@ export class MultiActionExtractionService {
         .replace(/\b(?:rs\.?|inr|₹)\s*\d+/gi, '')
         .trim();
       if (!itemReason) {
-        itemReason = `${department.name} laboratory equipment breakage`;
+        itemReason = department.code === 'LIB'
+          ? 'Central Library book overdue / fine'
+          : `${department.name} clearance adjustment`;
       }
 
       const actionId = `act_${Date.now()}_${i + 1}_${Math.random().toString(36).substring(2, 7)}`;

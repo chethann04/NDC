@@ -20,6 +20,7 @@ router.use(authorizeRoles(
 // ─────────────────────────────────────────────────────────────
 // PHYSICS / DEPARTMENT AI ASSISTANT ROUTES
 // ─────────────────────────────────────────────────────────────
+router.get('/assistant/context', AiAssistantController.getContext);
 router.post('/assistant/chat', AiAssistantController.chat);
 router.post('/assistant/confirm', AiAssistantController.confirmAction);
 router.post('/assistant/cancel', AiAssistantController.cancelAction);
