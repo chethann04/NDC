@@ -216,12 +216,18 @@ async function runRoleAwareContextTests() {
       };
 
       // Attempt spoofing: Physics officer requests 'LIB'
-      const spoofAttempt = await ContextResolutionService.resolveUserContext(phyOfficer, 'LIB');
+      let spoofRejected = false;
+      try {
+        await ContextResolutionService.resolveUserContext(phyOfficer, 'LIB');
+      } catch (err: any) {
+        if (err.message?.includes('Forbidden') || err.message?.includes('not authorized')) {
+          spoofRejected = true;
+        }
+      }
 
       assert(
-        spoofAttempt.department.code === 'PHY',
-        'Officer requesting unauthorized department is safely restricted to authorized department',
-        `Expected PHY, got: ${spoofAttempt.department.code}`
+        spoofRejected,
+        'Officer requesting unauthorized department is strictly rejected with Forbidden error'
       );
     }
 

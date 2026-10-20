@@ -102,7 +102,7 @@ async function runActionLifecycleTests() {
 
     // Verify live DB record is COMPLETELY UNTOUCHED
     let dbClearanceAfterStage = await prisma.ndcClearance.findUnique({ where: { id: clearance.id } });
-    assert(dbClearanceAfterStage?.status === (DepartmentClearanceStatus.PENDING as any), 'Database status remained PENDING');
+    assert(dbClearanceAfterStage?.status === (DepartmentClearanceStatus.PENDING as any), 'Database status remained PENDING', `Got: ${dbClearanceAfterStage?.status}`);
     assert(Number(dbClearanceAfterStage?.dueAmount) === 0, 'Database dueAmount remained ₹0 (zero mutations on stage)');
 
     const token1 = stagedRes.actionRequired!.token;
@@ -124,7 +124,7 @@ async function runActionLifecycleTests() {
 
     // Verify live DB record remains completely untouched
     const dbClearanceAfterCancel = await prisma.ndcClearance.findUnique({ where: { id: clearance.id } });
-    assert(dbClearanceAfterCancel?.status === (DepartmentClearanceStatus.PENDING as any), 'Database status is still PENDING');
+    assert(dbClearanceAfterCancel?.status === (DepartmentClearanceStatus.PENDING as any), 'Database status is still PENDING', `Got: ${dbClearanceAfterCancel?.status}`);
     assert(Number(dbClearanceAfterCancel?.dueAmount) === 0, 'Database dueAmount is still ₹0');
 
     // Verify token in DB is marked consumed and cancelled

@@ -448,11 +448,14 @@ export class ContextResolutionService {
       ];
     } else {
       // Dynamic academic branch or clearance desk
-      const cleanName = dept.name.replace(/Department$/i, '').trim();
-      title = `${cleanName} Department AI Assistant`;
+      let cleanName = dept.name.trim();
+      if (!/Department|Laboratory|Section|Desk|Block|Office/i.test(cleanName)) {
+        cleanName = `${cleanName} Department`;
+      }
+      title = `${cleanName} AI Assistant`;
       badge = dept.code;
-      description = `${dept.name} intelligence, departmental laboratory records, student dues, and authorized clearance actions.`;
-      greeting = `Hello! I am the **${title}**.\n\nI assist with departmental laboratory clearances, project equipment, student dues, and clearance verification for ${dept.name}.\n\nHow can I assist your department desk today?`;
+      description = `${dept.name} intelligence, departmental records, student dues, and authorized clearance actions.`;
+      greeting = `Hello! I am the **${title}**.\n\nI assist with departmental clearances, student dues, records, and verification for ${dept.name}.\n\nHow can I assist your desk today?`;
       suggestedQueries = [
         `Who has pending clearances in ${dept.code}?`,
         `What is the current ${dept.name} clearance summary?`,
