@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import prisma from '../config/prisma';
+import { formatApprovalTimestamp } from '../utils/dateUtils';
 
 export interface ClearanceItemPdf {
   departmentName: string;
@@ -253,13 +254,13 @@ export class PdfService {
               departmentName: 'Central Library',
               departmentCode: 'LIB',
               status: 'CLEARED',
-              approvalTimestamp: certificateData.issuedAt
+              approvalTimestamp: null
             },
             {
               departmentName: 'Laboratory',
               departmentCode: 'LAB',
               status: 'CLEARED',
-              approvalTimestamp: certificateData.issuedAt,
+              approvalTimestamp: null,
               reviewedByName: 'Designated Laboratory In-charge'
             },
             {
@@ -273,19 +274,19 @@ export class PdfService {
               departmentName: 'Physical Education / Sports Section',
               departmentCode: 'SPT',
               status: 'CLEARED',
-              approvalTimestamp: certificateData.issuedAt
+              approvalTimestamp: null
             },
             {
               departmentName: 'Cash/Fee Section',
               departmentCode: 'ACC',
               status: 'CLEARED',
-              approvalTimestamp: certificateData.issuedAt
+              approvalTimestamp: null
             },
             {
               departmentName: `Academic Branch (${safeDeptName})`,
               departmentCode: 'ACAD',
               status: 'CLEARED',
-              approvalTimestamp: certificateData.issuedAt
+              approvalTimestamp: null
             }
           ];
         }
@@ -309,20 +310,19 @@ export class PdfService {
             for (const l of individualLabItems) {
               if (l.approvalTimestamp) {
                 const dt = new Date(l.approvalTimestamp);
-                if (!latestLabTimestamp || dt > new Date(latestLabTimestamp)) {
-                  latestLabTimestamp = l.approvalTimestamp;
+                if (!isNaN(dt.getTime())) {
+                  if (!latestLabTimestamp || dt > new Date(latestLabTimestamp)) {
+                    latestLabTimestamp = l.approvalTimestamp;
+                  }
                 }
               }
-            }
-            if (!latestLabTimestamp) {
-              latestLabTimestamp = certificateData.issuedAt;
             }
 
             const unifiedLabItem: ClearanceItemPdf = {
               departmentName: 'Laboratory',
               departmentCode: 'LAB',
               status: 'CLEARED',
-              approvalTimestamp: latestLabTimestamp,
+              approvalTimestamp: latestLabTimestamp || null,
               reviewedByName: 'Designated Laboratory In-charge'
             };
 
@@ -445,14 +445,11 @@ export class PdfService {
             .fillColor(badgeTextColor)
             .text(badgeLabel, badgeX, isNA ? rowY + 8 : rowY + 7.5, { width: badgeW, align: 'center' });
 
-          // Exact Approval Timestamp or Not Applicable Label
-          let formattedTimestamp = '';
-          if (isNA && !item.approvalTimestamp) {
-            formattedTimestamp = 'Exempt / Not Applicable';
-          } else {
-            const tsDate = item.approvalTimestamp ? new Date(item.approvalTimestamp) : new Date(certificateData.issuedAt);
-            formattedTimestamp = `${tsDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} ${tsDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-          }
+          // Exact Approval Timestamp or Fallback Label
+          const formattedTimestamp = formatApprovalTimestamp(item.approvalTimestamp, {
+            status: item.status,
+            fallback: isNA ? 'Exempt / Not Applicable' : 'Not available'
+          });
 
           doc.font('Helvetica').fontSize(8).fillColor('#334155').text(formattedTimestamp, tableX + 365, rowY + 7, { width: 130 });
 

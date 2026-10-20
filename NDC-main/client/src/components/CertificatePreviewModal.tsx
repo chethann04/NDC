@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api, { getApiUrl } from '../services/api';
 import { Download, X, CheckCircle2, ShieldCheck, Award, RefreshCw } from 'lucide-react';
 import { downloadCertificatePdf } from '../services/certificateService';
+import { formatApprovalTimestamp, INSTITUTIONAL_TIMEZONE } from '../utils/dateUtils';
 
 interface CertificatePreviewModalProps {
   certificate: any;
@@ -76,6 +77,66 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
     { code: 'ACAD', name: `Academic Department (${deptName})`, status: 'PENDING' }
   ];
 
+  // Canonical unification of clearances for certificate view matching PDF generator
+  const processClearancesForCertificate = (rawClearances: any[]) => {
+    if (!rawClearances || rawClearances.length === 0) return defaultDesks;
+
+    const isLab = (desk: any) => {
+      const code = (desk.departmentId?.code || desk.code || '').toUpperCase().trim();
+      const name = (desk.departmentId?.name || desk.name || '').toLowerCase().trim();
+      return ['PHY', 'CHEM', 'PHY_LAB', 'CHEM_LAB'].includes(code) ||
+             (code === 'LAB' && name !== 'laboratory') ||
+             (name.includes('laboratory') && !name.includes('academic') && !name.includes('branch') && name !== 'laboratory');
+    };
+
+    const labItems = rawClearances.filter(isLab);
+    if (labItems.length > 0) {
+      const nonLabItems = rawClearances.filter((d: any) => !isLab(d));
+      const hasExistingLab = nonLabItems.some((d: any) => (d.departmentId?.code || d.code || '').toUpperCase() === 'LAB');
+      if (!hasExistingLab) {
+        let latestLabTimestamp: any = null;
+        let anyDue = false;
+        let allCleared = true;
+        for (const l of labItems) {
+          const lStatus = String(l.status || '').toUpperCase();
+          if (lStatus === 'DUE' || (l.dueAmount && l.dueAmount > 0)) anyDue = true;
+          if (lStatus !== 'CLEARED' && lStatus !== 'NO DUE' && lStatus !== 'NOT_APPLICABLE') allCleared = false;
+          const t = l.reviewedAt || (lStatus === 'CLEARED' ? l.updatedAt : null);
+          if (t) {
+            const dt = new Date(t);
+            if (!isNaN(dt.getTime())) {
+              if (!latestLabTimestamp || dt > new Date(latestLabTimestamp)) {
+                latestLabTimestamp = t;
+              }
+            }
+          }
+        }
+
+        const unifiedLab = {
+          name: 'Laboratory',
+          code: 'LAB',
+          status: anyDue ? 'DUE' : (allCleared ? 'CLEARED' : 'PENDING'),
+          reviewedAt: latestLabTimestamp
+        };
+
+        const merged: any[] = [];
+        let labAdded = false;
+        for (const item of nonLabItems) {
+          const cCode = (item.departmentId?.code || item.code || '').toUpperCase();
+          if (!labAdded && (cCode === 'HST' || cCode === 'SPT' || cCode === 'ACC' || cCode === 'ACAD')) {
+            merged.push(unifiedLab);
+            labAdded = true;
+          }
+          merged.push(item);
+        }
+        if (!labAdded) merged.push(unifiedLab);
+        return merged;
+      }
+      return nonLabItems;
+    }
+    return rawClearances;
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
@@ -139,7 +200,7 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
                 <strong className="text-slate-900">Certificate Ref:</strong> {certificate.certificateNumber || 'PENDING'}
               </span>
               <span className="mono-text text-slate-600">
-                <strong className="text-slate-900">Date of Verification:</strong> {new Date(certificate.issuedAt || new Date()).toLocaleDateString('en-GB')}
+                <strong className="text-slate-900">Date of Verification:</strong> {new Date(certificate.issuedAt || new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: INSTITUTIONAL_TIMEZONE })}
               </span>
             </div>
 
@@ -187,7 +248,7 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-800">
-                    {(clearances.length > 0 ? clearances : defaultDesks)
+                    {processClearancesForCertificate(clearances.length > 0 ? clearances : defaultDesks)
                       .filter((desk: any) => {
                         const code = (desk.departmentId?.code || desk.code || '').toUpperCase();
                         if (code === 'ADM') return false;
@@ -202,17 +263,11 @@ export const CertificatePreviewModal: React.FC<CertificatePreviewModalProps> = (
                       const isNA = deskStatus === 'NOT_APPLICABLE' || deskStatus === 'EXEMPT' || deskStatus === 'N/A';
                       const isCleared = deskStatus === 'CLEARED' || deskStatus === 'APPROVED';
                       const isDue = deskStatus === 'DUE' || deskStatus === 'BLOCKED';
-                      const ts = desk.reviewedAt || desk.updatedAt || certificate.issuedAt || new Date();
-                      const formattedTs = isNA && !desk.reviewedAt
-                        ? 'Exempt / Not Applicable'
-                        : (desk.reviewedAt || isCleared ? new Date(ts).toLocaleString('en-GB', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true
-                          }) : 'Pending Review');
+                      const ts = desk.reviewedAt || (isCleared ? desk.updatedAt : null) || null;
+                      const formattedTs = formatApprovalTimestamp(ts, {
+                        status: deskStatus,
+                        fallback: isNA ? 'Exempt / Not Applicable' : (isCleared ? 'Not available' : 'Pending Review')
+                      });
 
                       return (
                         <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>

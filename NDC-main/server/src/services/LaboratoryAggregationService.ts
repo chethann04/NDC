@@ -531,7 +531,7 @@ export class LaboratoryAggregationService {
       departmentName: c.department?.name || 'Department Desk',
       departmentCode: (c.department?.code || 'DEPT').toUpperCase(),
       status: (c.status || 'CLEARED').toString().toUpperCase(),
-      approvalTimestamp: c.reviewedAt || c.updatedAt || new Date(),
+      approvalTimestamp: c.reviewedAt || (c.status === 'CLEARED' ? c.updatedAt : null) || null,
       reviewedByName: c.reviewedBy?.name || 'Clearance Officer',
       displayOrder: c.department?.displayOrder ?? 10
     }));
@@ -557,11 +557,13 @@ export class LaboratoryAggregationService {
     let latestLabTimestamp: Date | null = null;
     const labDocs = clearanceDocs.filter(this.isLaboratoryClearance);
     for (const l of labDocs) {
-      const t = l.reviewedAt || l.updatedAt;
+      const t = l.reviewedAt || (l.status === 'CLEARED' ? l.updatedAt : null);
       if (t) {
         const dt = new Date(t);
-        if (!latestLabTimestamp || dt > latestLabTimestamp) {
-          latestLabTimestamp = dt;
+        if (!isNaN(dt.getTime())) {
+          if (!latestLabTimestamp || dt > latestLabTimestamp) {
+            latestLabTimestamp = dt;
+          }
         }
       }
     }
@@ -575,7 +577,7 @@ export class LaboratoryAggregationService {
           : labSummary.overallLaboratoryStatus === 'DUE'
           ? 'DUE'
           : 'PENDING',
-      approvalTimestamp: latestLabTimestamp || new Date(),
+      approvalTimestamp: latestLabTimestamp || null,
       reviewedByName: 'Designated Laboratory In-charge',
       displayOrder: 2
     };
@@ -591,7 +593,7 @@ export class LaboratoryAggregationService {
         ).toUpperCase(),
         status: (branchClearance.status || 'CLEARED').toString().toUpperCase(),
         approvalTimestamp:
-          branchClearance.reviewedAt || branchClearance.updatedAt || new Date(),
+          branchClearance.reviewedAt || (branchClearance.status === 'CLEARED' ? branchClearance.updatedAt : null) || null,
         reviewedByName:
           branchClearance.reviewedBy?.name || studentDept?.hodName || 'Head of the Department',
         displayOrder: 6
@@ -601,7 +603,7 @@ export class LaboratoryAggregationService {
         departmentName: studentDept.name,
         departmentCode: (studentDept.code || 'ACAD').toUpperCase(),
         status: 'CLEARED',
-        approvalTimestamp: new Date(),
+        approvalTimestamp: null,
         reviewedByName: studentDept.hodName || 'Head of the Department',
         displayOrder: 6
       };

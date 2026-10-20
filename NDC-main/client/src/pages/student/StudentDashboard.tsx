@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { clientCache } from '../../utils/clientCache';
 import { downloadCertificatePdf } from '../../services/certificateService';
+import { formatApprovalTimestamp } from '../../utils/dateUtils';
 
 const getDepartmentIcon = (code?: string, name?: string) => {
   const c = (code || '').toUpperCase();
@@ -426,7 +427,7 @@ export const StudentDashboard: React.FC = () => {
 
                         {task.reviewedAt && (
                           <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-2">
-                            <span>Reviewed on {new Date(task.reviewedAt).toLocaleDateString()}</span>
+                            <span>Reviewed on {formatApprovalTimestamp(task.reviewedAt)}</span>
                             {task.reviewedBy?.name && <span>• By {task.reviewedBy.name}</span>}
                           </div>
                         )}
