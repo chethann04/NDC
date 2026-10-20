@@ -34,6 +34,8 @@ export interface ActionRequired {
   consequences?: string;
   expiresAt: string;
   batchActions?: ExtractedActionItem[];
+  status?: 'STAGED' | 'CONFIRMED' | 'EXECUTED' | 'CANCELLED' | 'FAILED' | 'REVERSED' | 'SUPERSEDED' | 'EXPIRED';
+  lifecycleStatus?: 'STAGED' | 'CONFIRMED' | 'EXECUTED' | 'CANCELLED' | 'FAILED' | 'REVERSED' | 'SUPERSEDED' | 'EXPIRED';
 }
 
 export interface AssistantResponse {
@@ -49,6 +51,9 @@ export interface ConversationLogItem {
   role: 'user' | 'model';
   content: string;
   actionRequired?: ActionRequired | null;
+  actionExecuted?: boolean;
+  actionCancelled?: boolean;
+  actionExpired?: boolean;
   metadata?: {
     suggestions?: string[];
     notification?: {
@@ -364,6 +369,19 @@ export const aiService = {
    */
   async cancelAssistantAction(token: string): Promise<any> {
     const res = await api.post('/ai/assistant/cancel', { token });
+    return res.data?.data;
+  },
+
+  /**
+   * Edit a staged mutation before confirmation
+   */
+  async editAssistantAction(params: {
+    token: string;
+    amount?: number;
+    reason?: string;
+    usn?: string;
+  }): Promise<AssistantResponse> {
+    const res = await api.post('/ai/assistant/edit', params);
     return res.data?.data;
   },
 

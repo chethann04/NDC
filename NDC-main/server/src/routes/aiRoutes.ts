@@ -24,6 +24,7 @@ router.get('/assistant/context', AiAssistantController.getContext);
 router.post('/assistant/chat', AiAssistantController.chat);
 router.post('/assistant/confirm', AiAssistantController.confirmAction);
 router.post('/assistant/cancel', AiAssistantController.cancelAction);
+router.post('/assistant/edit', AiAssistantController.editAction);
 router.get('/assistant/history', AiAssistantController.getHistory);
 router.delete('/assistant/history', AiAssistantController.clearHistory);
 

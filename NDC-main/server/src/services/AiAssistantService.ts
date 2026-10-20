@@ -521,7 +521,7 @@ export class AiAssistantService {
 
     // 2.1 Multi-Action Batch Confirmation Handling
     if (payload.actions && Array.isArray(payload.actions) && payload.actions.length > 1) {
-      const batchResult = await AgentToolExecutionService.executeConfirmedToken(tokenString, userId, reqObj);
+      const batchResult = await AgentToolExecutionService.executeConfirmedToken(tokenString, userId, reqObj, true);
       if (!batchResult.success) {
         throw new Error(batchResult.message || 'Batch execution failed.');
       }
@@ -534,195 +534,318 @@ export class AiAssistantService {
       };
     }
 
-    // 3. Staged Parameters Revalidation
-    const effectiveParams = expectedParams || (reqObj && (reqObj.action || reqObj.usn || reqObj.amount !== undefined) ? reqObj : undefined);
-    if (effectiveParams) {
-      if (effectiveParams.action && effectiveParams.action !== confirmation.action) {
-        throw new Error(`Parameter mismatch: Expected action [${confirmation.action}], but received [${effectiveParams.action}].`);
-      }
-      if (effectiveParams.usn && effectiveParams.usn.toUpperCase() !== String(payload.usn || '').toUpperCase()) {
-        throw new Error(`Parameter mismatch: Expected USN [${payload.usn}], but received [${effectiveParams.usn}].`);
-      }
-      if (effectiveParams.amount !== undefined && confirmation.action === 'MARK_DUE') {
-        if (Number(effectiveParams.amount) !== Number(payload.amount)) {
-          throw new Error(`Parameter mismatch: Expected amount [₹${payload.amount}], but received [₹${effectiveParams.amount}].`);
+    try {
+      // 3. Staged Parameters Revalidation
+      const effectiveParams = expectedParams || (reqObj && (reqObj.action || reqObj.usn || reqObj.amount !== undefined) ? reqObj : undefined);
+      if (effectiveParams) {
+        if (effectiveParams.action && effectiveParams.action !== confirmation.action) {
+          throw new Error(`Parameter mismatch: Expected action [${confirmation.action}], but received [${effectiveParams.action}].`);
+        }
+        if (effectiveParams.usn && effectiveParams.usn.toUpperCase() !== String(payload.usn || '').toUpperCase()) {
+          throw new Error(`Parameter mismatch: Expected USN [${payload.usn}], but received [${effectiveParams.usn}].`);
+        }
+        if (effectiveParams.amount !== undefined && confirmation.action === 'MARK_DUE') {
+          if (Number(effectiveParams.amount) !== Number(payload.amount)) {
+            throw new Error(`Parameter mismatch: Expected amount [₹${payload.amount}], but received [₹${effectiveParams.amount}].`);
+          }
         }
       }
-    }
 
-    // 4. Live Record and Authorization Revalidation
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, role: true, departmentId: true }
-    });
-
-    if (!user) {
-      throw new Error('Executing user account not found.');
-    }
-
-    const student = await prisma.student.findUnique({
-      where: { id: confirmation.studentId },
-      include: { department: true }
-    });
-
-    if (!student || !student.isActive) {
-      throw new Error('Student record not found or student account is inactive.');
-    }
-
-    const clearance = await prisma.ndcClearance.findUnique({
-      where: { id: confirmation.clearanceId },
-      include: { department: true }
-    });
-
-    if (!clearance) {
-      throw new Error('Target clearance record not found in database.');
-    }
-
-    const targetDepartmentId = payload.departmentId || clearance.departmentId;
-    const isAuthorized = await DueManagementService.verifyOfficerDepartmentAuthorization(userId, {
-      departmentId: targetDepartmentId,
-      labId: clearance.labId,
-      studentId: confirmation.studentId
-    });
-
-    if (!isAuthorized.authorized) {
-      throw new Error(`Unauthorized: You do not have permission to modify clearances for ${payload.departmentName || clearance.department?.name || 'this department'}: ${isAuthorized.reason}`);
-    }
-
-    // 5. Execute Business Mutation via Canonical Services
-    let targetStatus: DepartmentClearanceStatus;
-    let remarks = payload.reason || `Updated via ${payload.departmentName || 'Department'} AI Assistant`;
-    let dueAmount = 0;
-    let dueDetails = '';
-
-    switch (confirmation.action) {
-      case 'CLEAR_DUE':
-        targetStatus = DepartmentClearanceStatus.CLEARED;
-        remarks = payload.reason || 'Clearance verified and approved as No Due via AI Assistant';
-        dueAmount = 0;
-        dueDetails = '';
-        break;
-
-      case 'MARK_DUE':
-        targetStatus = DepartmentClearanceStatus.DUE;
-        dueAmount = Number(payload.amount || 0);
-        dueDetails = payload.reason || `${payload.departmentName || 'Department'} Outstanding Due`;
-        remarks = `Due of ₹${dueAmount} added via AI Assistant: ${dueDetails}`;
-        break;
-
-      case 'HOLD':
-        targetStatus = DepartmentClearanceStatus.ON_HOLD;
-        remarks = payload.reason || 'Placed on hold via AI Assistant';
-        dueAmount = 0;
-        dueDetails = '';
-        break;
-
-      default:
-        throw new Error(`Unsupported action type: ${confirmation.action}`);
-    }
-
-    let verifiedRecord: any = null;
-    let finalDueAmount = dueAmount;
-    let notificationResult: any = null;
-
-    if (confirmation.action === 'MARK_DUE') {
-      const dueRes = await DueManagementService.recordClearanceDue({
-        clearanceId: confirmation.clearanceId,
-        amount: dueAmount,
-        reason: dueDetails,
-        officerUserId: userId,
-        source: 'AI_ASSISTANT',
-        sourceEntryId: confirmation.id,
-        conflictStrategy: 'ACCUMULATE',
-        reqObj
-      });
-      finalDueAmount = dueRes.newDueAmount;
-      notificationResult = dueRes.notification;
-
-      verifiedRecord = await prisma.ndcClearance.findUnique({
-        where: { id: confirmation.clearanceId }
+      // 4. Live Record and Authorization Revalidation
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, role: true, departmentId: true }
       });
 
-      if (!verifiedRecord || verifiedRecord.status !== ('DUE' as any) || Number(verifiedRecord.dueAmount) !== finalDueAmount) {
-        throw new Error(`Database verification failed: Due record not found or amount mismatch. Expected ₹${finalDueAmount}, found ₹${verifiedRecord?.dueAmount}.`);
+      if (!user) {
+        throw new Error('Executing user account not found.');
       }
-    } else {
-      await NdcWorkflowService.processClearanceChange(
+
+      const student = await prisma.student.findUnique({
+        where: { id: confirmation.studentId },
+        include: { department: true }
+      });
+
+      if (!student || !student.isActive) {
+        throw new Error('Student record not found or student account is inactive.');
+      }
+
+      const clearance = await prisma.ndcClearance.findUnique({
+        where: { id: confirmation.clearanceId },
+        include: { department: true }
+      });
+
+      if (!clearance) {
+        throw new Error('Target clearance record not found in database.');
+      }
+
+      const targetDepartmentId = payload.departmentId || clearance.departmentId;
+      const isAuthorized = await DueManagementService.verifyOfficerDepartmentAuthorization(userId, {
+        departmentId: targetDepartmentId,
+        labId: clearance.labId,
+        studentId: confirmation.studentId
+      });
+
+      if (!isAuthorized.authorized) {
+        throw new Error(`Unauthorized: You do not have permission to modify clearances for ${payload.departmentName || clearance.department?.name || 'this department'}: ${isAuthorized.reason}`);
+      }
+
+      // 5. Execute Business Mutation via Canonical Services
+      let targetStatus: DepartmentClearanceStatus;
+      let remarks = payload.reason || `Updated via ${payload.departmentName || 'Department'} AI Assistant`;
+      let dueAmount = 0;
+      let dueDetails = '';
+
+      switch (confirmation.action) {
+        case 'CLEAR_DUE':
+          targetStatus = DepartmentClearanceStatus.CLEARED;
+          remarks = payload.reason || 'Clearance verified and approved as No Due via AI Assistant';
+          dueAmount = 0;
+          dueDetails = '';
+          break;
+
+        case 'MARK_DUE':
+          targetStatus = DepartmentClearanceStatus.DUE;
+          dueAmount = Number(payload.amount || 0);
+          dueDetails = payload.reason || `${payload.departmentName || 'Department'} Outstanding Due`;
+          remarks = `Due of ₹${dueAmount} added via AI Assistant: ${dueDetails}`;
+          break;
+
+        case 'HOLD':
+          targetStatus = DepartmentClearanceStatus.ON_HOLD;
+          remarks = payload.reason || 'Placed on hold via AI Assistant';
+          dueAmount = 0;
+          dueDetails = '';
+          break;
+
+        default:
+          throw new Error(`Unsupported action type: ${confirmation.action}`);
+      }
+
+      let verifiedRecord: any = null;
+      let finalDueAmount = dueAmount;
+      let notificationResult: any = null;
+
+      if (confirmation.action === 'MARK_DUE') {
+        const dueRes = await DueManagementService.recordClearanceDue({
+          clearanceId: confirmation.clearanceId,
+          amount: dueAmount,
+          reason: dueDetails,
+          officerUserId: userId,
+          source: 'AI_ASSISTANT',
+          sourceEntryId: confirmation.id,
+          conflictStrategy: 'ACCUMULATE',
+          reqObj
+        });
+        finalDueAmount = dueRes.newDueAmount;
+        notificationResult = dueRes.notification;
+
+        verifiedRecord = await prisma.ndcClearance.findUnique({
+          where: { id: confirmation.clearanceId }
+        });
+
+        if (!verifiedRecord || verifiedRecord.status !== ('DUE' as any) || Number(verifiedRecord.dueAmount) !== finalDueAmount) {
+          throw new Error(`Database verification failed: Due record not found or amount mismatch. Expected ₹${finalDueAmount}, found ₹${verifiedRecord?.dueAmount}.`);
+        }
+      } else {
+        await NdcWorkflowService.processClearanceChange(
+          confirmation.clearanceId,
+          targetStatus,
+          userId,
+          remarks,
+          0,
+          '',
+          reqObj
+        );
+
+        verifiedRecord = await prisma.ndcClearance.findUnique({
+          where: { id: confirmation.clearanceId }
+        });
+
+        if (!verifiedRecord) {
+          throw new Error('Database verification failed: Clearance record not found after mutation.');
+        }
+
+        if (verifiedRecord.status !== (targetStatus as any)) {
+          throw new Error(`Database verification failed: Clearance status is ${verifiedRecord.status}, expected ${targetStatus}.`);
+        }
+
+        if (confirmation.action === 'CLEAR_DUE' && Number(verifiedRecord.dueAmount) !== 0) {
+          throw new Error(`Database verification failed: Due amount is ₹${verifiedRecord.dueAmount}, expected ₹0.`);
+        }
+
+        // Look up enqueued clearance notification
+        const notifKey = `notif_clearance_${confirmation.clearanceId}_${targetStatus}_${verifiedRecord.updatedAt.getTime()}`;
+        notificationResult = await NotificationQueueService.getJobByIdempotencyKey(notifKey);
+      }
+
+      // Mark token payload as EXECUTED in database
+      await prisma.aiConfirmationToken.update({
+        where: { token: tokenString },
+        data: {
+          payload: {
+            ...payload,
+            lifecycleStatus: 'EXECUTED',
+            executedAt: new Date().toISOString(),
+            verifiedStatus: verifiedRecord.status,
+            verifiedDueAmount: verifiedRecord.dueAmount
+          }
+        }
+      });
+
+      // 6. Record High-Priority Audit Log
+      const targetDeptLabel = payload.departmentName || payload.labName || 'Department';
+      await AuditService.log(
+        reqObj || ({ user: { id: userId, name: user.name || user.role, role: user.role } } as any),
+        `AI_ASSISTANT_${confirmation.action}`,
+        'NdcClearance',
+        `Officer confirmed AI Assistant action [${confirmation.action}] for student ${payload.usn} (${payload.studentName}) in ${targetDeptLabel}. Status: ${verifiedRecord.status}. Amount: ₹${verifiedRecord.dueAmount}`,
         confirmation.clearanceId,
-        targetStatus,
-        userId,
-        remarks,
-        0,
-        '',
-        reqObj
+        null,
+        { action: confirmation.action, payload, verifiedRecord }
       );
 
-      verifiedRecord = await prisma.ndcClearance.findUnique({
-        where: { id: confirmation.clearanceId }
-      });
+      const completionReply =
+        `### ✅ Action Executed and Verified in Live Records\n\n` +
+        `1. **Understood**: Confirmed execution for **${confirmation.action === 'CLEAR_DUE' ? 'Clearance Approval' : 'Due Creation'}**.\n` +
+        `2. **Record Updated**: **${payload.studentName}** (\`${payload.usn}\`) — ${payload.departmentName || targetDeptLabel}.\n` +
+        `3. **Validation Confirmed**: Pre-flight authorization verified; live database re-queried and integrity checked.\n` +
+        `4. **Action Executed**: Database mutation committed via authoritative ${confirmation.action === 'CLEAR_DUE' ? 'NdcWorkflowService' : 'DueManagementService'}.\n` +
+        `5. **Live Verified State**:\n` +
+        `   - **Clearance Status**: **${verifiedRecord.status}**\n` +
+        `   - **Outstanding Dues**: **₹${verifiedRecord.dueAmount}**\n` +
+        `   - **Updated At**: ${new Date(verifiedRecord.updatedAt).toLocaleString()}\n` +
+        `6. **Audit & Notifications**: Recorded in high-priority institutional audit log. Official notification ${notificationResult?.status === 'QUEUED' || notificationResult ? 'enqueued for student' : 'dispatched'}.\n` +
+        `7. **Next Step**: Workflow complete. You may verify other student clearances or review department summary.`;
 
-      if (!verifiedRecord) {
-        throw new Error('Database verification failed: Clearance record not found after mutation.');
+      return {
+        success: true,
+        message: `Successfully executed and verified ${confirmation.action === 'CLEAR_DUE' ? 'No Due clearance approval' : 'due creation'} for ${payload.studentName} (${payload.usn}).`,
+        completionReply,
+        action: confirmation.action,
+        usn: payload.usn,
+        studentName: payload.studentName,
+        labName: targetDeptLabel,
+        departmentName: payload.departmentName || clearance.department?.name,
+        status: targetStatus,
+        dueAmount: finalDueAmount,
+        clearance: verifiedRecord,
+        notification: notificationResult,
+        lifecycleStatus: 'EXECUTED'
+      };
+    } catch (execErr: any) {
+      try {
+        await prisma.aiConfirmationToken.update({
+          where: { token: tokenString },
+          data: {
+            payload: {
+              ...payload,
+              lifecycleStatus: 'FAILED',
+              failedAt: new Date().toISOString(),
+              executionError: execErr.message
+            }
+          }
+        });
+      } catch (markErr) {
+        console.warn('[AiAssistantService] Notice: could not record FAILED lifecycle status:', markErr);
       }
-
-      if (verifiedRecord.status !== (targetStatus as any)) {
-        throw new Error(`Database verification failed: Clearance status is ${verifiedRecord.status}, expected ${targetStatus}.`);
-      }
-
-      if (confirmation.action === 'CLEAR_DUE' && Number(verifiedRecord.dueAmount) !== 0) {
-        throw new Error(`Database verification failed: Due amount is ₹${verifiedRecord.dueAmount}, expected ₹0.`);
-      }
-
-      // Look up enqueued clearance notification
-      const notifKey = `notif_clearance_${confirmation.clearanceId}_${targetStatus}_${verifiedRecord.updatedAt.getTime()}`;
-      notificationResult = await NotificationQueueService.getJobByIdempotencyKey(notifKey);
+      throw execErr;
     }
-
-    // 6. Record High-Priority Audit Log
-    const targetDeptLabel = payload.departmentName || payload.labName || 'Department';
-    await AuditService.log(
-      reqObj || ({ user: { id: userId, name: user.name || user.role, role: user.role } } as any),
-      `AI_ASSISTANT_${confirmation.action}`,
-      'NdcClearance',
-      `Officer confirmed AI Assistant action [${confirmation.action}] for student ${payload.usn} (${payload.studentName}) in ${targetDeptLabel}. Status: ${verifiedRecord.status}. Amount: ₹${verifiedRecord.dueAmount}`,
-      confirmation.clearanceId,
-      null,
-      { action: confirmation.action, payload, verifiedRecord }
-    );
-
-    const completionReply =
-      `### ✅ Action Executed and Verified in Live Records\n\n` +
-      `1. **Understood**: Confirmed execution for **${confirmation.action === 'CLEAR_DUE' ? 'Clearance Approval' : 'Due Creation'}**.\n` +
-      `2. **Record Updated**: **${payload.studentName}** (\`${payload.usn}\`) — ${payload.departmentName || targetDeptLabel}.\n` +
-      `3. **Validation Confirmed**: Pre-flight authorization verified; live database re-queried and integrity checked.\n` +
-      `4. **Action Executed**: Database mutation committed via authoritative ${confirmation.action === 'CLEAR_DUE' ? 'NdcWorkflowService' : 'DueManagementService'}.\n` +
-      `5. **Live Verified State**:\n` +
-      `   - **Clearance Status**: **${verifiedRecord.status}**\n` +
-      `   - **Outstanding Dues**: **₹${verifiedRecord.dueAmount}**\n` +
-      `   - **Updated At**: ${new Date(verifiedRecord.updatedAt).toLocaleString()}\n` +
-      `6. **Audit & Notifications**: Recorded in high-priority institutional audit log. Official notification ${notificationResult?.status === 'QUEUED' || notificationResult ? 'enqueued for student' : 'dispatched'}.\n` +
-      `7. **Next Step**: Workflow complete. You may verify other student clearances or review department summary.`;
-
-    return {
-      success: true,
-      message: `Successfully executed and verified ${confirmation.action === 'CLEAR_DUE' ? 'No Due clearance approval' : 'due creation'} for ${payload.studentName} (${payload.usn}).`,
-      completionReply,
-      action: confirmation.action,
-      usn: payload.usn,
-      studentName: payload.studentName,
-      labName: targetDeptLabel,
-      departmentName: payload.departmentName || clearance.department?.name,
-      status: targetStatus,
-      dueAmount: finalDueAmount,
-      clearance: verifiedRecord,
-      notification: notificationResult
-    };
   }
 
   /**
    * Cancel an active confirmation token explicitly before execution.
    */
   public static async cancelAction(tokenString: string, userId: string, reqObj?: any): Promise<any> {
+    if (!tokenString || typeof tokenString !== 'string') {
+      throw new Error('Confirmation token string is required.');
+    }
+
+    // 1. Atomic transition from STAGED to CANCELLED:
+    // Only the first concurrent caller will get count === 1.
+    const updateResult = await prisma.aiConfirmationToken.updateMany({
+      where: {
+        token: tokenString,
+        consumed: false,
+        expiresAt: { gt: new Date() }
+      },
+      data: {
+        consumed: true,
+        consumedAt: new Date()
+      }
+    });
+
+    if (updateResult.count === 0) {
+      const existing = await prisma.aiConfirmationToken.findUnique({
+        where: { token: tokenString }
+      });
+
+      if (!existing) {
+        throw new Error('Invalid or non-existent confirmation token.');
+      }
+
+      if (existing.userId !== userId) {
+        throw new Error('Unauthorized: This confirmation token belongs to a different officer account.');
+      }
+
+      const p = (existing.payload as any) || {};
+
+      // Idempotency: Already cancelled or superseded
+      if (p.cancelled || p.lifecycleStatus === 'CANCELLED' || p.lifecycleStatus === 'SUPERSEDED') {
+        return {
+          success: true,
+          message: 'This staged action was already cancelled. No changes were made to the live database.',
+          cancelled: true,
+          token: tokenString,
+          action: existing.action,
+          usn: p.usn,
+          studentName: p.studentName,
+          lifecycleStatus: 'CANCELLED'
+        };
+      }
+
+      // Previously failed
+      if (p.lifecycleStatus === 'FAILED') {
+        return {
+          success: true,
+          message: 'This staged action previously failed execution and has been safely dismissed. No live records were modified.',
+          cancelled: true,
+          token: tokenString,
+          action: existing.action,
+          usn: p.usn,
+          studentName: p.studentName,
+          lifecycleStatus: 'CANCELLED'
+        };
+      }
+
+      // Executed action rejection with informative message and authorized reversal guidance
+      if (p.lifecycleStatus === 'EXECUTED' || existing.consumed) {
+        const executedDateStr = p.executedAt ? new Date(p.executedAt).toLocaleString() : 'previously';
+        const targetDept = p.departmentName || p.labName || 'Department';
+        throw new Error(
+          `Cannot cancel: This action was already confirmed and executed on ${executedDateStr} for ${p.studentName || 'the student'} (${p.usn}) in ${targetDept}. ` +
+          `Live financial and clearance records were updated and cannot be silently discarded. ` +
+          `To reverse this change, please use the authorized clearance approval workflow (e.g. approve No Due).`
+        );
+      }
+
+      // Expired token
+      if (new Date() > existing.expiresAt) {
+        return {
+          success: true,
+          message: 'This confirmation token has expired and was automatically discarded. Zero database changes were made.',
+          cancelled: true,
+          token: tokenString,
+          action: existing.action,
+          usn: p.usn,
+          studentName: p.studentName,
+          lifecycleStatus: 'EXPIRED'
+        };
+      }
+
+      throw new Error('Confirmation token is not available for cancellation.');
+    }
+
     const confirmation = await prisma.aiConfirmationToken.findUnique({
       where: { token: tokenString }
     });
@@ -732,33 +855,22 @@ export class AiAssistantService {
     }
 
     if (confirmation.userId !== userId) {
+      // Revert consumption since user didn't match
+      await prisma.aiConfirmationToken.update({
+        where: { token: tokenString },
+        data: { consumed: false, consumedAt: null }
+      });
       throw new Error('Unauthorized: This confirmation token belongs to a different officer account.');
     }
 
     const payload = (confirmation.payload as any) || {};
 
-    if (confirmation.consumed) {
-      if (payload.cancelled) {
-        return {
-          success: true,
-          message: 'This action was already cancelled.',
-          cancelled: true,
-          token: tokenString,
-          action: confirmation.action,
-          usn: payload.usn,
-          studentName: payload.studentName
-        };
-      }
-      throw new Error('Cannot cancel: This action has already been confirmed and executed.');
-    }
-
     await prisma.aiConfirmationToken.update({
       where: { token: tokenString },
       data: {
-        consumed: true,
-        consumedAt: new Date(),
         payload: {
           ...payload,
+          lifecycleStatus: 'CANCELLED',
           cancelled: true,
           cancelledAt: new Date().toISOString(),
           cancellationReason: 'Explicitly cancelled by officer'
@@ -795,7 +907,8 @@ export class AiAssistantService {
       token: tokenString,
       action: confirmation.action,
       usn: payload.usn,
-      studentName: payload.studentName
+      studentName: payload.studentName,
+      lifecycleStatus: 'CANCELLED'
     };
   }
 
@@ -829,6 +942,7 @@ export class AiAssistantService {
           consumedAt: new Date(),
           payload: {
             ...p,
+            lifecycleStatus: 'SUPERSEDED',
             cancelled: true,
             cancelledAt: new Date().toISOString(),
             cancellationReason: reason
@@ -836,6 +950,171 @@ export class AiAssistantService {
         }
       });
     }
+  }
+
+  /**
+   * Programmatic editing of a staged action before confirmation
+   */
+  public static async editStagedAction(
+    tokenString: string,
+    userId: string,
+    updates: { amount?: number; reason?: string; usn?: string },
+    reqObj?: any
+  ): Promise<any> {
+    const confirmation = await prisma.aiConfirmationToken.findUnique({
+      where: { token: tokenString }
+    });
+
+    if (!confirmation) {
+      throw new Error('Invalid or non-existent confirmation token.');
+    }
+
+    if (confirmation.userId !== userId) {
+      throw new Error('Unauthorized: This confirmation token was generated for a different officer account.');
+    }
+
+    const payload = (confirmation.payload as any) || {};
+
+    if (confirmation.consumed) {
+      if (payload.cancelled || payload.lifecycleStatus === 'CANCELLED' || payload.lifecycleStatus === 'SUPERSEDED') {
+        throw new Error('Cannot edit: This staged action has already been cancelled.');
+      }
+      if (payload.lifecycleStatus === 'EXECUTED') {
+        throw new Error('Cannot edit: This action has already been confirmed and executed in live records.');
+      }
+      throw new Error('Cannot edit: This action token is no longer available.');
+    }
+
+    if (new Date() > confirmation.expiresAt) {
+      throw new Error('Cannot edit: This confirmation token has expired. Please initiate the request again.');
+    }
+
+    // Invalidate old token atomically
+    await prisma.aiConfirmationToken.update({
+      where: { id: confirmation.id },
+      data: {
+        consumed: true,
+        consumedAt: new Date(),
+        payload: {
+          ...payload,
+          lifecycleStatus: 'SUPERSEDED',
+          cancelled: true,
+          cancelledAt: new Date().toISOString(),
+          cancellationReason: 'Superseded by user edit'
+        }
+      }
+    });
+
+    // Resolve student
+    const targetUsn = (updates.usn && updates.usn.trim().toUpperCase()) || payload.usn;
+    const student = await prisma.student.findUnique({
+      where: { usn: targetUsn },
+      include: { department: true }
+    });
+
+    if (!student || !student.isActive) {
+      throw new Error(`Student with USN ${targetUsn} not found or account is inactive.`);
+    }
+
+    const targetDeptId = payload.departmentId;
+    const dept = await prisma.department.findUnique({ where: { id: targetDeptId } });
+    if (!dept) {
+      throw new Error('Department not found.');
+    }
+
+    const isAuthorized = await this.verifyDepartmentAuthorization({ id: userId } as any, dept.id);
+    if (!isAuthorized) {
+      throw new Error(`Unauthorized to stage clearance actions for ${dept.name}.`);
+    }
+
+    const currentAction = confirmation.action as 'MARK_DUE' | 'CLEAR_DUE';
+    let newAmount = payload.amount || 0;
+    if (updates.amount !== undefined) {
+      const parsed = Number(updates.amount);
+      if (currentAction === 'MARK_DUE') {
+        if (isNaN(parsed) || parsed <= 0) {
+          throw new Error('Due amount must be a positive number greater than 0.');
+        }
+        newAmount = parsed;
+      }
+    }
+
+    const newReason = (updates.reason && updates.reason.trim()) || payload.reason || 'Apparatus / Lab Equipment Due';
+    const labName = payload.labName || dept.name;
+
+    const consequences = currentAction === 'MARK_DUE'
+      ? `Recording an outstanding due of ₹${newAmount} for "${newReason}" will set ${student.fullName}'s (${student.usn}) status in ${labName} to DUE. Overall NDC status will become BLOCKED, and an official notification will be queued.`
+      : `Setting clearance to NO DUE will approve clearance as CLEARED with ₹0 dues. Overall NDC status will advance towards APPROVED.`;
+
+    const tokenStr = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.aiConfirmationToken.create({
+      data: {
+        token: tokenStr,
+        userId,
+        action: currentAction,
+        studentId: student.id,
+        clearanceId: confirmation.clearanceId,
+        payload: {
+          studentName: student.fullName,
+          usn: student.usn,
+          amount: newAmount,
+          reason: newReason,
+          departmentId: dept.id,
+          departmentName: dept.name,
+          labName,
+          consequences,
+          lifecycleStatus: 'STAGED'
+        },
+        expiresAt
+      }
+    });
+
+    await AuditService.log(
+      reqObj || null,
+      'AI_ASSISTANT_EDIT_ACTION',
+      'AiConfirmationToken',
+      `Officer edited staged AI Assistant action [${currentAction}] for student ${student.usn} in ${labName}. New amount: ₹${newAmount}, Reason: ${newReason}`,
+      confirmation.id,
+      null,
+      { oldToken: tokenString, newToken: tokenStr, newAmount, newReason }
+    );
+
+    const editReply =
+      `### ✏️ Staged Action Updated\n\n` +
+      `1. **Understood**: Updated staged action for **${student.fullName}** (\`${student.usn}\`) in **${labName}**.\n` +
+      `2. **Record Verified**: **${student.fullName}** (\`${student.usn}\`).\n` +
+      `3. **Validation**: Old confirmation token superseded; new token staged. Zero database changes committed yet.\n` +
+      `4. **Proposed Action**: ${currentAction === 'MARK_DUE' ? `Record due of **₹${newAmount}** for *"${newReason}"*` : 'Set Clearance to **NO DUE**'}.\n` +
+      `5. **Expected Outcome**: ${consequences}\n` +
+      `6. **Pending Confirmation**: Consequential modification requires your explicit confirmation.\n` +
+      `7. **Next Step**: Click **Confirm & Save to Records** below to execute, or **Cancel** to abort.`;
+
+    return {
+      reply: editReply,
+      actionRequired: {
+        token: tokenStr,
+        action: currentAction,
+        studentId: student.id,
+        studentName: student.fullName,
+        usn: student.usn,
+        clearanceId: confirmation.clearanceId!,
+        amount: newAmount,
+        reason: newReason,
+        labName,
+        departmentName: dept.name,
+        consequences,
+        expiresAt: expiresAt.toISOString(),
+        status: 'STAGED' as any,
+        lifecycleStatus: 'STAGED' as any
+      },
+      suggestions: [
+        `Confirm and Save`,
+        `Cancel that`,
+        `Lookup student ${student.usn}`
+      ]
+    };
   }
 
   /**
@@ -1077,7 +1356,8 @@ export class AiAssistantService {
             departmentId: department.id,
             departmentName: department.name,
             labName,
-            consequences
+            consequences,
+            lifecycleStatus: 'STAGED'
           },
           expiresAt
         }
@@ -1128,7 +1408,8 @@ export class AiAssistantService {
           departmentId: department.id,
           departmentName: department.name,
           labName,
-          consequences
+          consequences,
+          lifecycleStatus: 'STAGED'
         },
         expiresAt
       }

@@ -33,6 +33,7 @@ interface MessageItem extends AssistantMessage {
   actionRequired?: ActionRequired | null;
   actionExecuted?: boolean;
   actionCancelled?: boolean;
+  actionExpired?: boolean;
   notification?: {
     deliveryStatus?: 'QUEUED' | 'ACCEPTED' | 'FAILED' | 'UNCERTAIN';
     messageId?: string;
@@ -128,6 +129,9 @@ export const AiAssistantPage: React.FC = () => {
             role: log.role as 'user' | 'model',
             content: log.content,
             actionRequired: log.actionRequired,
+            actionExecuted: log.actionExecuted,
+            actionCancelled: log.actionCancelled,
+            actionExpired: log.actionExpired,
             suggestions: log.metadata?.suggestions,
             notification: log.metadata?.notification
           }));
@@ -221,7 +225,7 @@ export const AiAssistantPage: React.FC = () => {
       setMessages((prev) => {
         const updated = prev.map((m, idx) =>
           idx === messageIndex
-            ? { ...m, actionExecuted: true, notification: result.notification }
+            ? { ...m, actionExecuted: true, actionRequired: m.actionRequired ? { ...m.actionRequired, lifecycleStatus: 'EXECUTED' as const } : null, notification: result.notification }
             : m
         );
         if (result.completionReply) {
@@ -235,8 +239,12 @@ export const AiAssistantPage: React.FC = () => {
             ]
           });
         }
+        localStorage.setItem(storageKey, JSON.stringify(updated));
         return updated;
       });
+
+      // Dispatch global update event
+      window.dispatchEvent(new CustomEvent('ndc_clearance_updated'));
 
       // Re-fetch stats
       const statsRes = await api.get('/ndc/officer/stats');
@@ -250,7 +258,19 @@ export const AiAssistantPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || err.message || 'Failed to confirm action.');
+      const errMsg = err.response?.data?.message || err.message || 'Failed to confirm action.';
+      setErrorMsg(errMsg);
+      if (errMsg.includes('already been confirmed and executed') || errMsg.includes('already confirmed')) {
+        setMessages((prev) => {
+          const updated = prev.map((m, idx) =>
+            idx === messageIndex
+              ? { ...m, actionExecuted: true, actionRequired: m.actionRequired ? { ...m.actionRequired, lifecycleStatus: 'EXECUTED' as const } : null }
+              : m
+          );
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+          return updated;
+        });
+      }
     } finally {
       setConfirmingToken(null);
     }
@@ -278,11 +298,25 @@ export const AiAssistantPage: React.FC = () => {
             ]
           });
         }
+        localStorage.setItem(storageKey, JSON.stringify(updated));
         return updated;
       });
       setEditingToken(null);
+      window.dispatchEvent(new CustomEvent('ndc_clearance_updated'));
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || err.message || 'Failed to cancel action.');
+      const errMsg = err.response?.data?.message || err.message || 'Failed to cancel action.';
+      setErrorMsg(errMsg);
+      if (errMsg.includes('already confirmed and executed') || errMsg.includes('already been confirmed')) {
+        setMessages((prev) => {
+          const updated = prev.map((m, idx) =>
+            idx === messageIndex
+              ? { ...m, actionExecuted: true, actionRequired: m.actionRequired ? { ...m.actionRequired, lifecycleStatus: 'EXECUTED' as const } : null }
+              : m
+          );
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+          return updated;
+        });
+      }
     } finally {
       setCancellingToken(null);
     }
@@ -294,15 +328,40 @@ export const AiAssistantPage: React.FC = () => {
     setEditReason(action.reason || '');
   };
 
-  const handleSubmitEdit = () => {
+  const handleSubmitEdit = async () => {
     if (!editingToken) return;
-    const parts: string[] = [];
-    if (editAmount !== '') parts.push(`Change amount to ₹${editAmount}`);
-    if (editReason.trim()) parts.push(`Change reason to ${editReason.trim()}`);
-    if (parts.length > 0) {
-      handleSend(parts.join(' and '));
+    try {
+      setLoading(true);
+      setErrorMsg(null);
+      const parsedAmount = editAmount !== '' ? Number(editAmount) : undefined;
+      const res = await aiService.editAssistantAction({
+        token: editingToken,
+        amount: parsedAmount,
+        reason: editReason.trim() || undefined
+      });
+
+      // Update current message with new token and reply without executing
+      setMessages((prev) => {
+        const updated = prev.map((m) =>
+          m.actionRequired?.token === editingToken
+            ? {
+                ...m,
+                actionRequired: res.actionRequired,
+                content: res.reply || m.content
+              }
+            : m
+        );
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+        return updated;
+      });
+
+      setConfirmSuccess('Staged action details updated successfully.');
+      setEditingToken(null);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to update staged action.');
+    } finally {
+      setLoading(false);
     }
-    setEditingToken(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -682,6 +741,16 @@ export const AiAssistantPage: React.FC = () => {
                             </div>
                           )}
                         </div>
+                      ) : msg.actionCancelled ? (
+                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold bg-slate-100 p-2 rounded-lg border border-slate-200 text-xs">
+                          <XCircle className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>Action Cancelled: Confirmation token invalidated. Zero live changes were made.</span>
+                        </div>
+                      ) : msg.actionExpired ? (
+                        <div className="flex items-center gap-1.5 text-amber-800 font-semibold bg-amber-50 p-2 rounded-lg border border-amber-200 text-xs">
+                          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Action Expired: This confirmation token has expired. Please initiate the request again.</span>
+                        </div>
                       ) : (
                         <div className="pt-1 flex flex-wrap items-center gap-2">
                           <button
@@ -723,14 +792,6 @@ export const AiAssistantPage: React.FC = () => {
                           </button>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* Render Cancellation State */}
-                  {msg.actionCancelled && (
-                    <div className="mt-3 p-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 text-xs flex items-center gap-2">
-                      <XCircle className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span><strong>Action Cancelled:</strong> Confirmation token invalidated. Zero database changes were made.</span>
                     </div>
                   )}
                 </div>

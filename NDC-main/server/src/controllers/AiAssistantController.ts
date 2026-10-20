@@ -197,9 +197,60 @@ export class AiAssistantController {
         take: limit
       });
 
+      // Synchronize actionRequired status with actual confirmation tokens from database
+      const tokenStrings = logs
+        .filter((l: any) => l.actionRequired?.token)
+        .map((l: any) => l.actionRequired.token);
+
+      let tokenMap = new Map<string, any>();
+      if (tokenStrings.length > 0) {
+        const tokenRecords = await prisma.aiConfirmationToken.findMany({
+          where: { token: { in: tokenStrings } }
+        });
+        tokenMap = new Map(tokenRecords.map((t) => [t.token, t]));
+      }
+
+      const synchronizedLogs = logs.map((log: any) => {
+        if (!log.actionRequired || !log.actionRequired.token) {
+          return log;
+        }
+
+        const tokenRec = tokenMap.get(log.actionRequired.token);
+        if (!tokenRec) {
+          return {
+            ...log,
+            actionRequired: null,
+            actionCancelled: true
+          };
+        }
+
+        const p = (tokenRec.payload as any) || {};
+        const isExpired = new Date() > tokenRec.expiresAt;
+        const lifecycleStatus =
+          p.lifecycleStatus ||
+          (p.cancelled ? 'CANCELLED' : tokenRec.consumed ? 'EXECUTED' : isExpired ? 'EXPIRED' : 'STAGED');
+
+        const isExecuted = lifecycleStatus === 'EXECUTED';
+        const isCancelled = lifecycleStatus === 'CANCELLED' || lifecycleStatus === 'SUPERSEDED';
+        const isExp = lifecycleStatus === 'EXPIRED' || (lifecycleStatus === 'STAGED' && isExpired);
+
+        return {
+          ...log,
+          actionRequired: {
+            ...log.actionRequired,
+            lifecycleStatus,
+            consumed: tokenRec.consumed,
+            isExpired: isExp
+          },
+          actionExecuted: isExecuted,
+          actionCancelled: isCancelled,
+          actionExpired: isExp
+        };
+      });
+
       res.status(200).json({
         success: true,
-        data: logs
+        data: synchronizedLogs
       });
     } catch (err: any) {
       console.error('[AiAssistantController] getHistory error:', err);
@@ -296,10 +347,30 @@ export class AiAssistantController {
                 action: result.action,
                 status: 'ACTION_SUCCEEDED',
                 usn: result.usn,
-                dueAmount: result.dueAmount
+                dueAmount: result.dueAmount,
+                lifecycleStatus: 'EXECUTED'
               }
             }
           });
+
+          // Mark any prior log containing this token as executed
+          const priorLogs = await (prisma as any).aiConversationLog.findMany({
+            where: { userId: user.id || user._id, departmentCode }
+          });
+          for (const l of priorLogs) {
+            if (l.actionRequired && (l.actionRequired as any).token === token.trim()) {
+              await (prisma as any).aiConversationLog.update({
+                where: { id: l.id },
+                data: {
+                  actionRequired: {
+                    ...(l.actionRequired as any),
+                    lifecycleStatus: 'EXECUTED',
+                    actionExecuted: true
+                  }
+                }
+              });
+            }
+          }
         }
       } catch (logErr) {
         console.warn('[AiAssistantController] Notice: failed to persist confirmation log:', logErr);
@@ -357,10 +428,30 @@ export class AiAssistantController {
               metadata: {
                 action: result.action,
                 status: 'ACTION_CANCELLED',
-                usn: result.usn
+                usn: result.usn,
+                lifecycleStatus: 'CANCELLED'
               }
             }
           });
+
+          // Mark any prior log containing this token as cancelled
+          const priorLogs = await (prisma as any).aiConversationLog.findMany({
+            where: { userId: user.id || user._id, departmentCode }
+          });
+          for (const l of priorLogs) {
+            if (l.actionRequired && (l.actionRequired as any).token === token.trim()) {
+              await (prisma as any).aiConversationLog.update({
+                where: { id: l.id },
+                data: {
+                  actionRequired: {
+                    ...(l.actionRequired as any),
+                    lifecycleStatus: 'CANCELLED',
+                    actionCancelled: true
+                  }
+                }
+              });
+            }
+          }
         }
       } catch (logErr) {
         console.warn('[AiAssistantController] Notice: failed to persist cancellation log:', logErr);
@@ -375,6 +466,71 @@ export class AiAssistantController {
       res.status(400).json({
         success: false,
         message: err.message || 'Failed to cancel staged action.'
+      });
+    }
+  }
+
+  /**
+   * Modify a staged action before confirmation
+   */
+  public static async editAction(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { token, amount, reason, usn } = req.body;
+      if (!token || typeof token !== 'string') {
+        res.status(400).json({
+          success: false,
+          message: 'Bad Request: "token" string is required to edit staged action.'
+        });
+        return;
+      }
+
+      const result = await AiAssistantService.editStagedAction(
+        token.trim(),
+        user.id || user._id,
+        {
+          amount: amount !== undefined ? Number(amount) : undefined,
+          reason,
+          usn
+        },
+        req
+      );
+
+      // Persist updated staged action reply to AI conversation log
+      try {
+        const departmentCode = (req.body?.departmentCode as string) || (user.department?.code as string);
+        if (departmentCode && result.reply) {
+          await prisma.aiConversationLog.create({
+            data: {
+              userId: user.id || user._id,
+              departmentCode,
+              role: 'model',
+              content: result.reply,
+              actionRequired: result.actionRequired ? (result.actionRequired as any) : null,
+              metadata: {
+                suggestions: result.suggestions
+              }
+            }
+          });
+        }
+      } catch (logErr) {
+        console.warn('[AiAssistantController] Failed to log edit reply:', logErr);
+      }
+
+      res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (err: any) {
+      console.error('[AiAssistantController] editAction error:', err);
+      res.status(400).json({
+        success: false,
+        message: err.message || 'Failed to edit staged action.'
       });
     }
   }

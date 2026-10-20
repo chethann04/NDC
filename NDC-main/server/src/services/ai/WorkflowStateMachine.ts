@@ -15,6 +15,17 @@ export enum WorkflowState {
   ALREADY_COMPLETED = 'ALREADY_COMPLETED'
 }
 
+export enum ActionLifecycleState {
+  STAGED = 'STAGED',
+  CONFIRMED = 'CONFIRMED',
+  EXECUTED = 'EXECUTED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+  REVERSED = 'REVERSED',
+  SUPERSEDED = 'SUPERSEDED',
+  EXPIRED = 'EXPIRED'
+}
+
 export type AssistantWorkflowIntent =
   | 'CLEAR_DUE'
   | 'MARK_DUE'
@@ -436,7 +447,9 @@ export class WorkflowStateMachine {
         labName: department.name,
         departmentName: department.name,
         consequences,
-        expiresAt: expiresAt.toISOString()
+        expiresAt: expiresAt.toISOString(),
+        status: ActionLifecycleState.STAGED,
+        lifecycleStatus: ActionLifecycleState.STAGED
       },
       suggestions: [
         `Cancel that`,
@@ -489,7 +502,9 @@ export class WorkflowStateMachine {
         labName,
         departmentName: department.name,
         consequences,
-        expiresAt: expiresAt.toISOString()
+        expiresAt: expiresAt.toISOString(),
+        status: ActionLifecycleState.STAGED,
+        lifecycleStatus: ActionLifecycleState.STAGED
       },
       suggestions: [
         `Change it to ₹${Math.round(amount * 1.2)}`,
