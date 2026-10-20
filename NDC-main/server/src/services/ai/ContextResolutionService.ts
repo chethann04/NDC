@@ -21,6 +21,7 @@ export interface ResolvedAiContext {
   assistantConfig: {
     title: string;
     badge: string;
+    description: string;
     greeting: string;
     systemPrompt: string;
     suggestedQueries: string[];
@@ -97,13 +98,24 @@ export class ContextResolutionService {
             isAcademicBranch: found.isAcademicBranch
           };
         } else {
-          // Fall back safely to Administration Block, NEVER to Physics
-          targetDept = {
-            id: 'admin-institution',
-            code: 'ADM',
-            name: 'Administration Block',
-            category: 'ADMINISTRATION'
-          };
+          // Check if it is a virtual clearance desk or registered department (e.g. PHY, CHEM, LIB, LAB, HST, SPT, ACC)
+          const registered = DepartmentAgentRegistry.getConfig(reqCode);
+          if (registered) {
+            targetDept = {
+              id: registered.departmentCode.toLowerCase(),
+              code: registered.departmentCode,
+              name: registered.displayName,
+              category: registered.category as any
+            };
+          } else {
+            // Graceful fallback for invalid/unrecognized department codes: default safely to Administration Block
+            targetDept = {
+              id: 'admin-institution',
+              code: 'ADM',
+              name: 'Administration Block',
+              category: 'ADMINISTRATION'
+            };
+          }
         }
       } else {
         // Default to Administration Block
@@ -137,6 +149,11 @@ export class ContextResolutionService {
 
       if (!hodDept) {
         throw new Error('Unauthorized: HOD account has no assigned academic department.');
+      }
+
+      // Enforce strict authorization: HOD cannot access other departments
+      if (reqCode && reqCode !== hodDept.code.toUpperCase()) {
+        throw new Error(`Forbidden: As Head of Department (${hodDept.code}), you are only authorized to access the ${hodDept.name} AI Assistant.`);
       }
 
       targetDept = {
@@ -178,7 +195,7 @@ export class ContextResolutionService {
 
       availableDepartments = mappedDepts.map((d) => ({ id: d.id, code: d.code, name: d.name }));
 
-      // Enforce strict authorization: officer can ONLY access mapped departments
+      // Enforce strict authorization: officer can ONLY access their mapped departments
       if (reqCode) {
         const matched = mappedDepts.find((d) => d.code.toUpperCase() === reqCode);
         if (matched) {
@@ -190,15 +207,8 @@ export class ContextResolutionService {
             isAcademicBranch: matched.isAcademicBranch
           };
         } else {
-          // Untrusted requestedDeptCode attempted cross-department access - enforce primary mapping!
-          const primary = mappedDepts[0];
-          targetDept = {
-            id: primary.id,
-            code: primary.code,
-            name: primary.name,
-            category: (primary.category as any) || 'CENTRAL_DESK',
-            isAcademicBranch: primary.isAcademicBranch
-          };
+          // Untrusted requestedDeptCode attempted cross-department access - reject unauthorized access!
+          throw new Error(`Forbidden: You are not authorized to access the ${reqCode} AI Assistant. Your assigned department is ${mappedDepts[0]?.code}.`);
         }
       } else {
         const primary = mappedDepts[0];
@@ -271,17 +281,19 @@ export class ContextResolutionService {
     const isCashFee = dept.code === 'ACC' || dept.name.toLowerCase().includes('fee') || dept.name.toLowerCase().includes('cash');
     const isAdmin = dept.code === 'ADM' || role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN;
 
-    // Title & Badge
+    // Title, Badge, Description
     let title = `${dept.name} AI Assistant`;
     let badge = dept.code;
+    let description = '';
     let greeting = '';
     let suggestedQueries: string[] = [];
     let presets: Array<{ label: string; amount?: number; reason?: string }> = [];
 
     if (dept.code === 'ADM') {
-      title = 'Administration Block AI Assistant';
+      title = 'Administration AI Assistant';
       badge = 'ADM';
-      greeting = `Hello! I am the **Administration Block AI Assistant**.\n\nI provide institution-wide clearance governance, monitor cross-department clearance progress, inspect certificate status, and review student clearances across all sections.\n\nHow can I assist your administrative review today?`;
+      description = 'Institutional clearance governance, cross-department searches, clearance bottleneck analytics, and certificate verification.';
+      greeting = `Hello! I am the **Administration AI Assistant**.\n\nI provide institution-wide clearance governance, monitor cross-department clearance progress, inspect certificate status, and review student clearances across all sections.\n\nHow can I assist your administrative review today?`;
       suggestedQueries = [
         'Show institution-wide clearance summary',
         'Which departments have the most pending clearances?',
@@ -298,6 +310,7 @@ export class ContextResolutionService {
     } else if (isLibrary) {
       title = 'Central Library AI Assistant';
       badge = 'LIB';
+      description = 'Circulation desk intelligence, Central Library records, issued & overdue books, replacement fines, and library clearance.';
       greeting = `Hello! I am the **Central Library AI Assistant**.\n\nI can read real-time circulation dues, check overdue textbooks, reference books, and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your circulation desk today?`;
       suggestedQueries = [
         'Who has overdue books in Central Library?',
@@ -313,9 +326,10 @@ export class ContextResolutionService {
         { label: 'Library card / RFID tag lost fine', amount: 100, reason: 'Lost library card replacement' }
       ];
     } else if (isChemistry) {
-      title = 'Chemistry Lab AI Assistant';
+      title = 'Chemistry Department AI Assistant';
       badge = 'CHEM';
-      greeting = `Hello! I am the **Chemistry Lab AI Assistant**.\n\nI can read real-time laboratory records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
+      description = 'Laboratory clearance intelligence, Chemistry Lab records, glassware breakage tracking, and authorized lab sign-offs.';
+      greeting = `Hello! I am the **Chemistry Department AI Assistant**.\n\nI can read real-time laboratory records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
       suggestedQueries = [
         'Who has outstanding dues in Chemistry Lab?',
         'What is the current chemistry clearance summary?',
@@ -332,6 +346,7 @@ export class ContextResolutionService {
     } else if (isPhysics) {
       title = 'Physics Department AI Assistant';
       badge = 'PHY';
+      description = 'Institutional clearance intelligence, Physics Lab records, outstanding apparatus dues, and authorized clearance actions.';
       greeting = `Hello! I am the **Physics Department AI Assistant**.\n\nI can read real-time student clearance data, check outstanding apparatus dues, and stage safe approvals or fee additions with your explicit confirmation.\n\nHow can I assist your laboratory desk today?`;
       suggestedQueries = [
         'Who has outstanding dues in Physics Lab?',
@@ -349,6 +364,7 @@ export class ContextResolutionService {
     } else if (isHostel) {
       title = 'Hostel Administration AI Assistant';
       badge = 'HST';
+      description = 'Hostel administration intelligence, resident records, mess dues, room inventories, and hostel clearance.';
       greeting = `Hello! I am the **Hostel Administration AI Assistant**.\n\nI can verify resident hosteller clearance status, check outstanding mess bills, room damage charges, and stage safe clearance approvals with your confirmation.\n\nHow can I assist your hostel desk today?`;
       suggestedQueries = [
         'Who has unpaid mess bills in Hostel?',
@@ -365,7 +381,8 @@ export class ContextResolutionService {
     } else if (isSports) {
       title = 'Sports Department AI Assistant';
       badge = 'SPT';
-      greeting = `Hello! I am the **Physical Education & Sports AI Assistant**.\n\nI can check sports equipment issues, tournament kits, gym dues, and stage safe clearance approvals with your confirmation.\n\nHow can I assist your sports desk today?`;
+      description = 'Sports department intelligence, athletic equipment loans, team kits, gym dues, and physical education clearance.';
+      greeting = `Hello! I am the **Sports Department AI Assistant**.\n\nI can check sports equipment issues, tournament kits, gym dues, and stage safe clearance approvals with your confirmation.\n\nHow can I assist your sports desk today?`;
       suggestedQueries = [
         'Who has unreturned sports equipment?',
         'What is the current sports clearance summary?',
@@ -379,9 +396,10 @@ export class ContextResolutionService {
         { label: 'Gym Equipment Mishandling', amount: 300, reason: 'Gym room penalty' }
       ];
     } else if (isCashFee) {
-      title = 'Cash & Fee Section AI Assistant';
+      title = 'Accounts and Fee AI Assistant';
       badge = 'ACC';
-      greeting = `Hello! I am the **Cash & Fee Section AI Assistant**.\n\nI verify tuition fees, exam fees, transport challans, and assist with financial clearance reconciliation.\n\nHow can I assist your cash counter today?`;
+      description = 'Fee reconciliation intelligence, tuition and exam fee ledgers, outstanding balances, and financial clearance.';
+      greeting = `Hello! I am the **Accounts and Fee AI Assistant**.\n\nI verify tuition fees, exam fees, transport challans, and assist with financial clearance reconciliation.\n\nHow can I assist your cash counter today?`;
       suggestedQueries = [
         'Who has pending tuition fee dues?',
         'What is the fee section clearance summary?',
@@ -394,11 +412,47 @@ export class ContextResolutionService {
         { label: 'Examination Fee Arrears', amount: 1800, reason: 'VTU Exam fee unpaid balance' },
         { label: 'ID Card Re-issue Fee', amount: 200, reason: 'Replacement smart card charge' }
       ];
+    } else if (dept.code === 'CS') {
+      title = 'CSE Department AI Assistant';
+      badge = 'CS';
+      description = 'Computer Science & Engineering department intelligence, departmental laboratory records, project equipment dues, and branch clearance sign-offs.';
+      greeting = `Hello! I am the **CSE Department AI Assistant**.\n\nI assist with Computer Science departmental laboratory clearances, programming kits, server access, and branch clearance verification.\n\nHow can I assist your CSE desk today?`;
+      suggestedQueries = [
+        'Who has pending clearances in CSE?',
+        'What is the current CSE clearance summary?',
+        'Check student branch clearance status',
+        'Clear departmental lab dues'
+      ];
+      presets = [
+        { label: 'CSE Lab Equipment Due', amount: 500, reason: 'Departmental lab component due' },
+        { label: 'Networking / Hardware Kit Damage', amount: 1000, reason: 'Hardware project kit damage' },
+        { label: 'Department Library Book Overdue', amount: 250, reason: 'Department library book overdue' },
+        { label: 'Final Project Hardware Loan', amount: 0, reason: 'Project hardware return pending' }
+      ];
+    } else if (dept.code === 'IS') {
+      title = 'ISE Department AI Assistant';
+      badge = 'IS';
+      description = 'Information Science & Engineering department intelligence, departmental laboratory records, project equipment dues, and branch clearance sign-offs.';
+      greeting = `Hello! I am the **ISE Department AI Assistant**.\n\nI assist with Information Science departmental laboratory clearances, IoT/embedded kits, and branch clearance verification.\n\nHow can I assist your ISE desk today?`;
+      suggestedQueries = [
+        'Who has pending clearances in ISE?',
+        'What is the current ISE clearance summary?',
+        'Check student branch clearance status',
+        'Clear departmental lab dues'
+      ];
+      presets = [
+        { label: 'ISE Lab Equipment Due', amount: 500, reason: 'Departmental lab component due' },
+        { label: 'IoT / Sensor Board Damage', amount: 1000, reason: 'Hardware project kit damage' },
+        { label: 'Department Library Book Overdue', amount: 250, reason: 'Department library book overdue' },
+        { label: 'Final Project Hardware Loan', amount: 0, reason: 'Project hardware return pending' }
+      ];
     } else {
-      // Academic branch or generic department
-      title = `${dept.name} AI Assistant`;
+      // Dynamic academic branch or clearance desk
+      const cleanName = dept.name.replace(/Department$/i, '').trim();
+      title = `${cleanName} Department AI Assistant`;
       badge = dept.code;
-      greeting = `Hello! I am the **${dept.name} (${dept.code}) AI Assistant**.\n\nI assist with departmental laboratory clearances, project kit loans, specialized seminar room sign-offs, and branch student clearance verification.\n\nHow can I assist your department desk today?`;
+      description = `${dept.name} intelligence, departmental laboratory records, student dues, and authorized clearance actions.`;
+      greeting = `Hello! I am the **${title}**.\n\nI assist with departmental laboratory clearances, project equipment, student dues, and clearance verification for ${dept.name}.\n\nHow can I assist your department desk today?`;
       suggestedQueries = [
         `Who has pending clearances in ${dept.code}?`,
         `What is the current ${dept.name} clearance summary?`,
@@ -408,7 +462,7 @@ export class ContextResolutionService {
       presets = [
         { label: 'Department Lab Equipment Due', amount: 500, reason: 'Departmental lab component due' },
         { label: 'Component / Kit Breakage Fee', amount: 1000, reason: 'Hardware project kit damage' },
-        { label: 'Seminar / Library Book Loan', amount: 250, reason: 'Department library book overdue' },
+        { label: 'Department Library Book Overdue', amount: 250, reason: 'Department library book overdue' },
         { label: 'Final Semester Project Due', amount: 0, reason: 'Project hardware return pending' }
       ];
     }
@@ -419,6 +473,7 @@ export class ContextResolutionService {
     return {
       title,
       badge,
+      description,
       greeting,
       systemPrompt,
       suggestedQueries,

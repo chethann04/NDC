@@ -14,7 +14,8 @@ import {
   X,
   FileCheck,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { clientCache } from '../../utils/clientCache';
@@ -211,6 +212,13 @@ export const DepartmentLabClearance: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to={`/officer/ai-assistant/${deptCode || 'LAB'}`}
+            className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{deptCode ? `${deptCode} AI Assistant` : 'Lab AI Assistant'}</span>
+          </Link>
           <button
             onClick={() => fetchClearances()}
             disabled={loading}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
-import { Users, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, ArrowUpRight } from 'lucide-react';
+import { Users, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, ArrowUpRight, Sparkles } from 'lucide-react';
 import { StatCard } from '../../components/StatCard';
 import { clientCache } from '../../utils/clientCache';
 
@@ -149,13 +149,22 @@ export const AdminDashboard: React.FC = () => {
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dashboard Overview</h1>
           <p className="text-xs font-semibold text-slate-500 mt-1">Institution-wide clearance metrics, updated in real-time</p>
         </div>
-        <button
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200/80 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-50 shadow-soft-xs hover:shadow-soft-sm transition-all cursor-pointer w-fit"
-          onClick={() => fetchStats(true)}
-        >
-          <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-          <span>Refresh Data</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/officer/ai-assistant/ADM"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shadow-2xs transition-all cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Administration AI Assistant</span>
+          </Link>
+          <button
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200/80 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-50 shadow-soft-xs hover:shadow-soft-sm transition-all cursor-pointer w-fit"
+            onClick={() => fetchStats(true)}
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Refresh Data</span>
+          </button>
+        </div>
       </div>
 
       {/* 4 Stat Cards */}

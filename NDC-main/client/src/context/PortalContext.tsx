@@ -13,6 +13,7 @@ export interface DepartmentSummary {
 export interface AssistantConfig {
   title: string;
   badge: string;
+  description?: string;
   greeting: string;
   systemPrompt: string;
   suggestedQueries: string[];

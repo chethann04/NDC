@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   Sparkles,
   Send,
@@ -44,30 +44,41 @@ interface MessageItem extends AssistantMessage {
 
 export const AiAssistantPage: React.FC = () => {
   const { user } = useAuthStore();
-  const {
-    context,
-    stats: portalStats,
-    activeDepartmentCode,
-    setActiveDepartmentCode,
-    availableDepartments
-  } = usePortalContext();
+  const { context, stats: portalStats, refreshContext } = usePortalContext();
+  const { deptCode: routeDeptCode } = useParams<{ deptCode?: string }>();
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  const deptCode = context?.department?.code || activeDepartmentCode || (isAdmin ? 'ADM' : 'PHY');
-  const deptName = context?.department?.name || (isAdmin ? 'Administration Block' : 'Clearance Desk');
-  const assistantTitle = context?.assistantConfig?.title || (isAdmin ? 'Administration Block AI Assistant' : `${deptName} Assistant`);
+  // Active assistant is derived strictly from the route, page, or authenticated context.
+  // There is NO global selector, dropdown, tabs, or manual assistant switching.
+  const normalizedRouteDept = routeDeptCode?.trim()?.toUpperCase();
+  const deptCode = normalizedRouteDept || (isAdmin ? 'ADM' : context?.department?.code || 'PHY');
+
+  // Sync context when navigating to a specific department assistant route
+  useEffect(() => {
+    if (deptCode && context?.department?.code !== deptCode) {
+      refreshContext(deptCode);
+    }
+  }, [deptCode, context?.department?.code, refreshContext]);
+
+  const deptName = context?.department?.name || (deptCode === 'ADM' ? 'Administration Block' : `${deptCode} Clearance Desk`);
+  const assistantTitle = context?.assistantConfig?.title || (deptCode === 'ADM' ? 'Administration AI Assistant' : `${deptName} AI Assistant`);
   const assistantBadge = context?.assistantConfig?.badge || deptCode;
+  const assistantDescription =
+    context?.assistantConfig?.description ||
+    (deptCode === 'ADM'
+      ? 'Institutional clearance governance, cross-department searches, clearance bottleneck analytics, and certificate verification.'
+      : `Institutional clearance intelligence, ${deptName} records, outstanding dues, and authorized clearance actions.`);
 
   const getGreeting = () => {
     if (context?.assistantConfig?.greeting) {
       return context.assistantConfig.greeting;
     }
-    if (isAdmin) {
-      return `Hello! I am the **Administration Block AI Assistant** at Malnad College of Engineering (MCE).\n\nI provide institution-wide administrative intelligence across all clearance desks, monitor overall student clearance queues, and check certificate generation eligibility.\n\nHow can I assist administrative operations today?`;
+    if (deptCode === 'ADM') {
+      return `Hello! I am the **Administration AI Assistant** at Malnad College of Engineering (MCE).\n\nI provide institution-wide administrative intelligence across all clearance desks, monitor overall student clearance queues, and check certificate generation eligibility.\n\nHow can I assist administrative operations today?`;
     }
-    return `Hello! I am the **${deptName} AI Assistant**.\n\nI can read real-time clearance records, check outstanding dues, and stage safe approvals with your explicit confirmation.\n\nHow can I assist your desk today?`;
+    return `Hello! I am the **${assistantTitle}**.\n\nI can read real-time clearance records, check outstanding dues, and stage safe approvals with your explicit confirmation.\n\nHow can I assist your desk today?`;
   };
 
   const storageKey = `ndc_ai_chat_${user?.id || 'officer'}_${deptCode}`;
@@ -403,7 +414,7 @@ export const AiAssistantPage: React.FC = () => {
           { label: 'Overdue Fine', amount: 100, reason: 'Late return / overdue penalty' }
         ];
 
-  const clearanceQueueUrl = isAdmin
+  const clearanceQueueUrl = (isAdmin && deptCode === 'ADM')
     ? '/admin/ndc'
     : deptCode === 'LIB'
     ? '/officer/central-library'
@@ -411,15 +422,17 @@ export const AiAssistantPage: React.FC = () => {
     ? '/officer/chemistry-lab'
     : deptCode === 'PHY'
     ? '/officer/physics-lab'
+    : deptCode === 'LAB'
+    ? '/officer/department-lab'
     : '/officer/clearances';
 
   return (
     <div className="space-y-5">
-      {/* Compact Page Header with Department Switcher for Admin */}
+      {/* Clean Department-Scoped AI Assistant Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
-            {isAdmin ? <Building className="w-5 h-5 text-indigo-600" /> : <Sparkles className="w-5 h-5 text-indigo-600" />}
+            {deptCode === 'ADM' ? <Building className="w-5 h-5 text-indigo-600" /> : <Sparkles className="w-5 h-5 text-indigo-600" />}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -427,36 +440,16 @@ export const AiAssistantPage: React.FC = () => {
                 {assistantTitle}
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {assistantBadge}
+                [{assistantBadge}]
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              {isAdmin
-                ? 'Institutional clearance intelligence, cross-department searches, and NDC analytics.'
-                : `Authorized clearance desk operations, student dues, and records for ${deptName}.`}
+              {assistantDescription}
             </p>
           </div>
         </div>
 
         <div className="flex items-center flex-wrap gap-2 shrink-0">
-          {/* Department Scope Selector for Admins */}
-          {isAdmin && availableDepartments.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
-              <span className="text-[11px] font-semibold text-slate-500">Scope:</span>
-              <select
-                value={deptCode}
-                onChange={(e) => setActiveDepartmentCode(e.target.value)}
-                className="text-xs font-bold text-slate-700 bg-transparent border-none focus:outline-hidden cursor-pointer"
-              >
-                <option value="ADM">🏛️ Administration (All Desks)</option>
-                {availableDepartments.map((d) => (
-                  <option key={d.code} value={d.code}>
-                    {d.name} ({d.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <button
             type="button"

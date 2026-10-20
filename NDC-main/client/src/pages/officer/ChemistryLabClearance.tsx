@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import {
@@ -10,7 +11,8 @@ import {
   RefreshCw,
   Building,
   CheckCheck,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { clientCache } from '../../utils/clientCache';
@@ -198,6 +200,13 @@ export const ChemistryLabClearance: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/officer/ai-assistant/CHEM"
+            className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Chemistry AI Assistant</span>
+          </Link>
           <button
             onClick={() => fetchClearances()}
             disabled={loading}

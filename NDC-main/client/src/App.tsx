@@ -181,6 +181,22 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/officer/ai-assistant/:deptCode"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                <AiAssistantPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/departments/:deptCode/assistant"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                <AiAssistantPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/ai/assistant" element={<Navigate to="/officer/ai-assistant" replace />} />
           <Route path="/ai" element={<Navigate to="/officer/ai-assistant" replace />} />
 

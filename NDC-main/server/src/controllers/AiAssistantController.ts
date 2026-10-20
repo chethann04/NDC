@@ -40,7 +40,8 @@ export class AiAssistantController {
       });
     } catch (err: any) {
       console.error('[AiAssistantController] getContext error:', err);
-      res.status(500).json({
+      const isForbidden = err.message?.includes('Forbidden') || err.message?.includes('Unauthorized') || err.message?.includes('not permitted');
+      res.status(isForbidden ? 403 : 500).json({
         success: false,
         message: err.message || 'Failed to resolve AI assistant context.'
       });
@@ -155,7 +156,8 @@ export class AiAssistantController {
       });
     } catch (err: any) {
       console.error('[AiAssistantController] chat error:', err);
-      res.status(500).json({
+      const isForbidden = err.message?.includes('Forbidden') || err.message?.includes('Unauthorized') || err.message?.includes('not permitted');
+      res.status(isForbidden ? 403 : 500).json({
         success: false,
         message: err.message || 'Internal server error while processing AI assistant query.'
       });
@@ -254,7 +256,8 @@ export class AiAssistantController {
       });
     } catch (err: any) {
       console.error('[AiAssistantController] getHistory error:', err);
-      res.status(500).json({
+      const isForbidden = err.message?.includes('Forbidden') || err.message?.includes('Unauthorized') || err.message?.includes('not permitted');
+      res.status(isForbidden ? 403 : 500).json({
         success: false,
         message: err.message || 'Failed to retrieve conversation history.'
       });
@@ -299,7 +302,8 @@ export class AiAssistantController {
       });
     } catch (err: any) {
       console.error('[AiAssistantController] clearHistory error:', err);
-      res.status(500).json({
+      const isForbidden = err.message?.includes('Forbidden') || err.message?.includes('Unauthorized') || err.message?.includes('not permitted');
+      res.status(isForbidden ? 403 : 500).json({
         success: false,
         message: err.message || 'Failed to clear conversation history.'
       });

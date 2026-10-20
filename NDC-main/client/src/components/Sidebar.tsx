@@ -386,19 +386,19 @@ export const Sidebar: React.FC = () => {
             )}
             <div className="space-y-1">
               <NavItem
-                to="/officer/ai-assistant"
+                to={isAdmin ? '/officer/ai-assistant/ADM' : `/officer/ai-assistant/${context?.department?.code || deptCode || 'PHY'}`}
                 icon={<Sparkles className="w-4 h-4 text-indigo-600" />}
                 label={
                   isAdmin
                     ? 'Administration AI Assistant'
                     : context?.assistantConfig?.title ||
                       (isLibraryOfficer
-                        ? 'Library AI Assistant'
+                        ? 'Central Library AI Assistant'
                         : isChemistryOfficer
-                        ? 'Chemistry Assistant'
+                        ? 'Chemistry Department AI Assistant'
                         : isPhysicsOfficer
-                        ? 'Physics Assistant'
-                        : 'AI Assistant')
+                        ? 'Physics Department AI Assistant'
+                        : 'Department AI Assistant')
                 }
                 collapsed={isCollapsed}
                 onClick={onItemClick}
