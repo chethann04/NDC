@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import api from '../services/api';
 import {
@@ -27,8 +27,22 @@ export const StudentLogin: React.FC = () => {
   const [error, setError] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const { setAuth, isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  // If already authenticated as a student, redirect to destination or dashboard
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
+      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+        navigate(redirectParam, { replace: true });
+      } else {
+        navigate('/student/dashboard', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate, searchParams, location.state]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +92,14 @@ export const StudentLogin: React.FC = () => {
       const response = await api.post('/auth/student-login', payload);
       const { user, token, accessToken } = response.data;
       setAuth(user, token || accessToken);
-      navigate('/student/dashboard');
+
+      const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
+      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+        navigate(redirectParam, { replace: true });
+        return;
+      }
+
+      navigate('/student/dashboard', { replace: true });
     } catch (err: any) {
       setError(err);
     } finally {

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
+import { useAuthStore, getAuthorizedDashboardPath } from '../store/useAuthStore';
 import api from '../services/api';
 import { Eye, EyeOff, ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { ErrorAlert } from '../components/ErrorAlert';
@@ -12,8 +12,22 @@ export const Login: React.FC = () => {
   const [error, setError] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const { setAuth, isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  // If already authenticated, redirect to destination or dashboard
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
+      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+        navigate(redirectParam, { replace: true });
+      } else {
+        navigate(getAuthorizedDashboardPath(user), { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate, searchParams, location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,25 +40,13 @@ export const Login: React.FC = () => {
 
       setAuth(user, token);
 
-      if (user.role === 'STUDENT') {
-        navigate('/student/dashboard');
-      } else if (user.role === 'HOD') {
-        navigate('/teaching-departments');
-      } else if (user.role === 'DEPARTMENT_OFFICER') {
-        const code = user?.department?.code || user?.officerProfile?.departmentIds?.[0]?.code || (typeof user?.departmentId === 'object' ? (user?.departmentId as any)?.code : undefined);
-        const isAcademic = user?.department?.isAcademicBranch || user?.department?.category === 'ACADEMIC_BRANCH' || user?.officerProfile?.departmentIds?.[0]?.isAcademicBranch;
-        if (user.loginId === 'PHY001' || user.email?.includes('physics') || code === 'PHY') {
-          navigate('/officer/physics-lab');
-        } else if (user.loginId === 'CHEM001' || user.email?.includes('chemistry') || code === 'CHEM') {
-          navigate('/officer/chemistry-lab');
-        } else if (isAcademic) {
-          navigate('/officer/department-lab');
-        } else {
-          navigate('/officer/dashboard');
-        }
-      } else {
-        navigate('/admin/dashboard');
+      const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
+      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+        navigate(redirectParam, { replace: true });
+        return;
       }
+
+      navigate(getAuthorizedDashboardPath(user), { replace: true });
     } catch (err: any) {
       setError(err);
     } finally {

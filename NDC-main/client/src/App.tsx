@@ -1,10 +1,20 @@
 import React, { useEffect, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store/useAuthStore';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuthStore, getAuthorizedDashboardPath } from './store/useAuthStore';
 import { AuthLayout } from './layouts/AuthLayout';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ErrorModal } from './components/ErrorModal';
 import { PortalProvider } from './context/PortalContext';
+import { UnauthorizedPage } from './pages/UnauthorizedPage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import {
+  StudentsCanonicalRoute,
+  DepartmentsCanonicalRoute,
+  AdminCanonicalRoute,
+  OfficersCanonicalRoute,
+  ClearanceCanonicalRoute,
+  DashboardCanonicalRoute
+} from './components/routing/CanonicalDispatchers';
 
 const PageLoadingFallback = () => (
   <div className="flex items-center justify-center p-12 min-h-[40vh]">
@@ -45,24 +55,37 @@ const AccountSettings = React.lazy(() => import('./pages/AccountSettings').then(
 const AiAssistantPage = React.lazy(() => import('./pages/officer/AiAssistantPage').then((m) => ({ default: m.AiAssistantPage })));
 const LogbookScannerPage = React.lazy(() => import('./pages/officer/LogbookScannerPage').then((m) => ({ default: m.LogbookScannerPage })));
 
-// Protected Route Guard
-const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
+// Protected Route Guard with session preservation & explicit unauthorized screen
+const ProtectedRoute = ({
+  children,
+  allowedRoles,
+  requiredRoleName
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+  requiredRoleName?: string;
+}) => {
   const { isAuthenticated, user, isLoading } = useAuthStore();
+  const location = useLocation();
 
   if (isLoading) {
-    return <div className="p-8 text-center text-slate-500 font-semibold">Authenticating session...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[50vh] p-8">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-semibold text-slate-500">Restoring session...</span>
+        </div>
+      </div>
+    );
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    const redirectParam = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?redirect=${redirectParam}`} state={{ from: location.pathname + location.search }} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Redirect to respective dashboard if role not allowed
-    if (user.role === 'STUDENT') return <Navigate to="/student/dashboard" replace />;
-    if (user.role === 'HOD') return <Navigate to="/teaching-departments" replace />;
-    if (user.role === 'DEPARTMENT_OFFICER') return <Navigate to="/officer/dashboard" replace />;
-    return <Navigate to="/admin/dashboard" replace />;
+    return <UnauthorizedPage userRole={user.role} userName={user.name} requiredRole={requiredRoleName} />;
   }
 
   return <>{children}</>;
@@ -91,8 +114,15 @@ export const App: React.FC = () => {
         {/* Protected Dashboard Routes */}
         <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
 
-          {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Top-Level Canonical & Independent Routes */}
+          <Route path="/" element={<DashboardCanonicalRoute />} />
+          <Route path="/dashboard" element={<DashboardCanonicalRoute />} />
+          <Route path="/students" element={<StudentsCanonicalRoute />} />
+          <Route path="/departments" element={<DepartmentsCanonicalRoute />} />
+          <Route path="/admin" element={<AdminCanonicalRoute />} />
+          <Route path="/officers" element={<OfficersCanonicalRoute />} />
+          <Route path="/clearance" element={<ClearanceCanonicalRoute />} />
+          <Route path="/clearances" element={<ClearanceCanonicalRoute />} />
 
           {/* Student Routes */}
           <Route
@@ -343,8 +373,11 @@ export const App: React.FC = () => {
           />
         </Route>
 
-        {/* Catch-all Fallback */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Dedicated Unauthorized Page */}
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+        {/* Catch-all Fallback: 404 Not Found (Preserves URL, never redirects to Students or Login) */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <ErrorModal />
       </Suspense>
