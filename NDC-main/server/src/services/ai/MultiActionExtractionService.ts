@@ -7,6 +7,8 @@ export interface ExtractedActionItem {
   usn: string;
   studentId: string;
   studentName: string;
+  studentAcademicDepartment?: string;
+  targetClearanceDesk?: string;
   clearanceId: string;
   amount?: number;
   reason: string;
@@ -167,6 +169,8 @@ export class MultiActionExtractionService {
         usn: student.usn,
         studentId: student.id,
         studentName: student.fullName,
+        studentAcademicDepartment: (student as any).department?.name || (student as any).departmentName || 'Information Science & Engineering',
+        targetClearanceDesk: department.name,
         clearanceId: clearance.id,
         amount: itemAmount,
         reason: itemReason,

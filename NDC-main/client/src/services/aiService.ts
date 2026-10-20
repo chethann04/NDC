@@ -20,12 +20,23 @@ export interface ExtractedActionItem {
   consequences: string;
 }
 
+export interface ActionValidationItem {
+  key: string;
+  label: string;
+  passed: boolean;
+  unverified?: boolean;
+  mandatory?: boolean;
+  detail: string;
+}
+
 export interface ActionRequired {
   token: string;
   action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD' | 'BATCH_OPERATION';
   studentId: string;
   studentName: string;
   usn: string;
+  studentAcademicDepartment?: string;
+  targetClearanceDesk?: string;
   clearanceId: string;
   amount?: number;
   reason?: string;
@@ -36,6 +47,9 @@ export interface ActionRequired {
   batchActions?: ExtractedActionItem[];
   status?: 'STAGED' | 'CONFIRMED' | 'EXECUTED' | 'CANCELLED' | 'FAILED' | 'REVERSED' | 'SUPERSEDED' | 'EXPIRED';
   lifecycleStatus?: 'STAGED' | 'CONFIRMED' | 'EXECUTED' | 'CANCELLED' | 'FAILED' | 'REVERSED' | 'SUPERSEDED' | 'EXPIRED';
+  validationResults?: ActionValidationItem[];
+  authorizedOfficer?: string;
+  emailNotificationWillQueue?: boolean;
 }
 
 export interface AssistantResponse {

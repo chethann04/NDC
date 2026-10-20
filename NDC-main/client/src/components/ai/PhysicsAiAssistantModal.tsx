@@ -553,23 +553,29 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
                         <div>
                           <span className="text-slate-500 block">Student Name:</span>
-                          <span className="font-semibold">{msg.actionRequired.studentName}</span>
+                          <span className="font-semibold text-slate-800">{msg.actionRequired.studentName}</span>
                         </div>
                         <div>
                           <span className="text-slate-500 block">Student USN:</span>
-                          <span className="font-mono font-semibold">{msg.actionRequired.usn}</span>
+                          <span className="font-mono font-semibold text-slate-800">{msg.actionRequired.usn}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 block">Target Section:</span>
+                          <span className="text-slate-500 block">Student's Academic Dept:</span>
                           <span className="font-semibold text-indigo-900">
-                            {msg.actionRequired.labName || departmentName || 'Physics Lab'}
+                            {msg.actionRequired.studentAcademicDepartment || 'Information Science & Engineering'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Target Clearance Desk:</span>
+                          <span className="font-semibold text-indigo-900">
+                            {msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || departmentName || 'Clearance Desk'}
                           </span>
                         </div>
                         <div>
                           <span className="text-slate-500 block">Operation:</span>
                           <span className="font-semibold text-slate-900">
                             {msg.actionRequired.action === 'CLEAR_DUE'
-                              ? 'Set Clearance to NO DUE'
+                              ? 'Approve Clearance as NO DUE'
                               : msg.actionRequired.action === 'MARK_DUE'
                               ? 'Add Outstanding Due'
                               : 'Hold Clearance'}
@@ -583,10 +589,44 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                         )}
                         {msg.actionRequired.reason && (
                           <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
-                            <span className="text-slate-500 block">Apparatus / Reason:</span>
+                            <span className="text-slate-500 block">Reason / Particulars:</span>
                             <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
                           </div>
                         )}
+                        {msg.actionRequired.authorizedOfficer && (
+                          <div>
+                            <span className="text-slate-500 block">Authorized Officer:</span>
+                            <span className="font-medium text-slate-700">{msg.actionRequired.authorizedOfficer}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Explicit Validation Results */}
+                    {msg.actionRequired.validationResults && msg.actionRequired.validationResults.length > 0 && (
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] space-y-1.5">
+                        <div className="flex items-center justify-between text-slate-700 font-semibold border-b border-slate-200 pb-1">
+                          <span>Pre-Flight Validation Results:</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-bold">
+                            Verified
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {msg.actionRequired.validationResults.map((chk, vIdx) => (
+                            <div key={vIdx} className="flex items-start gap-1.5 text-[10.5px]">
+                              {chk.passed ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              ) : chk.unverified ? (
+                                <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                              )}
+                              <div className={chk.passed ? 'text-slate-700' : 'text-rose-700 font-medium'}>
+                                <strong>{chk.label}:</strong> {chk.detail}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -598,6 +638,14 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
                           <span className="font-bold block">Consequences:</span>
                           <span>{msg.actionRequired.consequences}</span>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Email notification notice */}
+                    {msg.actionRequired.emailNotificationWillQueue !== false && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-indigo-700 bg-indigo-50/70 border border-indigo-200 px-2 py-1 rounded">
+                        <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span>Official email notification will be queued to the student upon confirmation.</span>
                       </div>
                     )}
 

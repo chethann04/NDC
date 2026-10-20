@@ -415,21 +415,44 @@ export class WorkflowStateMachine {
     tokenStr: string;
     expiresAt: Date;
     finalReason: string;
+    studentAcademicDepartment?: string;
+    targetClearanceDesk?: string;
+    validationChecks?: any[];
+    authorizedOfficer?: string;
   }) {
-    const { student, department, clearance, consequences, tokenStr, expiresAt, finalReason } = params;
-    const currentDue = Number(clearance.dueAmount || 0);
+    const {
+      student,
+      department,
+      clearance,
+      consequences,
+      tokenStr,
+      expiresAt,
+      finalReason,
+      studentAcademicDepartment,
+      targetClearanceDesk,
+      validationChecks,
+      authorizedOfficer
+    } = params;
 
-    const validationNotes = currentDue > 0
-      ? `- **Current Status**: **${clearance.status}** with recorded due of **₹${currentDue}** (*"${clearance.dueDetails || clearance.remarks || 'Outstanding due'}"*).\n   - **Officer Authority**: Authorized for ${department.name}.\n   - **Action Validation**: Confirming will settle and waive the recorded due, setting amount to **₹0**.`
-      : `- **Current Status**: **${clearance.status}** with **₹0** recorded dues.\n   - **Officer Authority**: Authorized for ${department.name}.\n   - **Action Validation**: Clearance is currently unverified. Confirming certifies full clearance for this desk.`;
+    const studentAcademicDept =
+      studentAcademicDepartment || student.department?.name || 'Academic Department';
+    const targetDesk = targetClearanceDesk || department.name;
+
+    const validationFormatted =
+      validationChecks && validationChecks.length > 0
+        ? validationChecks.map((c) => `   - ${c.passed ? '✅' : c.unverified ? '⏳' : '❌'} **${c.label}**: ${c.detail}`).join('\n')
+        : `- **Current Status**: **${clearance.status}** with recorded due of **₹${Number(clearance.dueAmount || 0)}**.\n   - **Officer Authority**: Authorized for ${targetDesk}.\n   - **Action Validation**: Confirming certifies full clearance for this desk.`;
 
     const reply =
       `### 📋 Clearance Approval Staged\n\n` +
       `1. **Understood**: Request to approve departmental clearance as **No Due** for student.\n` +
-      `2. **Record Found**: **${student.fullName}** (\`${student.usn}\`) — ${student.department?.name || 'Department'}.\n` +
-      `3. **Validation Established**:\n   ${validationNotes}\n` +
+      `2. **Student & Target Desk**:\n` +
+      `   - Student: **${student.fullName}** (\`${student.usn}\`)\n` +
+      `   - Student's Academic Department: **${studentAcademicDept}**\n` +
+      `   - Target Clearance Desk: **${targetDesk}** (${department.code})\n` +
+      `3. **Validation Established**:\n${validationFormatted}\n` +
       `4. **Proposed Action**: Approve clearance as **NO DUE** and stage database update.\n` +
-      `5. **Expected Outcome**: Status in **${department.name}** updates to **CLEARED** (₹0 dues). Student's NDC request advances towards graduation certificate eligibility.\n` +
+      `5. **Expected Outcome & Consequences**: ${consequences}\n` +
       `6. **Pending Confirmation**: Consequential database mutation requires explicit officer confirmation.\n` +
       `7. **Next Step**: Click **Confirm & Save to Records** in the confirmation card below to apply changes, or click **Cancel** to abort.`;
 
@@ -441,13 +464,18 @@ export class WorkflowStateMachine {
         studentId: (student as any).id,
         studentName: student.fullName,
         usn: student.usn,
+        studentAcademicDepartment: studentAcademicDept,
+        targetClearanceDesk: targetDesk,
         clearanceId: (clearance as any).id,
         amount: 0,
         reason: finalReason,
-        labName: department.name,
+        labName: targetDesk,
         departmentName: department.name,
         consequences,
         expiresAt: expiresAt.toISOString(),
+        validationResults: validationChecks || [],
+        authorizedOfficer: authorizedOfficer || 'Authorized Officer',
+        emailNotificationWillQueue: true,
         status: ActionLifecycleState.STAGED,
         lifecycleStatus: ActionLifecycleState.STAGED
       },
@@ -472,19 +500,50 @@ export class WorkflowStateMachine {
     tokenStr: string;
     expiresAt: Date;
     labName: string;
+    studentAcademicDepartment?: string;
+    targetClearanceDesk?: string;
+    validationChecks?: any[];
+    authorizedOfficer?: string;
+    emailNotificationWillQueue?: boolean;
   }) {
-    const { student, department, clearance, amount, reason, consequences, tokenStr, expiresAt, labName } = params;
+    const {
+      student,
+      department,
+      clearance,
+      amount,
+      reason,
+      consequences,
+      tokenStr,
+      expiresAt,
+      labName,
+      studentAcademicDepartment,
+      targetClearanceDesk,
+      validationChecks,
+      authorizedOfficer,
+      emailNotificationWillQueue
+    } = params;
+
+    const studentAcademicDept =
+      studentAcademicDepartment || student.department?.name || 'Academic Department';
+    const targetDesk = targetClearanceDesk || labName || department.name;
+
+    const validationFormatted =
+      validationChecks && validationChecks.length > 0
+        ? validationChecks.map((c) => `   - ${c.passed ? '✅' : c.unverified ? '⏳' : '❌'} **${c.label}**: ${c.detail}`).join('\n')
+        : `   - Target Clearance Desk: **${targetDesk}**\n` +
+          `   - Current Status: **${clearance.status}** (₹${clearance.dueAmount || 0} existing dues)\n` +
+          `   - Officer Authority: Verified for ${department.name}`;
 
     const reply =
       `### ⚠️ Outstanding Due Staged\n\n` +
       `1. **Understood**: Request to record an outstanding due of **₹${amount}** for *"${reason}"*.\n` +
-      `2. **Record Found**: **${student.fullName}** (\`${student.usn}\`) — ${student.department?.name || 'General'}.\n` +
-      `3. **Validation Established**:\n` +
-      `   - Target Clearance Desk: **${labName}**\n` +
-      `   - Current Status: **${clearance.status}** (₹${clearance.dueAmount || 0} existing dues)\n` +
-      `   - Officer Authority: Verified for ${department.name}\n` +
+      `2. **Student & Target Desk**:\n` +
+      `   - Student: **${student.fullName}** (\`${student.usn}\`)\n` +
+      `   - Student's Academic Department: **${studentAcademicDept}**\n` +
+      `   - Target Clearance Desk: **${targetDesk}** (${department.code})\n` +
+      `3. **Validation Established**:\n${validationFormatted}\n` +
       `4. **Proposed Action**: Record due of **₹${amount}** and set status to **DUE**.\n` +
-      `5. **Expected Outcome**: Overall NDC request becomes **BLOCKED**, preventing certificate issuance until settled. Official email notification will be queued to student.\n` +
+      `5. **Expected Outcome & Consequences**: ${consequences}\n` +
       `6. **Pending Confirmation**: Consequential financial due creation requires explicit officer confirmation.\n` +
       `7. **Next Step**: Review the details in the confirmation card below and click **Confirm & Save to Records** to apply, or click **Cancel** to abort.`;
 
@@ -496,13 +555,18 @@ export class WorkflowStateMachine {
         studentId: (student as any).id,
         studentName: student.fullName,
         usn: student.usn,
+        studentAcademicDepartment: studentAcademicDept,
+        targetClearanceDesk: targetDesk,
         clearanceId: (clearance as any).id,
         amount,
         reason,
-        labName,
+        labName: targetDesk,
         departmentName: department.name,
         consequences,
         expiresAt: expiresAt.toISOString(),
+        validationResults: validationChecks || [],
+        authorizedOfficer: authorizedOfficer || 'Authorized Officer',
+        emailNotificationWillQueue: emailNotificationWillQueue ?? true,
         status: ActionLifecycleState.STAGED,
         lifecycleStatus: ActionLifecycleState.STAGED
       },
@@ -511,6 +575,67 @@ export class WorkflowStateMachine {
         `Cancel that`,
         `Clear ${student.usn}'s ${department.name} clearance as No Due`,
         `Lookup student ${student.usn}`
+      ]
+    };
+  }
+
+  /**
+   * Build complete 7-point response when validation fails
+   */
+  public static buildValidationFailedResponse(params: {
+    action: 'MARK_DUE' | 'CLEAR_DUE' | 'HOLD';
+    student?: { fullName?: string; usn: string; department?: { name?: string } } | null;
+    department: { name: string; code: string };
+    reason: string;
+    amount?: number;
+    checks: any[];
+    blockingReason: string;
+    correctiveAction?: string;
+    studentAcademicDepartment?: string;
+    targetClearanceDesk?: string;
+  }) {
+    const {
+      action,
+      student,
+      department,
+      reason,
+      amount,
+      checks,
+      blockingReason,
+      correctiveAction,
+      studentAcademicDepartment,
+      targetClearanceDesk
+    } = params;
+
+    const studentName = student?.fullName || 'Student';
+    const usn = student?.usn || 'USN';
+    const academicDept = studentAcademicDepartment || student?.department?.name || 'Information Science & Engineering';
+    const desk = targetClearanceDesk || department.name;
+
+    const checksFormatted = checks
+      .map((c) => `   - ${c.passed ? '✅' : c.unverified ? '⏳' : '❌'} **${c.label}**: ${c.detail}`)
+      .join('\n');
+
+    const reply =
+      `### ❌ Validation Failed: Operation Blocked\n\n` +
+      `1. **Understood**: Request to ${action === 'MARK_DUE' ? `record due of **₹${amount || 0}** for *"${reason}"*` : 'clear clearance as No Due'} for student **${studentName}** (\`${usn}\`).\n` +
+      `2. **Student & Target Desk**:\n` +
+      `   - Student: **${studentName}** (\`${usn}\`)\n` +
+      `   - Student's Academic Department: **${academicDept}**\n` +
+      `   - Target Clearance Desk: **${desk}** (${department.code})\n` +
+      `3. **Validation Results**:\n${checksFormatted}\n` +
+      `4. **Blocking Reason**: ${blockingReason}\n` +
+      `5. **Outcome**: Operation blocked. No actions were staged, and zero database mutations were committed.\n` +
+      `6. **Corrective Action Required**: ${correctiveAction || 'Please adjust request parameters to satisfy clearance rules and retry.'}\n` +
+      `7. **Next Step**: Review the above validation requirements and submit a valid clearance request.`;
+
+    return {
+      reply,
+      actionRequired: null,
+      suggestions: [
+        `Lookup student ${usn}`,
+        `Show pending dues in ${department.name}`,
+        `How many clearances are pending review in ${department.name}?`
       ]
     };
   }
