@@ -59,6 +59,7 @@ router.put('/:id/deactivate', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, User
 router.put('/:id/reactivate', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.reactivateStudent);
 router.delete('/:id', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.deleteStudent);
 router.post('/bulk-delete', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkDeleteStudents);
+router.post('/bulk-deactivate', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkDeactivateStudents);
 router.post('/bulk-batch', authorizeRolesOrCashFee(UserRole.SUPER_ADMIN, UserRole.ADMIN), StudentController.bulkUpdateBatch);
 
 export default router;

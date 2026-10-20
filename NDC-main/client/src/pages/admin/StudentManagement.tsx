@@ -79,6 +79,7 @@ export const StudentManagement: React.FC = () => {
   const [isDeleteAllMode, setIsDeleteAllMode] = useState(false);
   const [bulkDeleteRemarks, setBulkDeleteRemarks] = useState('');
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeactivating, setBulkDeactivating] = useState(false);
 
   useEffect(() => {
     fetchDepartments();
@@ -157,6 +158,24 @@ export const StudentManagement: React.FC = () => {
     }
   };
 
+  const handleExecuteBulkDeactivate = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Deactivate/archive ${selectedIds.length} selected student(s)? They will no longer be active, but their certificates and historical records will be preserved.`)) {
+      return;
+    }
+    setBulkDeactivating(true);
+    try {
+      await api.post('/students/bulk-deactivate', { studentIds: selectedIds });
+      clientCache.invalidate('admin_dashboard');
+      setSelectedIds([]);
+      await fetchStudents();
+    } catch (err: any) {
+      showErrorModal(err, { title: 'Bulk Deactivation Failed' });
+    } finally {
+      setBulkDeactivating(false);
+    }
+  };
+
   const handleExecuteBulkDelete = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!bulkDeleteRemarks.trim()) {
@@ -181,7 +200,15 @@ export const StudentManagement: React.FC = () => {
       setSelectedIds([]);
       await fetchStudents();
     } catch (err: any) {
-      showErrorModal(err, { title: 'Bulk Deletion Failed' });
+      if (err.response?.data?.code === 'CERTIFICATE_EXISTS') {
+        showErrorModal(err, {
+          title: 'Bulk Deletion Blocked by Certificate',
+          actionLabel: 'Archive Selected Instead',
+          onAction: () => handleExecuteBulkDeactivate()
+        });
+      } else {
+        showErrorModal(err, { title: 'Bulk Deletion Failed' });
+      }
     } finally {
       setBulkDeleting(false);
     }
@@ -461,6 +488,14 @@ export const StudentManagement: React.FC = () => {
             >
               <Calendar className="w-3.5 h-3.5" />
               Set Batch for Selected ({selectedIds.length})
+            </button>
+            <button
+              onClick={handleExecuteBulkDeactivate}
+              className="btn btn-warning btn-compact"
+              disabled={bulkDeactivating}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              {bulkDeactivating ? 'Archiving...' : `Archive Selected (${selectedIds.length})`}
             </button>
             <button
               onClick={() => {

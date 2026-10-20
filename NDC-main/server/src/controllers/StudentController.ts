@@ -566,11 +566,14 @@ export class StudentController {
       const allowedStudentIds = targetStudentIds.filter((id) => !blockedStudentIds.has(id));
 
       if (allowedStudentIds.length === 0) {
+        const isSingular = blockedStudentIds.size === 1;
         res.status(400).json({
           success: false,
           code: 'CERTIFICATE_EXISTS',
           blockedCount: blockedStudentIds.size,
-          message: 'Student cannot be deleted because an NDC certificate is associated with this student. Deactivate or archive the student instead.'
+          message: isSingular
+            ? 'This student cannot be deleted because an official NDC certificate has already been issued for their record. Deactivate or archive the student instead.'
+            : `The selected students (${blockedStudentIds.size}) cannot be deleted because official NDC certificates have already been issued for them. Deactivate or archive them instead.`
         });
         return;
       }
@@ -629,6 +632,68 @@ export class StudentController {
         message: responseMessage,
         deletedCount,
         blockedCount
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+
+  /**
+   * Bulk Deactivate / Archive Students
+   */
+  public static async bulkDeactivateStudents(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { studentIds, deactivateAll } = req.body;
+      let targetStudentIds: string[] = [];
+
+      if (deactivateAll) {
+        const allStudents = await prisma.student.findMany({ select: { id: true } });
+        targetStudentIds = allStudents.map((s) => s.id);
+      } else if (Array.isArray(studentIds) && studentIds.length > 0) {
+        targetStudentIds = studentIds;
+      } else {
+        res.status(400).json({ success: false, message: 'Please provide studentIds array or set deactivateAll to true.' });
+        return;
+      }
+
+      if (targetStudentIds.length === 0) {
+        res.status(200).json({ success: true, message: 'No students selected for deactivation.', count: 0 });
+        return;
+      }
+
+      const students = await prisma.student.findMany({
+        where: { id: { in: targetStudentIds } },
+        select: { id: true, usn: true, email: true }
+      });
+      const emails = students.map((s) => s.email).filter(Boolean);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.student.updateMany({
+          where: { id: { in: targetStudentIds } },
+          data: { isActive: false }
+        });
+        await tx.user.updateMany({
+          where: {
+            OR: [
+              { associatedStudentId: { in: targetStudentIds } },
+              { email: { in: emails } }
+            ]
+          },
+          data: { isActive: false }
+        });
+      });
+
+      await AuditService.log(
+        req,
+        'STUDENTS_BULK_DEACTIVATED',
+        'Student',
+        `Bulk deactivated/archived ${targetStudentIds.length} student records.`
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Successfully deactivated ${targetStudentIds.length} student(s).`,
+        count: targetStudentIds.length
       });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err.message });

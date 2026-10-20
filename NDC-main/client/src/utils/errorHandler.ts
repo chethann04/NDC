@@ -309,6 +309,18 @@ export function normalizeError(
     };
   }
 
+  // 10b. Certificate Deletion Protection
+  if (
+    responseData?.code === 'CERTIFICATE_EXISTS' ||
+    (lower.includes('certificate') && (lower.includes('associated') || lower.includes('cannot be deleted') || lower.includes('deactivate or archive')))
+  ) {
+    return {
+      title: 'Cannot Delete Certified Student',
+      message: rawMessage || 'This student cannot be deleted because an official NDC certificate is associated with their record. Deactivate or archive the student instead.',
+      code: 'CERTIFICATE_EXISTS'
+    };
+  }
+
   // 11. PDF Exporting
   if (lower.includes('pdf report') || lower.includes('export pdf') || lower.includes('submission report')) {
     return {
@@ -353,7 +365,15 @@ export function normalizeError(
     };
   }
 
-  // 13. General Fallback
+  // 13. General Fallback with Server Message Preservation
+  if (rawMessage && !lower.startsWith('request failed with status code') && !lower.includes('syntaxerror') && !lower.includes('prisma')) {
+    return {
+      title: fallback?.title || (statusCode && statusCode < 500 ? 'Action Required' : 'Something went wrong'),
+      message: rawMessage,
+      code: err?.code || responseData?.code
+    };
+  }
+
   return {
     title: fallback?.title || 'Something went wrong',
     message: fallback?.message || 'We couldn\'t complete your request because an unexpected problem occurred. Please try again in a moment.'
