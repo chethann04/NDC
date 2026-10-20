@@ -22,6 +22,13 @@ export interface StagedTokenPayload {
   userId: string;
   actions: ExtractedActionItem[];
   expiresAt: Date;
+  lifecycleStatus?: string;
+  executedAt?: string;
+  failedAt?: string;
+  executedCount?: number;
+  failedCount?: number;
+  results?: any[];
+  cancelled?: boolean;
 }
 
 export interface ExecuteBatchResult {
@@ -368,7 +375,7 @@ export class AgentToolExecutionService {
           executedCount,
           failedCount,
           results
-        }
+        } as any
       }
     });
 

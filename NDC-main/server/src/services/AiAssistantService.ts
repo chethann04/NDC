@@ -42,6 +42,8 @@ export interface AssistantChatResponse {
     consequences?: string;
     expiresAt: string;
     batchActions?: ExtractedActionItem[];
+    status?: string;
+    lifecycleStatus?: string;
   } | null;
   suggestions?: string[];
 }
@@ -823,9 +825,9 @@ export class AiAssistantService {
         const executedDateStr = p.executedAt ? new Date(p.executedAt).toLocaleString() : 'previously';
         const targetDept = p.departmentName || p.labName || 'Department';
         throw new Error(
-          `Cannot cancel: This action was already confirmed and executed on ${executedDateStr} for ${p.studentName || 'the student'} (${p.usn}) in ${targetDept}. ` +
+          `Cannot cancel: This action has already been confirmed and executed on ${executedDateStr} for ${p.studentName || 'the student'} (${p.usn}) in ${targetDept}. ` +
           `Live financial and clearance records were updated and cannot be silently discarded. ` +
-          `To reverse this change, please use the authorized clearance approval workflow (e.g. approve No Due).`
+          `To reverse this change, please use the authorized clearance approval reversal workflow (e.g. approve No Due).`
         );
       }
 
@@ -1017,14 +1019,18 @@ export class AiAssistantService {
     }
 
     const targetDeptId = payload.departmentId;
-    const dept = await prisma.department.findUnique({ where: { id: targetDeptId } });
+    const dept = await prisma.clearanceDepartment.findUnique({ where: { id: targetDeptId } });
     if (!dept) {
       throw new Error('Department not found.');
     }
 
-    const isAuthorized = await this.verifyDepartmentAuthorization({ id: userId } as any, dept.id);
-    if (!isAuthorized) {
-      throw new Error(`Unauthorized to stage clearance actions for ${dept.name}.`);
+    const isAuthorized = await DueManagementService.verifyOfficerDepartmentAuthorization(userId, {
+      departmentId: dept.id,
+      labId: payload.labId,
+      studentId: student.id
+    });
+    if (!isAuthorized.authorized) {
+      throw new Error(`Unauthorized to stage clearance actions for ${dept.name}: ${isAuthorized.reason}`);
     }
 
     const currentAction = confirmation.action as 'MARK_DUE' | 'CLEAR_DUE';
@@ -1092,6 +1098,7 @@ export class AiAssistantService {
       `7. **Next Step**: Click **Confirm & Save to Records** below to execute, or **Cancel** to abort.`;
 
     return {
+      success: true,
       reply: editReply,
       actionRequired: {
         token: tokenStr,
