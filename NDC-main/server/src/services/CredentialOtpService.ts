@@ -24,7 +24,7 @@ class CredentialOtpService {
     if (!fs.existsSync(cacheDir)) {
       try {
         fs.mkdirSync(cacheDir, { recursive: true });
-      } catch {}
+      } catch { }
     }
     this.cacheFilePath = path.join(cacheDir, 'credential_otps.json');
 
@@ -209,6 +209,8 @@ class CredentialOtpService {
     };
   }
 
+
+
   /**
    * Consume and invalidate the verified OTP when updating credentials.
    * Single-use guarantee.
@@ -223,6 +225,12 @@ class CredentialOtpService {
       return {
         success: false,
         message: 'Verification session not found or expired. Please request a new code.'
+      };
+    }
+    if (!record.verified) {
+      return {
+        success: false,
+        message: 'Please verify the OTP before continuing.'
       };
     }
 

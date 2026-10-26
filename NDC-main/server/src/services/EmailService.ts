@@ -994,8 +994,8 @@ class EmailService {
     expiresMinutes?: number;
   }): Promise<boolean> {
     const { toEmail, otpCode, accountName, role, expiresMinutes = 10 } = payload;
-    const subject = `MCE NDC Portal: Verification Code for Login Email Change - ${otpCode}`;
-
+    const subject =
+      'MCE NDC Portal: Verification Code for Login Email Change';
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 24px;">

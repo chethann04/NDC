@@ -65,15 +65,9 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
       return context.assistantConfig.greeting;
     }
     if (departmentCode === 'ADM' || isAdmin) {
-      return `Hello! I am your **Administration Block AI Assistant**.\n\nI can help you review institutional clearance records, monitor overall clearance queues, and check certificate generation status across all departments.`;
+      return `Hi! What institutional clearance records or departments would you like to review today?`;
     }
-    if (isLibrary) {
-      return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student library records, check outstanding book dues (overdue textbooks, reference fines, lost book replacement costs), and stage safe clearance approvals with your confirmation.`;
-    }
-    if (isChemistry) {
-      return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student chemistry lab records, check apparatus breakages (burettes, pipettes, glassware), and stage safe clearance approvals with your confirmation.`;
-    }
-    return `Hello! I am your **${departmentName} AI Assistant**.\n\nI can help you review student clearance records, look up outstanding equipment dues, and stage safe status approvals with your confirmation.`;
+    return `Hi! What clearance records or student dues would you like to check for **${departmentName}** today?`;
   };
 
   const storageKey = `ndc_ai_chat_${user?.id || 'officer'}_${departmentCode}`;
