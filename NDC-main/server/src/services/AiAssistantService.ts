@@ -356,9 +356,17 @@ export class AiAssistantService {
       const modelUsn = typeof parsed.usn === 'string' && /^[1-4][A-Z]{2}\d{2}[A-Z]{2}\d{3}$/i.test(parsed.usn.trim())
         ? parsed.usn.trim().toUpperCase()
         : contextUsn;
-      const modelAmount = typeof parsed.amount === 'number' && !isNaN(parsed.amount) && parsed.amount > 0
-        ? parsed.amount
-        : extractedAmount;
+      let parsedNumericAmount: number | null = null;
+      if (typeof parsed.amount === 'number' && !isNaN(parsed.amount) && parsed.amount > 0) {
+        parsedNumericAmount = parsed.amount;
+      } else if (typeof parsed.amount === 'string') {
+        const cleaned = parsed.amount.replace(/[^0-9.]/g, '');
+        if (cleaned.length > 0) {
+          const num = parseFloat(cleaned);
+          if (!isNaN(num) && num > 0) parsedNumericAmount = num;
+        }
+      }
+      const modelAmount = parsedNumericAmount !== null ? parsedNumericAmount : extractedAmount;
       const modelReason = typeof parsed.reason === 'string' && parsed.reason.trim().length > 0
         ? parsed.reason.trim()
         : this.extractReasonFromText(lastMessage, modelUsn, modelAmount, department.code);

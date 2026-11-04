@@ -120,57 +120,41 @@ export class LogbookScannerService {
         name: deptName
       });
       const scannerCustomInstructions = deptConfig?.scannerInstructions || '';
-      const prompt = `You are a forensic institutional register OCR assistant for ${deptName} (${targetDept?.code || 'GEN'}) at an engineering college.
-CRITICAL INSTRUCTIONS FOR MULTI-ROW ${isLibrary ? 'CENTRAL LIBRARY REGISTER' : 'LOGBOOK'} EXTRACTION:
+      const prompt = `You are an expert institutional register OCR model for ${deptName} (${targetDept?.code || 'GEN'}) at Malnad College of Engineering (MCE).
+CRITICAL EXTRACTION INSTRUCTIONS FOR ${isLibrary ? 'CENTRAL LIBRARY REGISTER' : 'LABORATORY LOGBOOK / DUE REGISTER'}:
 ${scannerCustomInstructions || (isLibrary ? `
-- This is a Central Institutional Library circulation, book issue, overdue fine, or lost book replacement register.
-- Columns typically include: Sl No / Date / Student USN / Student Name / Book Title & Accession Number / Due Amount.
-- Reason: The book title, accession number, or overdue description (e.g. "Overdue book: Engineering Physics", "Lost textbook replacement: Data Structures", "Damaged binding", "Book Bank scheme fee").
+- This is an Institutional Library issue/return/due/overdue fine register.
+- Columns typically include: Sl No / Date / Student USN / Student Name / Book Title & Accession Number / Fine or Due Amount.
+- Reason: Book title, accession number, or overdue description (e.g. "Overdue book: Engineering Physics", "Lost textbook replacement", "Damaged binding").
 ` : `
-- This is a laboratory equipment and manual breakage register.
-- Columns typically include: Sl No / Date / Student USN / Student Name / Apparatus Damaged / Broken / Fine Amount.
+- This is a laboratory apparatus, breakage, equipment damage, or practical logbook register.
+- Columns typically include: Sl No / Date / Student USN / Student Name / Apparatus Damaged or Reason / Fine or Due Amount.
 `)}
-1. PAGE LAYOUT ANALYSIS:
-   - "layoutType": Classify layout into "TABLE" (ruled grid), "LIST" (vertical unruled entries), "IRREGULAR" (varying row spacing or annotations without visible borders), "SINGLE_ENTRY" (isolated single row), or "EMPTY".
-   - "pageCount": Total pages processed (${preprocessed.pageCount}).
-   - "detectedRowCount": The total number of physical rows / lines detected on the page (populated and blank).
-   - "visibleEntryCount": The EXACT count of populated student due entries visibly written on this page.
-   - Do NOT assume a fixed row count, fixed names, or fixed amounts. Extract every visible populated row.
-   - If the page is blank or has no student due entries, return visibleEntryCount: 0 and an empty entries array [].
 
-2. PER-ENTRY FORENSIC ROW EXTRACTION:
-   For EVERY visible candidate entry on the page:
-   - "pageNumber": Integer page number (1-indexed).
-   - "rowNumber": Integer row index on page (1, 2, ...).
-   - "sourceRegion": Description of row location on page (e.g. "Row 1 (y: 120-190)").
-   - "box_2d": [ymin, xmin, ymax, xmax] approximate bounding box coordinates (normalized 0-1000).
-   - "rawText": Exact verbatim text string as written on this row.
-   - "rawUsn": The exact characters written for the USN (e.g. "4MC24IS022"). If any character is unclear, use '?' (e.g. "4MC24IS0??"). If absent, return null.
-   - "normalizedUsn": Legible uppercase alphanumeric USN, or null. NEVER invent or guess a USN.
-   - "isUsnUncertain": Boolean true if any character is unclear, smudged, or ambiguous.
-   - "rawStudentName": Student name verbatim as written, or null.
-   - "studentName": Normalized legible student name, or null.
-   - "rawAmount": Amount string as written (e.g. "₹300", "Rs 350", "300"). If not written, return null.
-   - "amount": Numeric amount. If NO amount is written on the page, return null. NEVER ESTIMATE OR INVENT AN AMOUNT.
-   - "isAmountUncertain": Boolean true if amount is not written, smudged, or unclear.
-   - "rawReason": Apparatus damaged or reason verbatim as written.
-   - "reason": Apparatus damaged or reason as written. NEVER invent equipment names.
-   - "date": Date as written, or null.
-   - "confidence": Float between 0.0 and 1.0 representing genuine legibility.
-   - "isCrossedOut": Boolean true if this row has a strike-through line or is crossed out. DO NOT OMIT CROSSED-OUT ROWS; extract them with isCrossedOut: true.
+SPECIAL HANDLING FOR LIVE CAMERA & WEBCAM CAPTURES:
+- Live camera snapshots or webcams may have angled perspective, shadows, slight blur, or horizontally mirrored/reversed text.
+- If text appears horizontally mirrored/backwards, automatically read and normalize it as regular text.
+- VTU / MCE University Seat Numbers (USNs) follow the format: 4MC{YY}{BRANCH}{NUM}
+  Examples: 4MC22IS022, 4MC23CS101, 4MC21EC045, 4MC24AI010, 4MC22ME050.
+  Common handwriting OCR confusions: '4' might look like 'A' or 'H'; 'MC' might look like 'NC' or 'MO'; 'IS' might look like '1S'; '0' might look like 'O'. Normalize to valid USNs.
 
-3. STAGE METRICS & EXPLANATION:
-   - "stageMetrics": {
-       "detectedRowCount": total rows detected on page,
-       "candidateRowCount": total candidate rows extracted into entries,
-       "blankLinesSkippedCount": count of unpopulated ruled lines,
-       "discrepancyExplanation": explanation of any difference between detected lines and extracted rows
-     }
+PAGE & ROW EXTRACTION RULES:
+1. Extract EVERY visible populated row with student dues or fines. Do NOT skip any rows.
+2. For each row:
+   - "usn": Legible student USN (e.g. "4MC22IS022").
+   - "rawUsn": Verbatim USN text.
+   - "studentName": Student full name as written.
+   - "amount": Numeric fine amount (e.g. 300, 450, 100). Do NOT include currency symbols like ₹ or Rs in the number. If no amount is written, return null.
+   - "reason": Apparatus damaged, book title, or reason for fine verbatim as written.
+   - "date": Date as written (YYYY-MM-DD or DD/MM/YYYY), or null.
+   - "isCrossedOut": true if line has a strike-through line or mark across it, else false.
+   - "box_2d": [ymin, xmin, ymax, xmax] approximate normalized coordinates (0 to 1000).
+   - "confidence": Estimated legibility score between 0.1 and 1.0.
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 {
   "layoutType": "TABLE" | "LIST" | "IRREGULAR" | "SINGLE_ENTRY" | "EMPTY",
-  "pageCount": number,
+  "pageCount": ${preprocessed.pageCount},
   "detectedRowCount": number,
   "visibleEntryCount": number,
   "stageMetrics": {
@@ -184,11 +168,12 @@ OUTPUT FORMAT (STRICT JSON ONLY):
     {
       "pageNumber": 1,
       "rowNumber": 1,
-      "sourceRegion": "Row 1 (y: 120-190)",
+      "sourceRegion": "Row 1",
       "box_2d": [120, 50, 190, 950],
-      "rawText": "1 | 4MC24IS022 | Chethan N | ₹300 | Broken lens | 14/03/2026",
+      "rawText": "1 | 4MC24IS022 | Chethan N | 300 | Broken lens | 14/03/2026",
       "rawUsn": "4MC24IS022",
       "normalizedUsn": "4MC24IS022",
+      "usn": "4MC24IS022",
       "isUsnUncertain": false,
       "studentName": "Chethan N",
       "rawAmount": "₹300",
@@ -196,7 +181,7 @@ OUTPUT FORMAT (STRICT JSON ONLY):
       "isAmountUncertain": false,
       "reason": "Broken lens",
       "date": "2026-03-14",
-      "confidence": 0.94,
+      "confidence": 0.95,
       "isCrossedOut": false
     }
   ]
@@ -211,38 +196,52 @@ OUTPUT FORMAT (STRICT JSON ONLY):
       });
 
       // 6. Parse and strictly validate structured output
-      let layoutType = 'SINGLE_ENTRY';
+      let layoutType = 'TABLE';
       let visibleEntryCount = 0;
       let detectedRowCount = 0;
       let detectedOrientation = 'UPRIGHT';
-      let rawEntries: ExtractedLogbookEntry[] = [];
+      let rawEntries: any[] = [];
       let stageMetrics: any = null;
 
       try {
         const cleanJson = rawJson.replace(/```json/gi, '').replace(/```/gi, '').trim();
         const parsed = JSON.parse(cleanJson);
 
-        layoutType = parsed.layoutType || 'SINGLE_ENTRY';
-        visibleEntryCount = typeof parsed.visibleEntryCount === 'number' ? parsed.visibleEntryCount : 0;
-        detectedRowCount = typeof parsed.detectedRowCount === 'number' ? parsed.detectedRowCount : visibleEntryCount;
-        detectedOrientation = parsed.orientation || 'UPRIGHT';
+        if (Array.isArray(parsed)) {
+          rawEntries = parsed;
+          visibleEntryCount = parsed.length;
+          detectedRowCount = parsed.length;
+        } else if (parsed && typeof parsed === 'object') {
+          layoutType = parsed.layoutType || 'TABLE';
+          visibleEntryCount = typeof parsed.visibleEntryCount === 'number' ? parsed.visibleEntryCount : 0;
+          detectedRowCount = typeof parsed.detectedRowCount === 'number' ? parsed.detectedRowCount : visibleEntryCount;
+          detectedOrientation = parsed.orientation || 'UPRIGHT';
 
-        if (Array.isArray(parsed.entries)) {
-          rawEntries = parsed.entries;
+          if (Array.isArray(parsed.entries)) {
+            rawEntries = parsed.entries;
+          } else if (Array.isArray(parsed.rows)) {
+            rawEntries = parsed.rows;
+          } else if (Array.isArray(parsed.data)) {
+            rawEntries = parsed.data;
+          }
+
+          stageMetrics = parsed.stageMetrics;
         }
 
-        stageMetrics = parsed.stageMetrics || {
-          detectedRowCount: detectedRowCount || rawEntries.length,
-          candidateRowCount: rawEntries.length,
-          validRowCount: rawEntries.filter((e: any) => !e.isCrossedOut).length,
-          crossedOutRowCount: rawEntries.filter((e: any) => e.isCrossedOut).length,
-          blankLinesSkippedCount: Math.max(0, detectedRowCount - rawEntries.length),
-          discrepancyExplanation: rawEntries.length > 0
-            ? `Extracted ${rawEntries.length} candidate rows from ${detectedRowCount || rawEntries.length} detected physical page lines.`
-            : 'No populated student due entries found on this page.'
-        };
+        if (!stageMetrics) {
+          stageMetrics = {
+            detectedRowCount: detectedRowCount || rawEntries.length,
+            candidateRowCount: rawEntries.length,
+            validRowCount: rawEntries.filter((e: any) => !e.isCrossedOut).length,
+            crossedOutRowCount: rawEntries.filter((e: any) => e.isCrossedOut).length,
+            blankLinesSkippedCount: Math.max(0, detectedRowCount - rawEntries.length),
+            discrepancyExplanation: rawEntries.length > 0
+              ? `Extracted ${rawEntries.length} candidate rows from physical register page.`
+              : 'No populated student due entries found on this page.'
+          };
+        }
       } catch (parseErr) {
-        console.error('[LogbookScannerService] JSON parse error from Gemini:', parseErr);
+        console.error('[LogbookScannerService] JSON parse error from Gemini:', parseErr, 'Raw:', rawJson?.substring(0, 300));
         rawEntries = [];
         stageMetrics = {
           detectedRowCount: 0,
@@ -255,7 +254,6 @@ OUTPUT FORMAT (STRICT JSON ONLY):
       }
 
       // CRITICAL GUARANTEE: NEVER silently drop or truncate candidate rows!
-      // Every candidate entry returned by vision recognition survives into the database for human review.
       const candidateEntries = rawEntries;
 
       // 7. Match each candidate row against database students strictly by normalized USN
@@ -265,15 +263,14 @@ OUTPUT FORMAT (STRICT JSON ONLY):
 
       for (let i = 0; i < candidateEntries.length; i++) {
         const item = candidateEntries[i];
-        const rawUsn = item.rawUsn || item.usn || '';
-        const isUsnUncertain = Boolean(item.isUsnUncertain || rawUsn.includes('?') || rawUsn.trim().length === 0);
+        const rawUsn = String(item.rawUsn || item.usn || item.normalizedUsn || item.student_usn || item.rollNo || '').trim();
+        const isUsnUncertain = Boolean(item.isUsnUncertain || rawUsn.includes('?') || rawUsn.length === 0);
         const normalizedUsn = isUsnUncertain ? '' : this.normalizeUsn(item.normalizedUsn || rawUsn);
-        const isCrossedOut = Boolean(item.isCrossedOut);
+        const isCrossedOut = Boolean(item.isCrossedOut || item.crossedOut || item.is_crossed_out);
 
         let student: any = null;
 
-        // Strict DB matching: match ONLY against real Student database by exact normalized USN
-        // Never generate replacement USNs to force a match or guess from student names
+        // DB matching: match against real Student database by normalized USN
         if (normalizedUsn && !isUsnUncertain) {
           student = await prisma.student.findFirst({
             where: {
@@ -286,40 +283,90 @@ OUTPUT FORMAT (STRICT JSON ONLY):
               }
             }
           });
+
+          // Secondary fuzzy matching if exact USN failed (e.g. handwritten year or branch typo)
+          if (!student && normalizedUsn.length >= 7) {
+            const branchPart = normalizedUsn.substring(5, 7);
+            const numPart = normalizedUsn.substring(7);
+            student = await prisma.student.findFirst({
+              where: {
+                usn: { contains: `${branchPart}${numPart}`, mode: 'insensitive' }
+              },
+              include: {
+                ndcClearances: {
+                  where: { departmentId },
+                  take: 1
+                }
+              }
+            });
+          }
+
+          // If student exists but has no active clearance record in this department, auto-initialize
+          if (student && student.ndcClearances.length === 0) {
+            try {
+              await NdcWorkflowService.ensureStudentNdcRequest(student.id);
+              student = await prisma.student.findFirst({
+                where: { id: student.id },
+                include: {
+                  ndcClearances: {
+                    where: { departmentId },
+                    take: 1
+                  }
+                }
+              });
+            } catch (syncErr) {
+              console.warn('[LogbookScannerService] Auto-ensure clearance notice:', syncErr);
+            }
+          }
         }
 
-        const isAmountUncertain = item.amount === null || item.amount === undefined || item.isAmountUncertain === true || item.amount <= 0;
-        const finalAmount = isAmountUncertain ? 0 : Number(item.amount);
+        // Parse amount robustly from numbers or formatted strings
+        let finalAmount = 0;
+        let isAmountUncertain = false;
+        const rawAmt = item.amount ?? item.rawAmount ?? item.fine ?? item.dueAmount;
+        if (typeof rawAmt === 'number' && !isNaN(rawAmt)) {
+          finalAmount = rawAmt;
+        } else if (typeof rawAmt === 'string') {
+          const cleaned = rawAmt.replace(/[^0-9.]/g, '');
+          if (cleaned.length > 0) {
+            const num = parseFloat(cleaned);
+            if (!isNaN(num)) finalAmount = num;
+          }
+        }
+
+        if (finalAmount <= 0) {
+          isAmountUncertain = true;
+          finalAmount = 0;
+        }
 
         // Build detailed forensic validation notes and row positioning
         const errors: string[] = [];
-
-        // Row positioning & bounding box metadata
         const pageNum = item.pageNumber || 1;
         const rowNum = item.rowNumber || i + 1;
         const regionDesc = item.sourceRegion || `Row ${rowNum}`;
-        const box = item.boundingBox;
+        const box = item.boundingBox || (Array.isArray(item.box_2d) && item.box_2d.length === 4
+          ? { ymin: item.box_2d[0], xmin: item.box_2d[1], ymax: item.box_2d[2], xmax: item.box_2d[3] }
+          : null);
         const boxDesc = box ? `[Box: y:${box.ymin}-${box.ymax}, x:${box.xmin}-${box.xmax}]` : '';
         const rawTextDesc = item.rawText ? `[Raw Text: "${item.rawText.substring(0, 100)}"]` : '';
 
         if (isCrossedOut) {
-          errors.push('[Crossed-Out Entry] Visibly struck through in source image. Requires lecturer confirmation before any action.');
+          errors.push('[Crossed-Out Entry] Visibly struck through in source image. Requires confirmation before applying.');
         }
 
         if (isUsnUncertain) {
           errors.push(`[Unclear USN] USN characters partially obscured or smudged ("${rawUsn}"). Verification required.`);
         } else if (!student) {
-          errors.push(`[Unknown Student] USN "${normalizedUsn || rawUsn}" could not be located in student registry.`);
+          errors.push(`[Unknown Student] USN "${normalizedUsn || rawUsn}" could not be located in college records.`);
         } else if (student.ndcClearances.length === 0) {
-          errors.push(`[No Clearance] Student found (${student.usn}) but has no active clearance record in this department.`);
+          errors.push(`[No Clearance] Student found (${student.usn}) but clearance record could not be linked.`);
         }
 
         if (isAmountUncertain) {
-          errors.push('[Uncertain Amount] Fine amount not visible on page. Please enter amount during review.');
+          errors.push('[Uncertain Amount] Fine amount not visible or empty. Please enter amount during review.');
         }
 
         const hasClearance = Boolean(student && student.ndcClearances.length > 0);
-        // Only entries that have a valid student, clearance, certain USN, certain amount, and are NOT crossed out qualify as MATCHED
         const isMatched = hasClearance && !isUsnUncertain && !isAmountUncertain && !isCrossedOut;
         const status = isMatched ? 'MATCHED' : 'UNMATCHED';
 
@@ -328,18 +375,19 @@ OUTPUT FORMAT (STRICT JSON ONLY):
 
         const clearance = student?.ndcClearances?.[0];
 
-        // Determine / compute uncertainty heuristic score if provider confidence is unavailable
         let confidence = typeof item.confidence === 'number' && item.confidence >= 0 && item.confidence <= 1
           ? item.confidence
           : this.calculateHeuristicConfidence(item, student);
 
         const confidenceMethod = item.confidenceMethod || (typeof item.confidence === 'number' ? 'PROVIDER_CONFIDENCE' : 'HEURISTIC_ESTIMATE');
-
-        // Compile full forensic validation string
         const forensicHeader = `[Page ${pageNum} | Row ${rowNum} | Region: ${regionDesc}] ${boxDesc} ${rawTextDesc} [Confidence: ${(confidence * 100).toFixed(0)}% via ${confidenceMethod}]`.trim();
         const fullValidationErrors = errors.length > 0
           ? `${forensicHeader} -- ${errors.join(' ')}`
           : `${forensicHeader} -- [Verified legible]`;
+
+        const extractedName = item.studentName || item.name || student?.fullName || '';
+        const extractedReason = item.reason || item.apparatus || item.description || (isLibrary ? 'Overdue Book / Library Fine' : 'Apparatus / Lab Due');
+        const extractedDate = item.date || new Date().toISOString().split('T')[0];
 
         const scanEntry = await prisma.scanJobEntry.create({
           data: {
@@ -347,10 +395,10 @@ OUTPUT FORMAT (STRICT JSON ONLY):
             entryIndex: i + 1,
             status: status as any,
             extractedUsn: normalizedUsn || rawUsn,
-            extractedName: item.studentName || student?.fullName || '',
+            extractedName,
             extractedAmount: finalAmount,
-            extractedReason: item.reason || (isLibrary ? 'Overdue Book / Library Fine' : 'Apparatus / Lab Due'),
-            extractedDate: item.date || new Date().toISOString().split('T')[0],
+            extractedReason,
+            extractedDate,
             confidence,
             matchedStudentId: student?.id || null,
             matchedStudentUsn: student?.usn || null,
@@ -776,9 +824,35 @@ OUTPUT FORMAT (STRICT JSON ONLY):
     if (!raw) return '';
     let cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-    // Common OCR misreads for Indian college USNs (e.g. 4MC21CS001)
-    if (cleaned.startsWith('AMC') || cleaned.startsWith('HMC')) {
-      cleaned = '4' + cleaned.substring(1);
+    // Common OCR misreads for Indian college USNs (e.g. 4MC21CS001, 4MC22IS022)
+    if (
+      cleaned.startsWith('AMC') ||
+      cleaned.startsWith('HMC') ||
+      cleaned.startsWith('4NC') ||
+      cleaned.startsWith('4MO') ||
+      cleaned.startsWith('IMC') ||
+      cleaned.startsWith('LMC') ||
+      cleaned.startsWith('4MG') ||
+      cleaned.startsWith('4ME') ||
+      cleaned.startsWith('4MD')
+    ) {
+      cleaned = '4MC' + cleaned.substring(3);
+    } else if (cleaned.startsWith('4M') && cleaned.length >= 4 && !cleaned.startsWith('4MC')) {
+      cleaned = '4MC' + cleaned.substring(2);
+    }
+
+    // Standard VTU format: 4MC{YY}{BRANCH}{NUM}
+    const match = cleaned.match(/^([1-4][A-Z]{2})([A-Z0-9]{2})([A-Z0-9]{2})([A-Z0-9]{3})$/);
+    if (match) {
+      const college = match[1];
+      let year = match[2].replace(/O/g, '0').replace(/[IL]/g, '1').replace(/Z/g, '2').replace(/S/g, '5');
+      let dept = match[3];
+      if (dept === '1S') dept = 'IS';
+      if (dept === 'C5') dept = 'CS';
+      if (dept === 'A1') dept = 'AI';
+      if (dept === 'E0') dept = 'EC';
+      let num = match[4].replace(/[OD]/g, '0').replace(/[IL]/g, '1').replace(/Z/g, '2').replace(/S/g, '5').replace(/B/g, '8');
+      cleaned = `${college}${year}${dept}${num}`;
     }
 
     return cleaned;

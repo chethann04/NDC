@@ -75,8 +75,16 @@ export class GeminiService {
     return process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
   }
 
-  private static getModel(): string {
-    return process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  private static getCandidateModels(): string[] {
+    const configured = process.env.GEMINI_MODEL || process.env.GOOGLE_GEMINI_MODEL;
+    const candidates = [
+      configured,
+      'gemini-3.5-flash',
+      'gemini-3-flash-preview',
+      'gemini-3.5-flash-lite'
+    ].filter((m): m is string => Boolean(m && m.trim().length > 0));
+
+    return Array.from(new Set(candidates));
   }
 
   public static isConfigured(): boolean {
@@ -85,18 +93,16 @@ export class GeminiService {
   }
 
   /**
-   * Multi-turn or single-turn chat completion using Gemini REST API
+   * Multi-turn or single-turn chat completion using Gemini REST API with automated resilient model fallback
    */
   public static async generateChat(options: GeminiChatOptions): Promise<string> {
     const apiKey = this.getApiKey();
-    const model = this.getModel();
 
     if (!this.isConfigured()) {
       return this.mockChatResponse(options);
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
+    const candidateModels = this.getCandidateModels();
     const contents = options.messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({
@@ -117,49 +123,65 @@ export class GeminiService {
       generationConfig.responseMimeType = 'application/json';
     }
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          systemInstruction,
-          generationConfig
-        })
-      });
+    let lastError: any = null;
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        console.error(`[GeminiService] API error (${response.status}):`, errorBody);
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+    for (const model of candidateModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents,
+            systemInstruction,
+            generationConfig
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.warn(`[GeminiService] Model [${model}] returned HTTP ${response.status}. Attempting fallback... Error:`, errorBody.substring(0, 150));
+          lastError = new Error(`Gemini API error ${response.status}: ${errorBody}`);
+          continue;
+        }
+
+        const data = (await response.json()) as any;
+        const text =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+          data?.candidates?.[0]?.text ||
+          '';
+
+        if (text && text.trim().length > 0) {
+          return text;
+        }
+      } catch (err: any) {
+        console.warn(`[GeminiService] Invocation error with model [${model}]:`, err.message || err);
+        lastError = err;
       }
-
-      const data = (await response.json()) as any;
-      const text =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        data?.candidates?.[0]?.text ||
-        '';
-
-      return text;
-    } catch (err: any) {
-      console.error('[GeminiService] generateChat failure:', err);
-      return this.mockChatResponse(options);
     }
+
+    console.error('[GeminiService] All candidate models exhausted for generateChat. Falling back to local responder. Last error:', lastError?.message);
+    return this.mockChatResponse(options);
   }
 
   /**
-   * Vision analysis for scanned logbook images or PDFs with forensic validation
+   * Vision analysis for scanned logbook images or PDFs with automated resilient model fallback
    */
   public static async analyzeDocument(options: GeminiVisionOptions): Promise<string> {
     const apiKey = this.getApiKey();
-    const model = this.getModel();
 
-    if (!this.isConfigured() || options.testHint?.toLowerCase().includes('test') || options.testHint?.toLowerCase().includes('mock')) {
+    if (!this.isConfigured() || options.testHint === '__FORCE_MOCK__') {
       return this.mockVisionResponse(options);
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
+    const candidateModels = this.getCandidateModels();
     const contents = [
       {
         role: 'user',
@@ -188,34 +210,52 @@ export class GeminiService {
       generationConfig.responseMimeType = 'application/json';
     }
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          systemInstruction,
-          generationConfig
-        })
-      });
+    let lastError: any = null;
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        console.error(`[GeminiService] Vision API error (${response.status}):`, errorBody);
-        throw new Error(`Gemini Vision API error: ${response.status} ${response.statusText}`);
+    for (const model of candidateModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents,
+            systemInstruction,
+            generationConfig
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.warn(`[GeminiService] Vision model [${model}] returned HTTP ${response.status}. Attempting fallback... Error:`, errorBody.substring(0, 150));
+          lastError = new Error(`Gemini Vision API error ${response.status}: ${errorBody}`);
+          continue;
+        }
+
+        const data = (await response.json()) as any;
+        const text =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+          data?.candidates?.[0]?.text ||
+          '';
+
+        if (text && text.trim().length > 0) {
+          return text;
+        }
+      } catch (err: any) {
+        console.warn(`[GeminiService] Vision invocation error with model [${model}]:`, err.message || err);
+        lastError = err;
       }
-
-      const data = (await response.json()) as any;
-      const text =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        data?.candidates?.[0]?.text ||
-        '';
-
-      return text;
-    } catch (err: any) {
-      console.error('[GeminiService] analyzeDocument failure, falling back to safe local extraction:', err);
-      return this.mockVisionResponse(options);
     }
+
+    console.error('[GeminiService] All vision models exhausted for analyzeDocument. Falling back to local OCR parser. Last error:', lastError?.message);
+    return this.mockVisionResponse(options);
   }
 
   /**
