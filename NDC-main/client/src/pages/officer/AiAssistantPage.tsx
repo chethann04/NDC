@@ -541,27 +541,30 @@ export const AiAssistantPage: React.FC = () => {
                   )}
 
                   {/* Staged Action Confirmation Box */}
-                  {msg.actionRequired && (
-                    <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/80 text-slate-900 text-xs space-y-2.5">
-                      <div className="flex items-center justify-between font-semibold text-amber-900 border-b border-amber-200/60 pb-2">
-                        <div className="flex items-center gap-1.5">
-                          <ShieldAlert className="w-4 h-4 text-amber-600" />
-                          <span>
-                            {msg.actionRequired.batchActions && msg.actionRequired.batchActions.length > 1
-                              ? `Batch Staged (${msg.actionRequired.batchActions.length} Operations) — Confirmation Required`
-                              : 'Action Staged — Confirmation Required'}
-                          </span>
+                  {msg.actionRequired && !msg.actionExecuted && (
+                    <>
+                      {msg.actionCancelled ? (
+                        <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>The staged action has been cancelled. No changes were made to the database.</span>
                         </div>
-                        <span className="text-[10px] font-mono bg-amber-200/60 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">
-                          {msg.actionRequired.action === 'BATCH_OPERATION'
-                            ? `BATCH (${msg.actionRequired.batchActions?.length || 0})`
-                            : msg.actionRequired.action}
-                        </span>
-                      </div>
-
-                      {/* Batch Actions Table / List if multiple actions */}
-                      {msg.actionRequired.batchActions && msg.actionRequired.batchActions.length > 1 ? (
-                        <div className="space-y-2">
+                      ) : msg.actionExpired ? (
+                        <div className="mt-3 p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>This confirmation token has expired. Please initiate the request again.</span>
+                        </div>
+                      ) : msg.actionRequired.batchActions && msg.actionRequired.batchActions.length > 1 ? (
+                        /* Batch Staged Actions */
+                        <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/80 text-slate-900 text-xs space-y-3">
+                          <div className="flex items-center justify-between font-semibold text-amber-900 border-b border-amber-200/60 pb-2">
+                            <div className="flex items-center gap-1.5">
+                              <ShieldAlert className="w-4 h-4 text-amber-600" />
+                              <span>Batch Staged ({msg.actionRequired.batchActions.length} Operations)</span>
+                            </div>
+                            <span className="text-[10px] font-mono bg-amber-200/60 px-1.5 py-0.5 rounded text-amber-900 font-bold uppercase">
+                              BATCH
+                            </span>
+                          </div>
                           <div className="overflow-x-auto rounded-lg border border-amber-200 bg-white">
                             <table className="w-full text-[11px] text-left">
                               <thead className="bg-amber-100/60 text-amber-950 font-semibold border-b border-amber-200">
@@ -570,7 +573,7 @@ export const AiAssistantPage: React.FC = () => {
                                   <th className="p-2">Student</th>
                                   <th className="p-2">Operation</th>
                                   <th className="p-2">Amount</th>
-                                  <th className="p-2">Reason / Apparatus</th>
+                                  <th className="p-2">Reason</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-amber-100">
@@ -583,9 +586,7 @@ export const AiAssistantPage: React.FC = () => {
                                     </td>
                                     <td className="p-2">
                                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                        act.action === 'MARK_DUE' 
-                                          ? 'bg-rose-100 text-rose-800' 
-                                          : 'bg-emerald-100 text-emerald-800'
+                                        act.action === 'MARK_DUE' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
                                       }`}>
                                         {act.action === 'MARK_DUE' ? 'ADD DUE' : 'CLEAR DUE'}
                                       </span>
@@ -601,239 +602,252 @@ export const AiAssistantPage: React.FC = () => {
                               </tbody>
                             </table>
                           </div>
+                          <p className="text-xs font-medium text-slate-800">Do you want to confirm all {msg.actionRequired.batchActions.length} operations?</p>
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {confirmingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Confirm & Save</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {cancellingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>Cancel</span>
+                            </button>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-2 text-[11px]">
-                          <div>
-                            <span className="text-slate-500 block">Student Name:</span>
-                            <span className="font-semibold text-slate-800">{msg.actionRequired.studentName}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500 block">Student USN:</span>
-                            <span className="font-mono font-semibold text-slate-800">{msg.actionRequired.usn}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500 block">Student's Academic Dept:</span>
-                            <span className="font-semibold text-indigo-900">
-                              {msg.actionRequired.studentAcademicDepartment || 'Information Science & Engineering'}
+                      ) : msg.actionRequired.isModification || msg.actionRequired.operationType === 'MODIFY_DUE' ? (
+                        /* Section 2: Modify Existing Due */
+                        <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 text-slate-900 text-xs space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-amber-200/70">
+                            <div className="flex items-center gap-1.5 font-semibold text-amber-900 text-xs">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>Update Due Amount</span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded uppercase">
+                              Modification
                             </span>
                           </div>
-                          <div>
-                            <span className="text-slate-500 block">Target Clearance Desk:</span>
-                            <span className="font-semibold text-indigo-900">
-                              {msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || deptName || 'Department Desk'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500 block">Operation:</span>
-                            <span className="font-semibold text-slate-900">
-                              {msg.actionRequired.action === 'CLEAR_DUE'
-                                ? 'Approve Clearance as NO DUE'
-                                : msg.actionRequired.action === 'MARK_DUE'
-                                ? 'Add Outstanding Due'
-                                : 'Hold Clearance'}
-                            </span>
-                          </div>
-                          {msg.actionRequired.amount !== undefined && (
-                            <div>
-                              <span className="text-slate-500 block">Due Amount:</span>
-                              <span className="font-bold text-rose-700">₹{msg.actionRequired.amount}</span>
-                            </div>
-                          )}
-                          {msg.actionRequired.reason && (
-                            <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
-                              <span className="text-slate-500 block">Reason / Particulars:</span>
-                              <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
-                            </div>
-                          )}
-                          {msg.actionRequired.authorizedOfficer && (
-                            <div>
-                              <span className="text-slate-500 block">Authorized Officer:</span>
-                              <span className="font-medium text-slate-700">{msg.actionRequired.authorizedOfficer}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
 
-                      {/* Explicit Validation Results */}
-                      {msg.actionRequired.validationResults && msg.actionRequired.validationResults.length > 0 && (
-                        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] space-y-1.5">
-                          <div className="flex items-center justify-between text-slate-700 font-semibold border-b border-slate-200 pb-1">
-                            <span>Pre-Flight Validation Results:</span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-bold">
-                              Verified
-                            </span>
-                          </div>
-                          <div className="space-y-1">
-                            {msg.actionRequired.validationResults.map((chk, vIdx) => (
-                              <div key={vIdx} className="flex items-start gap-1.5 text-[10.5px]">
-                                {chk.passed ? (
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                                ) : chk.unverified ? (
-                                  <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                                ) : (
-                                  <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                                )}
-                                <div className={chk.passed ? 'text-slate-700' : 'text-rose-700 font-medium'}>
-                                  <strong>{chk.label}:</strong> {chk.detail}
-                                </div>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Student:</span>
+                              <span className="font-semibold text-slate-900">{msg.actionRequired.studentName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Department:</span>
+                              <span className="font-semibold text-slate-800">{msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || deptName}</span>
+                            </div>
+                            {msg.actionRequired.reason && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Reason:</span>
+                                <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                            )}
 
-                      {/* Consequences of Action */}
-                      {msg.actionRequired.consequences && (
-                        <div className="p-2.5 rounded-lg bg-amber-100/70 border border-amber-300 text-amber-950 text-[11px] leading-relaxed flex items-start gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-bold block">Consequences:</span>
-                            <span>{msg.actionRequired.consequences}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Email notification notice */}
-                      {msg.actionRequired.emailNotificationWillQueue !== false && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-indigo-700 bg-indigo-50/70 border border-indigo-200 px-2 py-1 rounded">
-                          <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
-                          <span>Official email notification will be queued to the student upon confirmation.</span>
-                        </div>
-                      )}
-
-                      {/* Inline Edit Box if user clicks Edit */}
-                      {editingToken === msg.actionRequired.token && (
-                        <div className="p-2.5 rounded-lg bg-white border border-amber-200 space-y-2 mt-2">
-                          <span className="font-semibold text-slate-700 block text-[11px]">
-                            Edit Staged Action:
-                          </span>
-                          <div className="grid grid-cols-2 gap-2">
-                            {msg.actionRequired.amount !== undefined && (
+                            {/* Old vs New Amount Comparison - Visually Prominent */}
+                            <div className="mt-2 p-2.5 rounded-lg bg-white border border-amber-200 grid grid-cols-3 gap-2 text-center items-center">
                               <div>
-                                <label className="text-[10px] text-slate-500 block">New Amount (₹):</label>
-                                <input
-                                  type="number"
-                                  value={editAmount}
-                                  onChange={(e) => setEditAmount(e.target.value)}
-                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
-                                  placeholder="Amount"
-                                />
+                                <span className="text-[10px] text-slate-500 block uppercase font-medium">Current Amount</span>
+                                <span className="text-xs font-semibold text-slate-500 line-through">₹{msg.actionRequired.previousAmount ?? msg.actionRequired.currentAmount ?? 0}</span>
+                              </div>
+                              <div className="border-x border-amber-100 px-1">
+                                <span className="text-[10px] text-emerald-800 block uppercase font-bold">New Amount</span>
+                                <span className="text-sm font-extrabold text-emerald-700">₹{msg.actionRequired.newAmount ?? msg.actionRequired.amount}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 block uppercase font-medium">Difference</span>
+                                <span className={`text-xs font-bold ${Number(msg.actionRequired.difference ?? 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  {Number(msg.actionRequired.difference ?? 0) >= 0 ? `+₹${msg.actionRequired.difference ?? 0}` : `-₹${Math.abs(Number(msg.actionRequired.difference ?? 0))}`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            {msg.actionRequired.consequences || 'Your change will update the outstanding amount. The NDC status will remain Blocked until the due is cleared.'}
+                          </p>
+
+                          <p className="text-xs font-medium text-slate-800">Should I save this change?</p>
+
+                          {/* Two buttons: Confirm & Save and Cancel */}
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {confirmingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Confirm & Save</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {cancellingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>Cancel</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : msg.actionRequired.action === 'MARK_DUE' ? (
+                        /* Section 1: New Outstanding Due */
+                        <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 text-slate-900 text-xs space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-amber-200/70">
+                            <div className="flex items-center gap-1.5 font-semibold text-amber-900 text-xs">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>New Outstanding Due</span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded uppercase">
+                              Add Due
+                            </span>
+                          </div>
+
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Student:</span>
+                              <span className="font-semibold text-slate-900">{msg.actionRequired.studentName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Department:</span>
+                              <span className="font-semibold text-slate-800">{msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || deptName}</span>
+                            </div>
+                            {msg.actionRequired.reason && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Reason:</span>
+                                <span className="font-medium text-slate-800">{msg.actionRequired.reason}</span>
                               </div>
                             )}
-                            <div className={msg.actionRequired.amount !== undefined ? '' : 'col-span-2'}>
-                              <label className="text-[10px] text-slate-500 block">New Reason / Apparatus:</label>
-                              <input
-                                type="text"
-                                value={editReason}
-                                onChange={(e) => setEditReason(e.target.value)}
-                                className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
-                                placeholder="Reason"
-                              />
+                            <div className="flex justify-between items-center pt-1 border-t border-amber-200/50">
+                              <span className="text-slate-500">Amount:</span>
+                              <span className="text-sm font-extrabold text-rose-700">₹{msg.actionRequired.amount}</span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={handleSubmitEdit}
-                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
-                            >
-                              Request Fresh Confirmation
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingToken(null)}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs"
-                            >
-                              Cancel Edit
-                            </button>
-                          </div>
-                        </div>
-                      )}
 
-                      {msg.actionExecuted ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-100/70 p-2 rounded-lg border border-emerald-200 text-xs">
-                            <CheckCircle2 className="w-4 h-4 shrink-0" />
-                            <span>Executed and applied to live student clearance records!</span>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            {msg.actionRequired.consequences || `Adding this due will change the student's ${msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || deptName} clearance to Due and temporarily block the NDC certificate until payment is completed.`}
+                          </p>
+
+                          <p className="text-xs font-medium text-slate-800">Do you want to continue?</p>
+
+                          {/* Two buttons: Confirm & Save and Cancel */}
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {confirmingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Confirm & Save</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {cancellingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>Cancel</span>
+                            </button>
                           </div>
-                          {msg.notification && (
-                            <div className="flex items-center gap-2 text-[11px] font-medium pt-0.5">
-                              {msg.notification.deliveryStatus === 'ACCEPTED' && (
-                                <span className="text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
-                                  ✉️ Email Dispatched {msg.notification.messageId ? `(${msg.notification.messageId})` : ''}
-                                </span>
-                              )}
-                              {msg.notification.deliveryStatus === 'QUEUED' && (
-                                <span className="text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
-                                  ✉️ Email Queued
-                                </span>
-                              )}
-                              {msg.notification.deliveryStatus === 'UNCERTAIN' && (
-                                <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs" title="HTTP timeout; automatic duplicate retry aborted">
-                                  ⚠️ Delivery Uncertain (Timeout - Retry Blocked)
-                                </span>
-                              )}
-                              {msg.notification.deliveryStatus === 'FAILED' && (
-                                <span className="text-rose-800 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
-                                  ❌ Email Failed: {msg.notification.lastError || 'Undelivered'}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : msg.actionCancelled ? (
-                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold bg-slate-100 p-2 rounded-lg border border-slate-200 text-xs">
-                          <XCircle className="w-4 h-4 text-slate-500 shrink-0" />
-                          <span>Action Cancelled: Confirmation token invalidated. Zero live changes were made.</span>
-                        </div>
-                      ) : msg.actionExpired ? (
-                        <div className="flex items-center gap-1.5 text-amber-800 font-semibold bg-amber-50 p-2 rounded-lg border border-amber-200 text-xs">
-                          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span>Action Expired: This confirmation token has expired. Please initiate the request again.</span>
                         </div>
                       ) : (
-                        <div className="pt-1 flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
-                            disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
-                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer min-w-[140px]"
-                          >
-                            {confirmingToken === msg.actionRequired.token ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            )}
-                            <span>Confirm & Save</span>
-                          </button>
+                        /* Clear Due / General Staged Action */
+                        <div className="mt-3 p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/70 text-slate-900 text-xs space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-emerald-200/70">
+                            <div className="flex items-center gap-1.5 font-semibold text-emerald-900 text-xs">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>Clearance Approval</span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded uppercase">
+                              No Due
+                            </span>
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleStartEdit(msg.actionRequired!)}
-                            disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
-                            className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
-                          >
-                            <Edit3 className="w-3.5 h-3.5 text-slate-600" />
-                            <span>Edit</span>
-                          </button>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Student:</span>
+                              <span className="font-semibold text-slate-900">{msg.actionRequired.studentName} ({msg.actionRequired.usn})</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Department:</span>
+                              <span className="font-semibold text-slate-800">{msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || deptName}</span>
+                            </div>
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCancelAction(msg.actionRequired!.token, idx)}
-                            disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
-                            className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
-                          >
-                            {cancellingToken === msg.actionRequired.token ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
-                            ) : (
-                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                            )}
-                            <span>Cancel</span>
-                          </button>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            Approving clearance will certify that the student has No Due in {msg.actionRequired.targetClearanceDesk || msg.actionRequired.labName || deptName} and allow their NDC progress to advance.
+                          </p>
+
+                          <p className="text-xs font-medium text-slate-800">Do you want to continue?</p>
+
+                          {/* Two buttons: Confirm & Save and Cancel */}
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {confirmingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Confirm & Save</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelAction(msg.actionRequired!.token, idx)}
+                              disabled={confirmingToken === msg.actionRequired.token || cancellingToken === msg.actionRequired.token}
+                              className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {cancellingToken === msg.actionRequired.token ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>Cancel</span>
+                            </button>
+                          </div>
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               </div>

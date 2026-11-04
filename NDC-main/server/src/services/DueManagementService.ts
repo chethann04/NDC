@@ -15,7 +15,7 @@ export interface RecordDueParams {
   source: 'LOGBOOK_OCR' | 'AI_ASSISTANT' | 'MANUAL_OFFICER';
   sourceEntryId?: string;
   idempotencyKey?: string;
-  conflictStrategy?: 'ACCUMULATE' | 'ERROR_ON_EXISTING';
+  conflictStrategy?: 'ACCUMULATE' | 'ERROR_ON_EXISTING' | 'OVERWRITE';
   reqObj?: any;
 }
 
@@ -198,7 +198,7 @@ export class DueManagementService {
     let newDueDetails = cleanReason;
     let wasAccumulated = false;
 
-    if (hasExistingDue) {
+    if (hasExistingDue && conflictStrategy !== 'OVERWRITE') {
       newDueAmount = Number((oldDueAmount + numAmount).toFixed(2));
       wasAccumulated = true;
       newDueDetails = `${oldDueDetails} + ${cleanReason} (₹${numAmount})`;

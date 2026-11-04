@@ -32,6 +32,12 @@ export interface ActionValidationItem {
 export interface ActionRequired {
   token: string;
   action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD' | 'BATCH_OPERATION';
+  operationType?: 'NEW_DUE' | 'MODIFY_DUE';
+  isModification?: boolean;
+  currentAmount?: number;
+  previousAmount?: number;
+  newAmount?: number;
+  difference?: number;
   studentId: string;
   studentName: string;
   usn: string;
@@ -50,6 +56,28 @@ export interface ActionRequired {
   validationResults?: ActionValidationItem[];
   authorizedOfficer?: string;
   emailNotificationWillQueue?: boolean;
+}
+
+export interface ConfirmActionResult {
+  success: boolean;
+  message: string;
+  completionReply: string;
+  action: string;
+  isModification?: boolean;
+  usn: string;
+  studentName: string;
+  labName?: string;
+  departmentName?: string;
+  dueReason?: string;
+  status?: string;
+  departmentStatus?: string;
+  overallNdcStatus?: string;
+  previousAmount?: number;
+  newAmount?: number;
+  dueAmount?: number;
+  clearance?: any;
+  notification?: any;
+  lifecycleStatus?: string;
 }
 
 export interface AssistantResponse {
@@ -373,7 +401,7 @@ export const aiService = {
   /**
    * Confirm and execute a staged mutation
    */
-  async confirmAssistantAction(token: string): Promise<any> {
+  async confirmAssistantAction(token: string): Promise<ConfirmActionResult> {
     const res = await api.post('/ai/assistant/confirm', { token });
     return res.data?.data;
   },

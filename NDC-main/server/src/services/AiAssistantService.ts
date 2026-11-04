@@ -32,6 +32,12 @@ export interface AssistantChatResponse {
   actionRequired?: {
     token: string;
     action: 'CLEAR_DUE' | 'MARK_DUE' | 'HOLD' | 'BATCH_OPERATION';
+    operationType?: 'NEW_DUE' | 'MODIFY_DUE';
+    isModification?: boolean;
+    currentAmount?: number;
+    previousAmount?: number;
+    newAmount?: number;
+    difference?: number;
     studentId: string;
     studentName: string;
     usn: string;
@@ -379,22 +385,35 @@ export class AiAssistantService {
         if (activeStagedToken) {
           await this.cancelAction(activeStagedToken.token, user.id, req.reqObj);
           return {
-            reply: `❌ **Action Cancelled**: The staged action for **${stagedPayload.studentName || 'the student'}** (\`${stagedPayload.usn}\`) has been cancelled.\n\nNo changes have been made to the live database.`,
+            reply: `The staged action has been cancelled. No changes were made to the database.`,
             actionRequired: null,
             suggestions: [`Show pending dues in ${department.name}`, `Show ${department.name} clearance summary`]
           };
         }
       }
 
-      if (modelIntent === 'EDIT_ACTION' && activeStagedToken) {
-        return this.handleEditStagedAction(
-          lastMessage,
-          activeStagedToken,
-          stagedPayload,
-          modelAmount,
-          department,
-          user
-        );
+      if (modelIntent === 'EDIT_ACTION') {
+        if (activeStagedToken) {
+          return this.handleEditStagedAction(
+            lastMessage,
+            activeStagedToken,
+            stagedPayload,
+            modelAmount,
+            department,
+            user
+          );
+        } else if (modelUsn) {
+          return this.handleOperationalMutation(
+            'MARK_DUE',
+            modelUsn,
+            modelAmount,
+            modelReason,
+            labName,
+            department,
+            user,
+            studentContext
+          );
+        }
       }
 
       if (modelIntent === 'ADD_DUE') {
@@ -650,7 +669,7 @@ export class AiAssistantService {
           officerUserId: userId,
           source: 'AI_ASSISTANT',
           sourceEntryId: confirmation.id,
-          conflictStrategy: 'ACCUMULATE',
+          conflictStrategy: payload.isModification ? 'OVERWRITE' : 'ACCUMULATE',
           reqObj
         });
         finalDueAmount = dueRes.newDueAmount;
@@ -731,29 +750,70 @@ export class AiAssistantService {
         ? 'Official email notification successfully queued for student delivery'
         : 'Notification queued';
 
-      const completionReply =
-        `### ✅ Action Executed and Verified in Live Records\n\n` +
-        `1. **Operation Succeeded**: Confirmed execution for **${confirmation.action === 'CLEAR_DUE' ? 'Clearance Approval (NO DUE)' : 'Due Creation'}**.\n` +
-        `2. **Affected Student & Clearance Desk**:\n` +
-        `   - Student: **${payload.studentName}** (\`${payload.usn}\`)\n` +
-        `   - Student's Academic Department: **${studentAcademicDept}**\n` +
-        `   - Target Clearance Desk: **${targetDeptLabel}**\n` +
-        `3. **Actual Amount Recorded**: **₹${verifiedRecord.dueAmount}** (Reason / Particulars: *"${verifiedRecord.dueDetails || payload.reason || 'Clearance Update'}"*).\n` +
-        `4. **Resulting Clearance Status**: **${verifiedRecord.status}** (Clearance record successfully updated and verified in database).\n` +
-        `5. **Overall NDC Request Status**: **${currentOverallNdcStatus}**${currentOverallNdcStatus === 'BLOCKED' ? ' (certificate issuance paused until all dues are cleared)' : ''}.\n` +
-        `6. **Audit & Notification Dispatch**: Recorded in high-priority institutional audit log. ${notifStatusText}.\n` +
-        `7. **Next Step**: Workflow complete. Student records and clearance ledger are up to date.`;
+      const isModification = Boolean(payload.isModification || (payload.previousAmount !== undefined && payload.previousAmount !== finalDueAmount));
+      const previousAmount = payload.previousAmount !== undefined ? payload.previousAmount : (payload.currentAmount !== undefined ? payload.currentAmount : 0);
+      const dueReason = verifiedRecord.dueDetails || payload.reason || 'Outstanding Due';
+
+      let completionReply = '';
+      if (confirmation.action === 'MARK_DUE') {
+        const overallBlockNote = currentOverallNdcStatus === 'BLOCKED'
+          ? 'The certificate remains blocked until the outstanding amount is cleared.'
+          : `The student's overall NDC status is ${currentOverallNdcStatus}.`;
+
+        if (isModification) {
+          completionReply =
+            `**Due Amount Updated Successfully!**\n\n` +
+            `The existing due amount has been updated successfully.\n\n` +
+            `- **Student**: ${payload.studentName}\n` +
+            `- **Department**: ${targetDeptLabel}\n` +
+            `- **Due Reason**: ${dueReason}\n` +
+            `- **Previous Amount**: ₹${previousAmount}\n` +
+            `- **New Amount**: ₹${finalDueAmount}\n` +
+            `- **Department Clearance Status**: ${verifiedRecord.status}\n` +
+            `- **Overall NDC Status**: ${currentOverallNdcStatus}\n\n` +
+            `${overallBlockNote}`;
+        } else {
+          completionReply =
+            `**Outstanding Due Added Successfully!**\n\n` +
+            `The new due has been recorded successfully.\n\n` +
+            `- **Student**: ${payload.studentName}\n` +
+            `- **Department**: ${targetDeptLabel}\n` +
+            `- **Due Reason**: ${dueReason}\n` +
+            `- **Recorded Amount**: ₹${finalDueAmount}\n` +
+            `- **Department Clearance Status**: ${verifiedRecord.status}\n` +
+            `- **Overall NDC Status**: ${currentOverallNdcStatus}\n\n` +
+            `${overallBlockNote}`;
+        }
+      } else {
+        completionReply =
+          `**Clearance Approved Successfully!\n\n` +
+          `The clearance for **${payload.studentName}** in **${targetDeptLabel}** has been approved as No Due.\n\n` +
+          `- **Student**: ${payload.studentName}\n` +
+          `- **Department**: ${targetDeptLabel}\n` +
+          `- **Department Clearance Status**: ${verifiedRecord.status}\n` +
+          `- **Overall NDC Status**: ${currentOverallNdcStatus}`;
+      }
 
       return {
         success: true,
-        message: `Successfully executed and verified ${confirmation.action === 'CLEAR_DUE' ? 'No Due clearance approval' : 'due creation'} for ${payload.studentName} (${payload.usn}).`,
+        message: isModification
+          ? `Due amount updated successfully for ${payload.studentName} (${payload.usn}).`
+          : confirmation.action === 'CLEAR_DUE'
+          ? `Clearance approved as No Due for ${payload.studentName} (${payload.usn}).`
+          : `Outstanding due added successfully for ${payload.studentName} (${payload.usn}).`,
         completionReply,
         action: confirmation.action,
+        isModification,
         usn: payload.usn,
         studentName: payload.studentName,
         labName: targetDeptLabel,
         departmentName: payload.departmentName || clearance.department?.name,
+        dueReason,
         status: targetStatus,
+        departmentStatus: verifiedRecord.status,
+        overallNdcStatus: currentOverallNdcStatus,
+        previousAmount: isModification ? previousAmount : undefined,
+        newAmount: finalDueAmount,
         dueAmount: finalDueAmount,
         clearance: verifiedRecord,
         notification: notificationResult,
@@ -917,18 +977,7 @@ export class AiAssistantService {
       { token: tokenString, action: confirmation.action, payload }
     );
 
-    const cancellationReply =
-      `### ❌ Staged Action Discarded\n\n` +
-      `1. **Understood**: Cancellation of staged ${confirmation.action === 'MARK_DUE' ? 'due creation' : 'clearance approval'} for student **${payload.studentName}** (\`${payload.usn}\`).\n` +
-      `2. **Student & Target Desk**:\n` +
-      `   - Student: **${payload.studentName}** (\`${payload.usn}\`)\n` +
-      `   - Student's Academic Department: **${cancelAcademicDept}**\n` +
-      `   - Target Clearance Desk: **${cancelDeptLabel}**\n` +
-      `3. **Backend Verification**: Staged token invalidated. Live clearance records in ${cancelDeptLabel} verified completely unchanged.\n` +
-      `4. **Action Executed**: Pending proposal safely discarded.\n` +
-      `5. **Outcome**: Live database records remain completely unchanged. Zero changes were made to student records or the institutional database.\n` +
-      `6. **Pending Confirmation**: None. The pending operation has been safely dismissed.\n` +
-      `7. **Next Step**: You can issue a new clearance request or review existing records.`;
+    const cancellationReply = `The staged action has been cancelled. No changes were made to the database.`;
 
     return {
       success: true,
@@ -1116,15 +1165,20 @@ export class AiAssistantService {
       { oldToken: tokenString, newToken: tokenStr, newAmount, newReason }
     );
 
+    const currentAmount = Number(payload.amount || 0);
+    const diff = newAmount - currentAmount;
+    const diffText = diff >= 0 ? `+₹${diff}` : `-₹${Math.abs(diff)}`;
+
     const editReply =
-      `### ✏️ Staged Action Updated\n\n` +
-      `1. **Understood**: Updated staged action for **${student.fullName}** (\`${student.usn}\`) in **${labName}**.\n` +
-      `2. **Record Verified**: **${student.fullName}** (\`${student.usn}\`).\n` +
-      `3. **Validation**: Old confirmation token superseded; new token staged. Zero database changes committed yet.\n` +
-      `4. **Proposed Action**: ${currentAction === 'MARK_DUE' ? `Record due of **₹${newAmount}** for *"${newReason}"*` : 'Set Clearance to **NO DUE**'}.\n` +
-      `5. **Expected Outcome**: ${consequences}\n` +
-      `6. **Pending Confirmation**: Consequential modification requires your explicit confirmation.\n` +
-      `7. **Next Step**: Click **Confirm & Save to Records** below to execute, or **Cancel** to abort.`;
+      `I found the existing ${newReason} due. Here is the requested change.\n\n` +
+      `**Update Due Amount**\n\n` +
+      `Student: ${student.fullName}\n` +
+      `Department: ${labName}\n\n` +
+      `Current Amount: ₹${currentAmount}\n` +
+      `New Amount: ₹${newAmount}\n` +
+      `Difference: ${diffText}\n\n` +
+      `Your change will update the outstanding amount. The NDC status will remain Blocked until the due is cleared.\n\n` +
+      `Should I save this change?`;
 
     return {
       success: true,
@@ -1132,6 +1186,12 @@ export class AiAssistantService {
       actionRequired: {
         token: tokenStr,
         action: currentAction,
+        operationType: 'MODIFY_DUE',
+        isModification: true,
+        currentAmount,
+        previousAmount: currentAmount,
+        newAmount,
+        difference: diff,
         studentId: student.id,
         studentName: student.fullName,
         usn: student.usn,
@@ -1176,8 +1236,11 @@ export class AiAssistantService {
     }
 
     const currentAction = activeStagedToken.action as 'MARK_DUE' | 'CLEAR_DUE';
-    const newAmount = extractedAmount !== null && extractedAmount > 0 ? extractedAmount : (stagedPayload.amount || 0);
+    const currentAmount = Number(stagedPayload.amount || 0);
+    const newAmount = extractedAmount !== null && extractedAmount > 0 ? extractedAmount : currentAmount;
     const newReason = this.extractEditedReason(text) || stagedPayload.reason || 'Apparatus / Lab Equipment Due';
+    const difference = newAmount - currentAmount;
+    const diffText = difference >= 0 ? `+₹${difference}` : `-₹${Math.abs(difference)}`;
 
     // Invalidate old token
     await this.invalidateActiveStagedTokens(user.id, null, 'Superseded by user edit');
@@ -1187,13 +1250,12 @@ export class AiAssistantService {
       include: { department: true }
     });
 
+    const studentName = updatedStudent?.fullName || stagedPayload.studentName || 'Student';
     const tokenStr = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const labName = stagedPayload.labName || department.name;
 
-    const consequences = currentAction === 'MARK_DUE'
-      ? `Recording an outstanding due of ₹${newAmount} for "${newReason}" will set ${updatedStudent?.fullName || stagedPayload.studentName}'s (${stagedPayload.usn}) status in ${labName} to DUE. Overall NDC status will become BLOCKED, and an official notification will be queued.`
-      : `Setting clearance to NO DUE will approve clearance as CLEARED with ₹0 dues. Overall NDC status will advance towards APPROVED.`;
+    const consequenceText = `Your change will update the outstanding amount. The NDC status will remain Blocked until the due is cleared.`;
 
     await prisma.aiConfirmationToken.create({
       data: {
@@ -1203,46 +1265,63 @@ export class AiAssistantService {
         studentId: activeStagedToken.studentId,
         clearanceId: activeStagedToken.clearanceId,
         payload: {
-          studentName: updatedStudent?.fullName || stagedPayload.studentName,
+          studentName,
           usn: stagedPayload.usn,
           amount: newAmount,
           reason: newReason,
           departmentId: stagedPayload.departmentId || department.id,
           departmentName: stagedPayload.departmentName || department.name,
           labName,
-          consequences
+          consequences: consequenceText,
+          isModification: true,
+          previousAmount: currentAmount,
+          currentAmount,
+          newAmount,
+          difference,
+          lifecycleStatus: 'STAGED'
         },
         expiresAt
       }
     });
 
+    const reply =
+      `I found the existing ${newReason} due. Here is the requested change.\n\n` +
+      `**Update Due Amount**\n\n` +
+      `Student: ${studentName}\n` +
+      `Department: ${labName}\n\n` +
+      `Current Amount: ₹${currentAmount}\n` +
+      `New Amount: ₹${newAmount}\n` +
+      `Difference: ${diffText}\n\n` +
+      `${consequenceText}\n\n` +
+      `Should I save this change?`;
+
     return {
-      reply: `I have updated the staged action for **${updatedStudent?.fullName || stagedPayload.studentName}** (\`${stagedPayload.usn}\`) in **${labName}**.\n\n` +
-        `The previous confirmation token has been invalidated. Please review the updated details below and confirm to apply to the live database:\n\n` +
-        `- **Student**: ${updatedStudent?.fullName || stagedPayload.studentName} (\`${stagedPayload.usn}\`)\n` +
-        `- **Target Laboratory**: ${labName}\n` +
-        `- **Operation**: ${currentAction === 'MARK_DUE' ? 'Add Outstanding Due' : 'Set Clearance to NO DUE'}\n` +
-        (currentAction === 'MARK_DUE' ? `- **Updated Due Amount**: ₹${newAmount}\n` : '') +
-        `- **Updated Apparatus / Reason**: ${newReason}\n\n` +
-        `⚠️ **Consequences**: ${consequences}\n\n` +
-        `*No changes have been committed to the live database yet. Please click Confirm below to execute.*`,
+      reply,
       actionRequired: {
         token: tokenStr,
         action: currentAction,
+        operationType: 'MODIFY_DUE',
+        isModification: true,
+        currentAmount,
+        previousAmount: currentAmount,
+        newAmount,
+        difference,
         studentId: activeStagedToken.studentId,
-        studentName: updatedStudent?.fullName || stagedPayload.studentName,
+        studentName,
         usn: stagedPayload.usn,
         clearanceId: activeStagedToken.clearanceId!,
         amount: newAmount,
         reason: newReason,
         labName,
         departmentName: stagedPayload.departmentName || department.name,
-        consequences,
-        expiresAt: expiresAt.toISOString()
+        consequences: consequenceText,
+        expiresAt: expiresAt.toISOString(),
+        status: 'STAGED',
+        lifecycleStatus: 'STAGED'
       },
       suggestions: [
-        `Cancel that`,
-        `Show me the pending details again`
+        `Confirm and Save`,
+        `Cancel that`
       ]
     };
   }
@@ -1267,14 +1346,7 @@ export class AiAssistantService {
     // 1. Validate USN presence
     if (!usn) {
       return {
-        reply: `### ⚠️ Missing Required Information\n\n` +
-          `1. **Understood**: Request to ${action === 'MARK_DUE' ? 'record an outstanding due' : 'clear clearance'} for a student.\n` +
-          `2. **Record Status**: No student USN was identified in your request or conversation history.\n` +
-          `3. **Validation**: A valid student USN (e.g., \`4MC24IS022\`) is strictly required to locate the student record and clearance profile.\n` +
-          `4. **Proposed Action**: Pending student identification.\n` +
-          `5. **Expected Outcome**: Awaiting target student.\n` +
-          `6. **Pending Information**: Student USN.\n` +
-          `7. **Next Step**: Please reply with the student's USN (e.g., \`4MC24IS022\`) to proceed.`,
+        reply: `Please provide the student's USN (e.g., \`4MC24IS022\`) so I can locate their clearance record.`,
         actionRequired: null,
         suggestions: [
           `Clear 4MC24IS022's ${department.name} clearance as No Due`,
@@ -1325,14 +1397,7 @@ export class AiAssistantService {
 
     if (!clearance) {
       return {
-        reply: `### ⚠️ Clearance Record Unavailable\n\n` +
-          `1. **Understood**: Request to ${action === 'MARK_DUE' ? 'record an outstanding due' : 'clear clearance'} for **${student.fullName}** (\`${student.usn}\`).\n` +
-          `2. **Record Found**: **${student.fullName}** (\`${student.usn}\`) — ${validation.studentAcademicDepartment}.\n` +
-          `3. **Validation**: Student does not have an active clearance workflow for **${department.name}**.\n` +
-          `4. **Action Executed**: No action staged.\n` +
-          `5. **Outcome**: Workflow not initialized.\n` +
-          `6. **Pending Requirement**: Institutional clearance request initialization.\n` +
-          `7. **Next Step**: Please initialize the student's NDC request before processing departmental clearance.`,
+        reply: `Could not find an active clearance record for **${student.fullName}** (\`${student.usn}\`) in **${department.name}**. Please ensure the student's NDC request is initialized before proceeding.`,
         actionRequired: null
       };
     }
@@ -1344,6 +1409,13 @@ export class AiAssistantService {
     if (action === 'MARK_DUE') {
       const tokenStr = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      const existingDueAmount = Number(clearance?.dueAmount || 0);
+      const isModification = existingDueAmount > 0 && existingDueAmount !== finalAmount;
+      const currentAmount = existingDueAmount;
+      const newAmount = finalAmount;
+      const difference = isModification ? (newAmount - currentAmount) : undefined;
+      const resolvedReason = (reason || '').trim() || clearance?.dueDetails || cleanReason;
 
       await prisma.aiConfirmationToken.create({
         data: {
@@ -1358,14 +1430,19 @@ export class AiAssistantService {
             studentAcademicDepartment: validation.studentAcademicDepartment,
             targetClearanceDesk: validation.targetClearanceDesk,
             amount: finalAmount,
-            reason: cleanReason,
+            reason: resolvedReason,
             departmentId: department.id,
             departmentName: department.name,
             labName: validation.targetClearanceDesk,
             consequences: validation.consequences,
             validationResults: validation.checks,
             authorizedOfficer: user.name || user.role,
-            lifecycleStatus: 'STAGED'
+            lifecycleStatus: 'STAGED',
+            isModification,
+            previousAmount: isModification ? currentAmount : undefined,
+            currentAmount: isModification ? currentAmount : undefined,
+            newAmount: isModification ? newAmount : finalAmount,
+            difference
           } as any,
           expiresAt
         }
@@ -1376,7 +1453,7 @@ export class AiAssistantService {
         department,
         clearance,
         amount: finalAmount,
-        reason: cleanReason,
+        reason: resolvedReason,
         consequences: validation.consequences,
         tokenStr,
         expiresAt,
@@ -1385,7 +1462,11 @@ export class AiAssistantService {
         targetClearanceDesk: validation.targetClearanceDesk,
         validationChecks: validation.checks,
         authorizedOfficer: user.name || user.role,
-        emailNotificationWillQueue: true
+        emailNotificationWillQueue: true,
+        isModification,
+        currentAmount,
+        newAmount,
+        difference
       });
     }
 
@@ -1487,14 +1568,7 @@ export class AiAssistantService {
   ): Promise<AssistantChatResponse> {
     if (!studentContext) {
       return {
-        reply: `### ❌ Student Not Found\n\n` +
-          `1. **Understood**: Record retrieval request for USN \`${usn}\`.\n` +
-          `2. **Record Status**: No student record found matching USN \`${usn}\` in the institutional database.\n` +
-          `3. **Validation**: Search returned 0 matching records.\n` +
-          `4. **Action Executed**: Record lookup completed with no matches.\n` +
-          `5. **Current State**: Unregistered / Not Found.\n` +
-          `6. **Pending Item**: Valid student USN.\n` +
-          `7. **Next Step**: Please verify the USN format (e.g. \`4MC24IS022\`) and retry.`,
+        reply: `No student record found matching USN \`${usn}\`. Please check the USN and try again.`,
         actionRequired: null,
         suggestions: [`Show all students with outstanding dues in ${department.name}`, `How many clearances are pending review in ${department.name}?`]
       };
@@ -1509,20 +1583,13 @@ export class AiAssistantService {
       const overallStatus = studentContext.clearance?.status || 'PENDING';
 
       return {
-        reply: `### 📋 Student Institutional Clearance Overview\n\n` +
-          `1. **Understood**: Institutional clearance overview requested for **${studentContext.name}** (\`${studentContext.usn}\`).\n` +
-          `2. **Record Found**: **${studentContext.name}** (\`${studentContext.usn}\`) — ${studentContext.academicBranch || 'N/A'}.\n` +
-          `3. **Validation Established**:\n` +
-          `   - **Overall NDC Status**: **${overallStatus}**\n` +
-          `   - **Total Institutional Dues**: **₹${totalDues}**\n` +
-          `   - **Clearance Breakdown Across Departments**:\n` +
+        reply: `### Student Clearance Overview\n\n` +
+          `**Student**: ${studentContext.name} (\`${studentContext.usn}\`) — ${studentContext.academicBranch || 'N/A'}\n\n` +
+          `**Overall NDC Status**: **${overallStatus}** | **Total Dues**: **₹${totalDues}**\n\n` +
           `| Department | Status | Due Amount | Details / Remarks |\n` +
           `| :--- | :--- | :--- | :--- |\n` +
           breakdownRows + `\n\n` +
-          `4. **Action Executed**: Institutional registry scanned and verified.\n` +
-          `5. **Current State**: ${overallStatus === 'APPROVED' ? '✅ Full Institutional Clearance Granted' : overallStatus === 'BLOCKED' ? '⚠️ Blocked Due to Outstanding Dues' : '⏳ In Progress / Pending Verification'}.\n` +
-          `6. **Pending Item**: ${totalDues > 0 ? `Settlement of ₹${totalDues} dues across departments` : overallStatus === 'APPROVED' ? 'None (Eligible for certificate)' : 'Pending departmental verifications'}.\n` +
-          `7. **Next Step**: Select any department to inspect desk-level details or resolve dues.`,
+          (totalDues > 0 ? `The NDC certificate is currently blocked until all outstanding dues are cleared.` : `All departmental clearances are in good standing.`),
         actionRequired: null,
         suggestions: [
           `Show institution-wide clearance summary`,
@@ -1539,39 +1606,25 @@ export class AiAssistantService {
     const reviewer = clearance?.reviewedBy || 'Unreviewed';
     const reviewedAt = clearance?.reviewedAt ? new Date(clearance.reviewedAt).toLocaleString() : 'N/A';
 
-    let validationDetails = '';
-    let nextStepInstruction = '';
-
+    let statusSummary = '';
     if (status === 'CLEARED' && dueAmount === 0) {
-      validationDetails = `Desk clearance is certified as **CLEARED** with **₹0** dues. Verified by ${reviewer} on ${reviewedAt}.`;
-      nextStepInstruction = `Student is in good standing with zero recorded dues for this department. No further action needed.`;
+      statusSummary = `Clearance is **CLEARED** with **₹0** dues (verified by ${reviewer} on ${reviewedAt}).`;
     } else if (status === 'PENDING' && dueAmount === 0) {
-      validationDetails = `Clearance is currently **PENDING** with **₹0 recorded dues**. Institutional policy distinguishes zero recorded dues from verified approval—clearance has not yet been certified.`;
-      nextStepInstruction = `To approve clearance as No Due, say **"clear it"** or click the suggested button below.`;
+      statusSummary = `Clearance is currently **PENDING** with ₹0 recorded dues.`;
     } else if (dueAmount > 0) {
-      validationDetails = `Student has an active **DUE** of **₹${dueAmount}** (*"${dueDetails}"*). Status is **DUE**.`;
-      nextStepInstruction = `To clear this due upon payment, say **"clear due"** or click below.`;
+      statusSummary = `Student has an active **DUE** of **₹${dueAmount}** (*"${dueDetails}"*).`;
     } else {
-      validationDetails = `Status is **${status}** with ₹${dueAmount} recorded dues.`;
-      nextStepInstruction = `Specify whether you wish to approve clearance or record a due.`;
+      statusSummary = `Clearance status is **${status}** with ₹${dueAmount} recorded dues.`;
     }
 
     return {
-      reply: `### 📋 Student Clearance Record\n\n` +
-        `1. **Understood**: Record retrieval and status verification for **${studentContext.name}** (\`${studentContext.usn}\`).\n` +
-        `2. **Record Found**:\n` +
-        `   - **Student Name**: **${studentContext.name}**\n` +
-        `   - **USN**: \`${studentContext.usn}\`\n` +
-        `   - **Academic Branch**: ${studentContext.academicBranch || 'N/A'}\n` +
-        `   - **Department Desk**: ${department.name} (\`${department.code}\`)\n` +
-        `3. **Validation Established**:\n` +
-        `   - ${validationDetails}\n` +
-        `   - **Reviewed By**: ${reviewer}\n` +
-        `   - **Reviewed At**: ${reviewedAt}\n` +
-        `4. **Action Executed**: Record retrieved and validated against live institutional database.\n` +
-        `5. **Current State**: ${status === 'CLEARED' ? '✅ Cleared (No Due)' : status === 'DUE' ? `⚠️ Outstanding Due (₹${dueAmount})` : '⏳ Pending Review'}\n` +
-        `6. **Pending Item**: ${status === 'CLEARED' ? 'None' : status === 'PENDING' ? 'Departmental Clearance Approval' : 'Due Settlement'}\n` +
-        `7. **Next Step**: ${nextStepInstruction}`,
+      reply: `### Student Clearance Details\n\n` +
+        `- **Student**: ${studentContext.name} (\`${studentContext.usn}\`)\n` +
+        `- **Academic Branch**: ${studentContext.academicBranch || 'N/A'}\n` +
+        `- **Department**: ${department.name}\n` +
+        `- **Clearance Status**: **${status}**\n` +
+        (dueAmount > 0 ? `- **Outstanding Amount**: **₹${dueAmount}** (*"${dueDetails}"*)\n` : `- **Recorded Dues**: ₹0\n`) +
+        `\n${statusSummary}`,
       actionRequired: null,
       suggestions: [
         ...(status !== 'CLEARED' ? [`Clear ${studentContext.usn}'s ${department.name} clearance as No Due`] : []),
@@ -2337,6 +2390,11 @@ CORE IDENTITY & COMMUNICATION PRINCIPLES:
 6. Ambiguity & Corrections:
    - If an instruction has multiple interpretations with materially different outcomes, ask a single focused clarification question.
    - When an officer corrects you (e.g. corrected USN or department), acknowledge immediately and adapt.
+7. Clean and Simple User-Facing Responses:
+   - Always communicate in simple, natural, and understandable language with short sentences and clean spacing.
+   - NEVER generate lengthy numbered validation checklists (e.g. '1. Understood', '2. Record Status', '3. Validation Established', '4. Proposed Action', '5. Expected Outcome', etc.).
+   - NEVER expose internal technical validation terminology to users (e.g. avoid 'Validation Established', 'Proposed Action', 'Expected Outcome', 'Officer Authority Verified').
+   - Keep replies concise, human, and directly helpful.
 
 ${domainInstructions}${knowledge}
 
