@@ -4,7 +4,8 @@ import { DepartmentClearanceStatus } from '../constants/statuses';
 import { UserRole } from '../constants/roles';
 import { NdcWorkflowService } from './NdcWorkflowService';
 import { AuditService } from './AuditService';
-import { GeminiService, GeminiMessage } from './GeminiService';
+import { GeminiMessage } from './GeminiService';
+import { HybridAIService } from './HybridAIService';
 import { DueManagementService } from './DueManagementService';
 import { departmentCache } from '../utils/departmentCache';
 import { NotificationQueueService } from './NotificationQueueService';
@@ -342,7 +343,7 @@ export class AiAssistantService {
     let parsed: any = null;
 
     try {
-      rawResponse = await GeminiService.generateChat({
+      rawResponse = await HybridAIService.generateChat({
         systemPrompt,
         messages: geminiMessages,
         temperature: 0.1,
