@@ -233,27 +233,31 @@ async function runDepartmentScopedAssistantTests() {
     // ─────────────────────────────────────────────────────────────
     console.log('\n--- TEST SUITE 4: Chat History & Department Isolation ---');
 
-    const testUserId = 'test-isolation-user-' + Date.now();
+    const testRunId = `test_run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const testUserId = `test-isolation-${testRunId}`;
+    const createdLogIds: string[] = [];
 
     // Create a message in PHY
-    await (prisma as any).aiConversationLog.create({
+    const phyLog = await (prisma as any).aiConversationLog.create({
       data: {
         userId: testUserId,
         departmentCode: 'PHY',
         role: 'user',
-        content: 'Check physics sonometer wire dues for USN 4MC24IS001'
+        content: `Check physics sonometer wire dues for USN 4MC24IS001 [${testRunId}]`
       }
     });
+    if (phyLog?.id) createdLogIds.push(phyLog.id);
 
     // Create a message in LIB
-    await (prisma as any).aiConversationLog.create({
+    const libLog = await (prisma as any).aiConversationLog.create({
       data: {
         userId: testUserId,
         departmentCode: 'LIB',
         role: 'user',
-        content: 'Check library overdue book fine for USN 4MC24IS001'
+        content: `Check library overdue book fine for USN 4MC24IS001 [${testRunId}]`
       }
     });
+    if (libLog?.id) createdLogIds.push(libLog.id);
 
     // Query history for PHY
     const phyLogs = await (prisma as any).aiConversationLog.findMany({
@@ -273,11 +277,13 @@ async function runDepartmentScopedAssistantTests() {
       'LIB conversation log is isolated and contains only Library messages'
     );
 
-    // Clean up test logs
-    await (prisma as any).aiConversationLog.deleteMany({
-      where: { userId: testUserId }
-    });
-    assert(true, 'Test conversation logs cleaned up successfully');
+    // Clean up test logs strictly by primary key IDs created during this test run
+    if (createdLogIds.length > 0) {
+      await (prisma as any).aiConversationLog.deleteMany({
+        where: { id: { in: createdLogIds }, userId: testUserId }
+      });
+    }
+    assert(true, 'Test conversation logs cleaned up strictly by primary key ID created in test run');
 
     // ─────────────────────────────────────────────────────────────
     // TEST SUITE 5: Frontend UI Verification - Dropdown Removed
