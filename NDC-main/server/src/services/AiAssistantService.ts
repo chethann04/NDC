@@ -4,7 +4,8 @@ import { DepartmentClearanceStatus } from '../constants/statuses';
 import { UserRole } from '../constants/roles';
 import { NdcWorkflowService } from './NdcWorkflowService';
 import { AuditService } from './AuditService';
-import { GeminiService, GeminiMessage } from './GeminiService';
+import { GeminiMessage } from './GeminiService';
+import { HybridAIService } from './HybridAIService';
 import { DueManagementService } from './DueManagementService';
 import { departmentCache } from '../utils/departmentCache';
 import { NotificationQueueService } from './NotificationQueueService';
@@ -14,6 +15,7 @@ import { AgentToolExecutionService } from './ai/AgentToolExecutionService';
 import { ContextResolutionService } from './ai/ContextResolutionService';
 import { WorkflowStateMachine, WorkflowState, AssistantWorkflowIntent } from './ai/WorkflowStateMachine';
 import { DepartmentValidationService } from './ai/DepartmentValidationService';
+import { TokenSecurityService } from './ai/TokenSecurityService';
 
 export interface AssistantChatRequest {
   user: {
@@ -342,7 +344,7 @@ export class AiAssistantService {
     let parsed: any = null;
 
     try {
-      rawResponse = await GeminiService.generateChat({
+      rawResponse = await HybridAIService.generateChat({
         systemPrompt,
         messages: geminiMessages,
         temperature: 0.1,
@@ -492,10 +494,11 @@ export class AiAssistantService {
     }
   ): Promise<any> {
     // 1. Atomic Concurrency & Replay Protection:
-    // Update token to consumed atomically. Only the first concurrent caller will get count === 1.
+    // Update token to consumed atomically using SHA-256 tokenHash. Only the first concurrent caller will get count === 1.
+    const tokenHash = TokenSecurityService.hashToken(tokenString);
     const updateResult = await prisma.aiConfirmationToken.updateMany({
       where: {
-        token: tokenString,
+        tokenHash,
         consumed: false,
         expiresAt: { gt: new Date() }
       },
@@ -506,8 +509,8 @@ export class AiAssistantService {
     });
 
     if (updateResult.count === 0) {
-      const existing = await prisma.aiConfirmationToken.findUnique({
-        where: { token: tokenString }
+      const existing = await prisma.aiConfirmationToken.findFirst({
+        where: { tokenHash }
       });
 
       if (!existing) {
@@ -530,8 +533,8 @@ export class AiAssistantService {
       throw new Error('Confirmation token is not available for execution.');
     }
 
-    const confirmation = await prisma.aiConfirmationToken.findUnique({
-      where: { token: tokenString }
+    const confirmation = await prisma.aiConfirmationToken.findFirst({
+      where: { tokenHash }
     });
 
     if (!confirmation) {
@@ -542,7 +545,7 @@ export class AiAssistantService {
     if (confirmation.userId !== userId) {
       // Revert the consumption since user account didn't match
       await prisma.aiConfirmationToken.update({
-        where: { token: tokenString },
+        where: { id: confirmation.id },
         data: { consumed: false, consumedAt: null }
       });
       throw new Error('Unauthorized: This confirmation token was generated for a different officer account.');
@@ -662,6 +665,7 @@ export class AiAssistantService {
       let notificationResult: any = null;
 
       if (confirmation.action === 'MARK_DUE') {
+        const dueInstanceId = payload.dueInstanceId || `ai_due_${confirmation.id}`;
         const dueRes = await DueManagementService.recordClearanceDue({
           clearanceId: confirmation.clearanceId,
           amount: dueAmount,
@@ -669,6 +673,7 @@ export class AiAssistantService {
           officerUserId: userId,
           source: 'AI_ASSISTANT',
           sourceEntryId: confirmation.id,
+          idempotencyKey: dueInstanceId,
           conflictStrategy: payload.isModification ? 'OVERWRITE' : 'ACCUMULATE',
           reqObj
         });
@@ -683,6 +688,12 @@ export class AiAssistantService {
           throw new Error(`Database verification failed: Due record not found or amount mismatch. Expected ₹${finalDueAmount}, found ₹${verifiedRecord?.dueAmount}.`);
         }
       } else {
+        if (confirmation.action === 'CLEAR_DUE') {
+          if (clearance.status === (DepartmentClearanceStatus.CLEARED as any) && Number(clearance.dueAmount || 0) === 0) {
+            throw new Error(`Clearance Already Completed: ${student.fullName} (${payload.usn}) already has No Due under ${payload.departmentName || clearance.department?.name || 'this department'}.`);
+          }
+        }
+
         await NdcWorkflowService.processClearanceChange(
           confirmation.clearanceId,
           targetStatus,
@@ -716,7 +727,7 @@ export class AiAssistantService {
 
       // Mark token payload as EXECUTED in database
       await prisma.aiConfirmationToken.update({
-        where: { token: tokenString },
+        where: { id: confirmation.id },
         data: {
           payload: {
             ...payload,
@@ -822,7 +833,7 @@ export class AiAssistantService {
     } catch (execErr: any) {
       try {
         await prisma.aiConfirmationToken.update({
-          where: { token: tokenString },
+          where: { id: confirmation.id },
           data: {
             payload: {
               ...payload,
@@ -847,11 +858,12 @@ export class AiAssistantService {
       throw new Error('Confirmation token string is required.');
     }
 
-    // 1. Atomic transition from STAGED to CANCELLED:
+    // 1. Atomic transition from STAGED to CANCELLED using SHA-256 tokenHash:
     // Only the first concurrent caller will get count === 1.
+    const tokenHash = TokenSecurityService.hashToken(tokenString);
     const updateResult = await prisma.aiConfirmationToken.updateMany({
       where: {
-        token: tokenString,
+        tokenHash,
         consumed: false,
         expiresAt: { gt: new Date() }
       },
@@ -862,8 +874,8 @@ export class AiAssistantService {
     });
 
     if (updateResult.count === 0) {
-      const existing = await prisma.aiConfirmationToken.findUnique({
-        where: { token: tokenString }
+      const existing = await prisma.aiConfirmationToken.findFirst({
+        where: { tokenHash }
       });
 
       if (!existing) {
@@ -932,8 +944,8 @@ export class AiAssistantService {
       throw new Error('Confirmation token is not available for cancellation.');
     }
 
-    const confirmation = await prisma.aiConfirmationToken.findUnique({
-      where: { token: tokenString }
+    const confirmation = await prisma.aiConfirmationToken.findFirst({
+      where: { tokenHash }
     });
 
     if (!confirmation) {
@@ -943,7 +955,7 @@ export class AiAssistantService {
     if (confirmation.userId !== userId) {
       // Revert consumption since user didn't match
       await prisma.aiConfirmationToken.update({
-        where: { token: tokenString },
+        where: { id: confirmation.id },
         data: { consumed: false, consumedAt: null }
       });
       throw new Error('Unauthorized: This confirmation token belongs to a different officer account.');
@@ -952,7 +964,7 @@ export class AiAssistantService {
     const payload = (confirmation.payload as any) || {};
 
     await prisma.aiConfirmationToken.update({
-      where: { token: tokenString },
+      where: { id: confirmation.id },
       data: {
         payload: {
           ...payload,
@@ -1041,8 +1053,14 @@ export class AiAssistantService {
     updates: { amount?: number; reason?: string; usn?: string },
     reqObj?: any
   ): Promise<any> {
-    const confirmation = await prisma.aiConfirmationToken.findUnique({
-      where: { token: tokenString }
+    const tokenHash = TokenSecurityService.hashToken(tokenString);
+    const confirmation = await prisma.aiConfirmationToken.findFirst({
+      where: {
+        OR: [
+          { tokenHash },
+          { token: tokenString }
+        ]
+      }
     });
 
     if (!confirmation) {
@@ -1130,12 +1148,13 @@ export class AiAssistantService {
       ? `Recording an outstanding due of ₹${newAmount} for "${newReason}" will set ${student.fullName}'s (${student.usn}) status in ${labName} to DUE. Overall NDC status will become BLOCKED, and an official notification will be queued.`
       : `Setting clearance to NO DUE will approve clearance as CLEARED with ₹0 dues. Overall NDC status will advance towards APPROVED.`;
 
-    const tokenStr = crypto.randomBytes(32).toString('hex');
+    const { rawToken: tokenStr, tokenHash } = TokenSecurityService.generateToken();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await prisma.aiConfirmationToken.create({
       data: {
         token: tokenStr,
+        tokenHash,
         userId,
         action: currentAction,
         studentId: student.id,
@@ -1243,7 +1262,7 @@ export class AiAssistantService {
     const diffText = difference >= 0 ? `+₹${difference}` : `-₹${Math.abs(difference)}`;
 
     // Invalidate old token
-    await this.invalidateActiveStagedTokens(user.id, null, 'Superseded by user edit');
+    await this.invalidateActiveStagedTokens(user.id, activeStagedToken.clearanceId, 'Superseded by user edit');
 
     const updatedStudent = await prisma.student.findUnique({
       where: { id: activeStagedToken.studentId },
@@ -1251,7 +1270,7 @@ export class AiAssistantService {
     });
 
     const studentName = updatedStudent?.fullName || stagedPayload.studentName || 'Student';
-    const tokenStr = crypto.randomBytes(32).toString('hex');
+    const { rawToken: tokenStr, tokenHash } = TokenSecurityService.generateToken();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const labName = stagedPayload.labName || department.name;
 
@@ -1260,6 +1279,7 @@ export class AiAssistantService {
     await prisma.aiConfirmationToken.create({
       data: {
         token: tokenStr,
+        tokenHash,
         userId: user.id,
         action: currentAction,
         studentId: activeStagedToken.studentId,
@@ -1407,8 +1427,9 @@ export class AiAssistantService {
 
     // 3. Staging: Action Staged into Secure Token — ZERO DATABASE MUTATION YET
     if (action === 'MARK_DUE') {
-      const tokenStr = crypto.randomBytes(32).toString('hex');
+      const { rawToken: tokenStr, tokenHash } = TokenSecurityService.generateToken();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const dueInstanceId = `due_${clearance.id}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
       const existingDueAmount = Number(clearance?.dueAmount || 0);
       const isModification = existingDueAmount > 0 && existingDueAmount !== finalAmount;
@@ -1420,11 +1441,14 @@ export class AiAssistantService {
       await prisma.aiConfirmationToken.create({
         data: {
           token: tokenStr,
+          tokenHash,
           userId: user.id,
           action: 'MARK_DUE',
           studentId: student.id,
           clearanceId: clearance.id,
+          dueInstanceId,
           payload: {
+            dueInstanceId,
             studentName: student.fullName,
             usn: student.usn,
             studentAcademicDepartment: validation.studentAcademicDepartment,
@@ -1482,18 +1506,25 @@ export class AiAssistantService {
       });
     }
 
-    const tokenStr = crypto.randomBytes(32).toString('hex');
+    const { rawToken: tokenStr, tokenHash } = TokenSecurityService.generateToken();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const approvalReason = reason || 'Clearance verified and approved as No Due';
+    const targetDueInstanceId = `due_${clearance.id}_${clearance.updatedAt.getTime()}`;
 
     await prisma.aiConfirmationToken.create({
       data: {
         token: tokenStr,
+        tokenHash,
         userId: user.id,
         action: 'CLEAR_DUE',
         studentId: student.id,
         clearanceId: clearance.id,
+        dueInstanceId: targetDueInstanceId,
         payload: {
+          dueInstanceId: targetDueInstanceId,
+          clearanceUpdatedAt: clearance.updatedAt.toISOString(),
+          currentDueAmount,
+          currentDueDetails: clearance.dueDetails || '',
           studentName: student.fullName,
           usn: student.usn,
           studentAcademicDepartment: validation.studentAcademicDepartment,

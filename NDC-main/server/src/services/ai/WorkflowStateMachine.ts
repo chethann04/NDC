@@ -116,8 +116,21 @@ export class WorkflowStateMachine {
       const modelContent = messages[lastModelIndex].content;
       const lowerModel = modelContent.toLowerCase();
 
+    // Check if the last model turn was a completion or final outcome message
+    const isCompletedTurn =
+      lowerModel.includes('approved successfully') ||
+      lowerModel.includes('added successfully') ||
+      lowerModel.includes('updated successfully') ||
+      lowerModel.includes('action cancelled') ||
+      lowerModel.includes('action was cancelled') ||
+      lowerModel.includes('clearance already completed') ||
+      lowerModel.includes('no changes have been made') ||
+      lowerModel.includes('live records remain completely unchanged') ||
+      lowerModel.includes('live records were updated');
+
+    let priorUserTurn = '';
+    if (!isCompletedTurn) {
       // Find the user turn that triggered this model message
-      let priorUserTurn = '';
       for (let j = lastModelIndex - 1; j >= 0; j--) {
         if (messages[j].role === 'user') {
           priorUserTurn = messages[j].content;
@@ -171,6 +184,7 @@ export class WorkflowStateMachine {
         previousPendingField = 'CONFIRMATION';
       }
     }
+  }
 
     // 4. Determine Intent and Workflow State Transitions
     // A. Check for cancellation
@@ -207,7 +221,12 @@ export class WorkflowStateMachine {
       (previousPendingField === 'USN' || pendingIntent === 'CLEAR_DUE' || pendingIntent === 'MARK_DUE') &&
       !this.hasLookupSignal(lastMessage)
     ) {
-      const targetIntent = pendingIntent || (this.hasClearDueSignal(lastMessage) ? 'CLEAR_DUE' : this.hasAddDueSignal(lastMessage) ? 'MARK_DUE' : 'CLEAR_DUE');
+      // Prioritize explicit action signal in current message if present
+      const targetIntent = this.hasClearDueSignal(lastMessage)
+        ? 'CLEAR_DUE'
+        : this.hasAddDueSignal(lastMessage)
+        ? 'MARK_DUE'
+        : (pendingIntent || 'CLEAR_DUE');
       return {
         state: WorkflowState.RECORD_RETRIEVED,
         intent: targetIntent,

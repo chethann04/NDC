@@ -145,9 +145,10 @@ export class CertificateService {
       }
 
       if (activeCert.pdfPath) {
-        const existingPdfFullPath = path.isAbsolute(activeCert.pdfPath)
+        const cleanRelative = activeCert.pdfPath.replace(/^[\\\/]+/, '');
+        const existingPdfFullPath = /^[a-zA-Z]:[\\\/]/.test(activeCert.pdfPath)
           ? activeCert.pdfPath
-          : path.resolve(process.cwd(), activeCert.pdfPath.replace(/^\//, ''));
+          : path.resolve(process.cwd(), cleanRelative);
 
         // Always ensure PDF exists and has latest clearance approval timestamps
         await PdfService.generateCertificatePdf(

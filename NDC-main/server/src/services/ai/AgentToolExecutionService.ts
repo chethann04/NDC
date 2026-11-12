@@ -7,6 +7,7 @@ import { AuditService } from '../AuditService';
 import { DueManagementService } from '../DueManagementService';
 import { NotificationQueueService } from '../NotificationQueueService';
 import { ExtractedActionItem } from './MultiActionExtractionService';
+import { TokenSecurityService } from './TokenSecurityService';
 
 export interface AuthorizeResult {
   authorized: boolean;
@@ -117,11 +118,11 @@ export class AgentToolExecutionService {
       throw new Error('Cannot stage an empty action list.');
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const { rawToken, tokenHash } = TokenSecurityService.generateToken();
     const expiresAt = new Date(Date.now() + this.TOKEN_EXPIRY_MINUTES * 60 * 1000);
 
     const payload: StagedTokenPayload = {
-      token,
+      token: rawToken,
       departmentId: department.id,
       departmentCode: department.code,
       departmentName: department.name,
@@ -131,10 +132,12 @@ export class AgentToolExecutionService {
       lifecycleStatus: 'STAGED' as any
     };
 
-    // Invalidate any existing unconsumed tokens for this user to avoid stale overlaps
+    // Scoped Invalidation: Invalidate previous pending tokens for ONLY the targeted clearances of this user
+    const targetClearanceIds = actions.map((a) => a.clearanceId).filter(Boolean);
     const existingTokens = await prisma.aiConfirmationToken.findMany({
       where: {
         userId,
+        clearanceId: { in: targetClearanceIds },
         consumed: false
       }
     });
@@ -151,16 +154,17 @@ export class AgentToolExecutionService {
             lifecycleStatus: 'SUPERSEDED',
             cancelled: true,
             cancelledAt: new Date().toISOString(),
-            cancellationReason: 'Superseded by new staged action'
+            cancellationReason: 'Superseded by new staged action on same clearance'
           }
         }
       });
     }
 
-    // Save token with full batch payload
+    // Save token with SHA-256 tokenHash
     await prisma.aiConfirmationToken.create({
       data: {
-        token,
+        token: rawToken,
+        tokenHash,
         userId,
         action: actions.length === 1 ? actions[0].action : 'BATCH_OPERATION',
         studentId: actions[0].studentId,
@@ -186,8 +190,9 @@ export class AgentToolExecutionService {
     reqObj?: any,
     alreadyConsumed = false
   ): Promise<ExecuteBatchResult> {
-    const tokenRecord = await prisma.aiConfirmationToken.findUnique({
-      where: { token: tokenString }
+    const tokenHash = TokenSecurityService.hashToken(tokenString);
+    const tokenRecord = await prisma.aiConfirmationToken.findFirst({
+      where: { tokenHash }
     });
 
     if (!tokenRecord) {
@@ -298,12 +303,14 @@ export class AgentToolExecutionService {
         if (act.action === 'MARK_DUE') {
           // Record due in database using canonical DueManagementService
           const dueAmount = act.amount && act.amount > 0 ? act.amount : 0;
+          const dueInstanceId = `due_${act.clearanceId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
           await DueManagementService.recordClearanceDue({
             clearanceId: act.clearanceId,
             amount: dueAmount,
             reason: act.reason,
             officerUserId: confirmingUserId,
             source: 'AI_ASSISTANT',
+            idempotencyKey: dueInstanceId,
             reqObj
           });
 
@@ -317,6 +324,21 @@ export class AgentToolExecutionService {
           });
           executedCount++;
         } else if (act.action === 'CLEAR_DUE') {
+          const liveClearance = await prisma.ndcClearance.findUnique({
+            where: { id: act.clearanceId }
+          });
+          if (liveClearance && liveClearance.status === (DepartmentClearanceStatus.CLEARED as any) && Number(liveClearance.dueAmount || 0) === 0) {
+            results.push({
+              usn: act.usn,
+              studentName: act.studentName,
+              action: 'CLEAR_DUE',
+              amount: 0,
+              status: 'ALREADY_CLEARED',
+              clearanceId: act.clearanceId
+            });
+            executedCount++;
+            continue;
+          }
           // Clear clearance using canonical NdcWorkflowService
           await NdcWorkflowService.processClearanceChange(
             act.clearanceId,
@@ -416,8 +438,9 @@ export class AgentToolExecutionService {
    * Cancels a staged token safely without any database changes
    */
   public static async cancelToken(tokenString: string, userId: string): Promise<boolean> {
-    const tokenRecord = await prisma.aiConfirmationToken.findUnique({
-      where: { token: tokenString }
+    const tokenHash = TokenSecurityService.hashToken(tokenString);
+    const tokenRecord = await prisma.aiConfirmationToken.findFirst({
+      where: { tokenHash }
     });
 
     if (!tokenRecord) {

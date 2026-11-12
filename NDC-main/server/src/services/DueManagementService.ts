@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import prisma from '../config/prisma';
 import { DepartmentClearanceStatus, NdcRequestStatus } from '../constants/statuses';
 import { UserRole } from '../constants/roles';
@@ -40,6 +41,7 @@ export interface DueApplicationResult {
   overallNdcStatus: NdcRequestStatus | string;
   reviewedAt: Date;
   idempotencyKey?: string;
+  dueInstanceId?: string;
   notification?: NotificationJobData | null;
 }
 
@@ -208,7 +210,8 @@ export class DueManagementService {
       ? `${clearance.department.name} - ${clearance.lab.name}`
       : clearance.department.name;
 
-    const remarks = `Due of ₹${numAmount} recorded via ${source}: ${cleanReason}${
+    const dueInstanceId = idempotencyKey || `due_${clearanceId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const remarks = `Due [${dueInstanceId}] of ₹${numAmount} recorded via ${source}: ${cleanReason}${
       wasAccumulated ? ` [Total accumulated: ₹${newDueAmount}]` : ''
     }`;
 
@@ -240,7 +243,7 @@ export class DueManagementService {
         remarks,
         clearanceId,
         { status: oldStatus, dueAmount: oldDueAmount, dueDetails: oldDueDetails },
-        { status: DepartmentClearanceStatus.DUE, dueAmount: newDueAmount, dueDetails: newDueDetails, source, sourceEntryId, idempotencyKey }
+        { status: DepartmentClearanceStatus.DUE, dueAmount: newDueAmount, dueDetails: newDueDetails, source, sourceEntryId, idempotencyKey, dueInstanceId }
       );
 
       return updated;
@@ -347,6 +350,7 @@ export class DueManagementService {
       overallNdcStatus: verified.ndcRequest.status,
       reviewedAt: verified.reviewedAt || new Date(),
       idempotencyKey,
+      dueInstanceId,
       notification: notificationResult
     };
   }
