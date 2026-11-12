@@ -66,6 +66,7 @@ model User {
   notifications       Notification[]
   auditLogs           AuditLog[]
   initiatedJobs       BackgroundJob[]     @relation("InitiatedJobs")
+  agentTasks          AiAgentTask[]
 
   @@index([loginId])
   @@index([departmentId])
@@ -506,11 +507,25 @@ model AiConfirmationToken {
   expiresAt          DateTime
   consumed           Boolean  @default(false)
   consumedAt         DateTime?
+  tokenHash          String?
+  taskId             String?
+  stepId             String?
+  dueInstanceId      String?
+  fencingToken       Int?
   createdAt          DateTime @default(now())
 
+  task               AiAgentTask?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskSteps          AiAgentTaskStep[]
+
   @@index([token])
+  @@index([tokenHash])
   @@index([userId, consumed])
+  @@index([userId, clearanceId, consumed])
   @@index([expiresAt])
+  @@index([taskId])
+  @@index([stepId])
+  @@index([dueInstanceId])
+  @@index([clearanceId, dueInstanceId])
   @@map("ai_confirmation_tokens")
 }
 
@@ -526,5 +541,92 @@ model AiConversationLog {
 
   @@index([userId, departmentCode, createdAt])
   @@map("ai_conversation_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AGENTIC AI BRAIN TASK EXECUTION MODELS
+// ═══════════════════════════════════════════════════════════════
+
+enum AgentTaskStatus {
+  QUEUED
+  PLANNING
+  RUNNING
+  WAITING_CONFIRMATION
+  RESUMING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentStepStatus {
+  PENDING
+  EXECUTING
+  COMPLETED
+  FAILED
+  SKIPPED
+  WAITING_CONFIRMATION
+}
+
+enum AgentToolType {
+  READ_ONLY
+  STAGED_MUTATION
+}
+
+model AiAgentTask {
+  id                 String           @id @default(uuid())
+  idempotencyKey     String           @unique
+  userId             String
+  departmentCode     String
+  targetEntityId     String?
+  goal               String           @db.Text
+  status             AgentTaskStatus  @default(QUEUED)
+  currentStepIndex   Int              @default(0)
+  maxSteps           Int              @default(10)
+  fencingToken       Int              @default(1)
+  lockedAt           DateTime?
+  lockedBy           String?
+  leaseExpiresAt     DateTime?
+  summary            String?          @db.Text
+  error              String?          @db.Text
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps              AiAgentTaskStep[]
+  confirmationTokens AiConfirmationToken[]
+
+  @@index([userId, status])
+  @@index([status, leaseExpiresAt])
+  @@index([departmentCode, createdAt])
+  @@index([targetEntityId])
+  @@map("ai_agent_tasks")
+}
+
+model AiAgentTaskStep {
+  id                    String               @id @default(uuid())
+  taskId                String
+  stepIndex             Int
+  toolName              String
+  toolType              AgentToolType
+  validatedArguments    Json
+  status                AgentStepStatus      @default(PENDING)
+  operationalSummary    String?              @db.Text
+  sanitizedResult       Json?
+  confirmationTokenId   String?
+  errorCode             String?
+  errorMessage          String?              @db.Text
+  durationMs            Int?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  task                  AiAgentTask          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  confirmationToken     AiConfirmationToken? @relation(fields: [confirmationTokenId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, stepIndex])
+  @@index([taskId, status])
+  @@index([confirmationTokenId])
+  @@map("ai_agent_task_steps")
 }
 

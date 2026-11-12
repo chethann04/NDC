@@ -461,9 +461,10 @@ export class CertificateController {
       const department = student?.department;
 
       const pdfPathStr = certificate.pdfPath || `uploads/certificates/NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
-      let fullPath = path.isAbsolute(pdfPathStr)
+      const cleanRelative = pdfPathStr.replace(/^[\\\/]+/, '');
+      let fullPath = /^[a-zA-Z]:[\\\/]/.test(pdfPathStr)
         ? pdfPathStr
-        : path.resolve(process.cwd(), pdfPathStr.replace(/^\//, ''));
+        : path.resolve(process.cwd(), cleanRelative);
 
       let reqId = certificate.ndcRequestId;
       if (!reqId && student?.id) {

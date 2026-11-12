@@ -27,7 +27,13 @@ export class PdfService {
     },
     outputPath: string
   ): Promise<string> {
-    const dir = path.dirname(outputPath);
+    // Ensure outputPath resolves safely within project working directory on all operating systems
+    const cleanRelative = outputPath.replace(/^[\\\/]+/, '');
+    const resolvedOutputPath = /^[a-zA-Z]:[\\\/]/.test(outputPath)
+      ? outputPath
+      : path.resolve(process.cwd(), cleanRelative);
+
+    const dir = path.dirname(resolvedOutputPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -62,15 +68,15 @@ export class PdfService {
     const safeCertNo = String(certificateData.certificateNumber || 'CERTIFICATE').trim();
 
     return new Promise((resolve, reject) => {
-      const stream = fs.createWriteStream(outputPath);
+      const stream = fs.createWriteStream(resolvedOutputPath);
 
       stream.on('finish', () => {
-        resolve(outputPath);
+        resolve(resolvedOutputPath);
       });
 
       stream.on('error', (err) => {
         try {
-          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+          if (fs.existsSync(resolvedOutputPath)) fs.unlinkSync(resolvedOutputPath);
         } catch {}
         reject(err);
       });
@@ -495,7 +501,7 @@ export class PdfService {
         doc.end();
       } catch (err) {
         try {
-          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+          if (fs.existsSync(resolvedOutputPath)) fs.unlinkSync(resolvedOutputPath);
         } catch {}
         reject(err);
       }
