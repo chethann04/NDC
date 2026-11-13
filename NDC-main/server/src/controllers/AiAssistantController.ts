@@ -538,4 +538,149 @@ export class AiAssistantController {
       });
     }
   }
+
+  /**
+   * Create and trigger an agentic task
+   */
+  public static async createTask(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { goal, departmentCode, targetEntityId, idempotencyKey, maxSteps } = req.body;
+      if (!goal || typeof goal !== 'string') {
+        res.status(400).json({ success: false, message: 'goal is required and must be a string.' });
+        return;
+      }
+
+      const effectiveDept = departmentCode || user.department?.code;
+      if (!effectiveDept) {
+        res.status(400).json({ success: false, message: 'departmentCode is required.' });
+        return;
+      }
+
+      const { AgentTaskRunner } = await import('../services/ai/AgentTaskRunner');
+      const { AgentBrainOrchestrator } = await import('../services/ai/AgentBrainOrchestrator');
+
+      const task = await AgentTaskRunner.createTask({
+        goal,
+        userId: user.id || user._id,
+        departmentCode: effectiveDept,
+        targetEntityId,
+        idempotencyKey,
+        maxSteps: maxSteps ? Number(maxSteps) : 10
+      });
+
+      // Run orchestrator
+      const runResult = await AgentBrainOrchestrator.runTask({
+        taskId: task.id,
+        ipAddress: req.ip
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          task: runResult.task,
+          status: runResult.status,
+          waitingConfirmation: runResult.waitingConfirmation || false,
+          token: runResult.token || null,
+          summary: runResult.summary || null
+        }
+      });
+    } catch (err: any) {
+      console.error('[AiAssistantController] createTask error:', err);
+      res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to execute agent task.'
+      });
+    }
+  }
+
+  /**
+   * Get task details and progress steps
+   */
+  public static async getTask(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { taskId } = req.params;
+      const task = await prisma.aiAgentTask.findUnique({
+        where: { id: taskId },
+        include: {
+          steps: { orderBy: { stepIndex: 'asc' } }
+        }
+      });
+
+      if (!task) {
+        res.status(404).json({ success: false, message: 'Task not found.' });
+        return;
+      }
+
+      // Department & user scoping
+      if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+        if (task.userId !== (user.id || user._id)) {
+          res.status(403).json({ success: false, message: 'Access denied: task belongs to another officer.' });
+          return;
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        data: task
+      });
+    } catch (err: any) {
+      console.error('[AiAssistantController] getTask error:', err);
+      res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to retrieve task.'
+      });
+    }
+  }
+
+  /**
+   * Resume task after user confirmation
+   */
+  public static async resumeTask(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { taskId } = req.params;
+      const { token } = req.body;
+
+      if (!token) {
+        res.status(400).json({ success: false, message: 'Confirmation token is required to resume task.' });
+        return;
+      }
+
+      const { AgentBrainOrchestrator } = await import('../services/ai/AgentBrainOrchestrator');
+      const resumeResult = await AgentBrainOrchestrator.resumeConfirmedTask(
+        taskId,
+        token,
+        user.id || user._id,
+        req
+      );
+
+      res.status(200).json({
+        success: true,
+        data: resumeResult
+      });
+    } catch (err: any) {
+      console.error('[AiAssistantController] resumeTask error:', err);
+      res.status(400).json({
+        success: false,
+        message: err.message || 'Failed to resume task.'
+      });
+    }
+  }
 }

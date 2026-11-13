@@ -29,6 +29,13 @@ router.get('/assistant/history', AiAssistantController.getHistory);
 router.delete('/assistant/history', AiAssistantController.clearHistory);
 
 // ─────────────────────────────────────────────────────────────
+// AGENTIC AI TASK ROUTES (DURABLE STATE MACHINE)
+// ─────────────────────────────────────────────────────────────
+router.post('/tasks', AiAssistantController.createTask);
+router.get('/tasks/:taskId', AiAssistantController.getTask);
+router.post('/tasks/:taskId/resume', AiAssistantController.resumeTask);
+
+// ─────────────────────────────────────────────────────────────
 // AI LOGBOOK SCANNER ROUTES
 // ─────────────────────────────────────────────────────────────
 router.post('/scanner/upload', uploadDocument.single('file'), LogbookScannerController.uploadLogbook);

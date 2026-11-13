@@ -1148,13 +1148,13 @@ export class AiAssistantService {
       ? `Recording an outstanding due of ₹${newAmount} for "${newReason}" will set ${student.fullName}'s (${student.usn}) status in ${labName} to DUE. Overall NDC status will become BLOCKED, and an official notification will be queued.`
       : `Setting clearance to NO DUE will approve clearance as CLEARED with ₹0 dues. Overall NDC status will advance towards APPROVED.`;
 
-    const { rawToken: tokenStr, tokenHash } = TokenSecurityService.generateToken();
+    const { rawToken: tokenStr, tokenHash: newTokenHash } = TokenSecurityService.generateToken();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await prisma.aiConfirmationToken.create({
       data: {
         token: tokenStr,
-        tokenHash,
+        tokenHash: newTokenHash,
         userId,
         action: currentAction,
         studentId: student.id,
