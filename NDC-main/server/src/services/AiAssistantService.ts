@@ -1376,8 +1376,36 @@ export class AiAssistantService {
       };
     }
 
+    // ADD_DUE must never be staged with a missing/invalid amount or an inferred generic reason.
+    if (action === 'MARK_DUE' && (amount === null || !Number.isFinite(amount) || amount <= 0)) {
+      return {
+        reply: 'Please provide a valid positive amount for this due before I prepare it.',
+        actionRequired: null,
+        suggestions: []
+      };
+    }
+
+    const suppliedReason = (reason || '').trim();
+    const genericReasons = new Set([
+      'Central Library book overdue / fine',
+      'Apparatus / Lab Equipment Damage',
+      'Glassware / Chemistry Equipment Damage',
+      'Sports Equipment Due',
+      'Hostel Dues',
+      'Tuition / Institutional Fee Due',
+      'Clearance Adjustment Due',
+      `${department.name} clearance adjustment`
+    ]);
+    if (action === 'MARK_DUE' && (!suppliedReason || genericReasons.has(suppliedReason))) {
+      return {
+        reply: 'Please specify the reason for this due (for example, the item or equipment involved) before I prepare it.',
+        actionRequired: null,
+        suggestions: []
+      };
+    }
+
     const finalAmount = amount && amount > 0 ? amount : 0;
-    const cleanReason = (reason || '').trim() || (department.code === 'LIB' ? 'Central Library book overdue / fine' : `${department.name} clearance adjustment`);
+    const cleanReason = suppliedReason || (department.code === 'LIB' ? 'Central Library book overdue / fine' : `${department.name} clearance adjustment`);
 
     // 2. Perform Comprehensive Real Pre-Flight Multi-Layer Validation
     const validation = await DepartmentValidationService.validateDueAction({
