@@ -96,6 +96,19 @@ export class WorkflowStateMachine {
       }
     }
 
+    // Explicit negative instructions always stop due creation, even if another layer detects ADD_DUE.
+    if (this.hasExplicitAddDueProhibition(lastMessage)) {
+      return {
+        state: WorkflowState.VALIDATION_FAILED,
+        intent: 'CONTRADICTORY',
+        usn: contextUsn,
+        amount: currentAmount,
+        reason: 'The current message explicitly prohibits creating or adding a due.',
+        isContinuation: false,
+        previousPendingField: null
+      };
+    }
+
     // 3. Inspect immediately preceding model turn (if any) to see what information was pending
     let previousPendingField: ConversationTurnState['previousPendingField'] = null;
     let pendingIntent: AssistantWorkflowIntent | null = null;
@@ -376,7 +389,19 @@ export class WorkflowStateMachine {
     );
   }
 
+  public static hasExplicitAddDueProhibition(text: string): boolean {
+    const patterns = [
+      /\\b(?:do\\s+not|don['’]?t|never|must\\s+not|mustn['’]?t|should\\s+not|shouldn['’]?t|cannot|can['’]?t|refrain\\s+from)\\b.{0,100}\\b(?:add(?:ing)?|creat(?:e|ing)|record(?:ing)?|impos(?:e|ing)|charg(?:e|ing)|bill(?:ing)?|enter(?:ing)?|mak(?:e|ing))\\b.{0,50}\\b(?:any\\s+)?(?:new\\s+)?(?:dues?|fines?|charges?|fees?|penalt(?:y|ies))\\b/i,
+      /\\b(?:no|zero)\\s+(?:new\\s+)?(?:dues?|fines?|charges?|fees?|penalt(?:y|ies))\\s+(?:entry|record|to\\s+be\\s+added)\\b/i,
+      /\\bmake\\s+no\\s+(?:due|charge|fine|fee|penalty)\\s+entry\\b/i,
+      /\\bnot\\s+to\\s+(?:add|create|record|impose)\\b.{0,50}\\b(?:dues?|fines?|charges?|fees?|penalt(?:y|ies))\\b/i,
+      /\\bwithout\\s+(?:actually\\s+)?(?:add(?:ing)?|creat(?:e|ing)|record(?:ing)?)\\b.{0,40}\\b(?:dues?|fines?|charges?|fees?|penalt(?:y|ies))\\b/i
+    ];
+    return patterns.some((pattern) => pattern.test(text));
+  }
+
   public static hasAddDueSignal(text: string): boolean {
+    if (this.hasExplicitAddDueProhibition(text)) return false;
     const lower = text.toLowerCase();
     const isClearingCharge =
       /\b(remove|waive|drop|cancel|clear)\s+(?:that\s+|the\s+)?(?:charge|due|fine)\b/i.test(lower) ||
