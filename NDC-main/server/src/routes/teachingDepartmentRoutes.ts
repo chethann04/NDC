@@ -6,9 +6,10 @@ import { UserRole } from '../constants/roles';
 
 const router = Router();
 
-// Protect all routes: Require JWT authentication & Faculty/Admin authorization
+// Teaching department records are scoped to the authenticated academic department.
+// Institution administrators use the institution-wide admin dashboard instead.
 router.use(authenticateToken);
-router.use(authorizeRoles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.HOD, UserRole.DEPARTMENT_OFFICER));
+router.use(authorizeRoles(UserRole.HOD, UserRole.DEPARTMENT_OFFICER));
 
 router.get('/dashboard', TeachingDepartmentController.getDashboard);
 router.get('/students', TeachingDepartmentController.getStudents);
