@@ -14,32 +14,31 @@ export class TeachingDepartmentController {
    * Helper to resolve the user's academic department ID.
    */
   private static async getEffectiveAcademicDepartmentId(req: AuthRequest): Promise<string | null> {
-    if (req.query.departmentId) {
-      if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
+    const role = req.user.role;
+
+    // SUPER_ADMIN and ADMIN are institution-wide roles.
+    // They can selectively view a specific academic branch if explicitly passed as query param.
+    // But they must NEVER inherit a department-specific scope or fallback to the first academic branch!
+    if (role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN) {
+      if (req.query.departmentId) {
         return String(req.query.departmentId);
       }
-      if (req.user.departmentId === String(req.query.departmentId)) {
-        return String(req.query.departmentId);
-      }
+      return null;
     }
 
-    if (req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) {
+    // HOD and DEPARTMENT_OFFICER must only access their own assigned department
+    if (role === UserRole.HOD || role === UserRole.DEPARTMENT_OFFICER) {
       if (!req.user.departmentId) {
         throw new Error('No academic department assigned to your user account.');
       }
+      // If a departmentId query param is provided, it MUST match the user's assigned department
+      if (req.query.departmentId && String(req.query.departmentId) !== req.user.departmentId) {
+        throw new Error('Forbidden: You cannot access data outside your assigned academic department.');
+      }
       return req.user.departmentId;
     }
 
-    // Super Admin / Admin fallback: query departmentId or first academic department
-    if (req.user.departmentId) {
-      return req.user.departmentId;
-    }
-
-    const firstAcademicDept = await prisma.clearanceDepartment.findFirst({
-      where: { isAcademicBranch: true, isActive: true },
-      orderBy: { displayOrder: 'asc' }
-    });
-    return firstAcademicDept ? firstAcademicDept.id : null;
+    return null;
   }
 
   /**
@@ -373,8 +372,8 @@ export class TeachingDepartmentController {
         return;
       }
 
-      // Backend Security Enforcement: Check academic department match
-      if (req.user.role === UserRole.HOD && student.departmentId !== deptId) {
+      // Backend Security Enforcement: Check academic department match for HOD and DEPARTMENT_OFFICER
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && student.departmentId !== deptId) {
         res.status(403).json({ success: false, message: 'Forbidden: You can only access students from your academic department.' });
         return;
       }
@@ -427,7 +426,7 @@ export class TeachingDepartmentController {
         return;
       }
 
-      if (req.user.role === UserRole.HOD && student.departmentId !== deptId) {
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && student.departmentId !== deptId) {
         res.status(403).json({ success: false, message: 'Forbidden: Access restricted to your academic department.' });
         return;
       }
@@ -518,7 +517,7 @@ export class TeachingDepartmentController {
       }
 
       // Academic Department Verification
-      if (req.user.role === UserRole.HOD && student.departmentId !== deptId) {
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && student.departmentId !== deptId) {
         res.status(403).json({
           success: false,
           message: 'Forbidden: You can only download certificates for students in your academic department.'

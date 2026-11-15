@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
-import { useAuthStore, getAuthorizedDashboardPath } from '../store/useAuthStore';
+import { useAuthStore, getAuthorizedDashboardPath, isPathAllowedForRole } from '../store/useAuthStore';
 import api from '../services/api';
 import { Eye, EyeOff, ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { ErrorAlert } from '../components/ErrorAlert';
@@ -17,11 +17,17 @@ export const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
 
-  // If already authenticated, redirect to destination or dashboard
+  // If already authenticated, redirect to validated destination or dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
-      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+      if (
+        redirectParam &&
+        typeof redirectParam === 'string' &&
+        redirectParam.startsWith('/') &&
+        !redirectParam.startsWith('//') &&
+        isPathAllowedForRole(redirectParam, user)
+      ) {
         navigate(redirectParam, { replace: true });
       } else {
         navigate(getAuthorizedDashboardPath(user), { replace: true });
@@ -41,7 +47,13 @@ export const Login: React.FC = () => {
       setAuth(user, token);
 
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
-      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+      if (
+        redirectParam &&
+        typeof redirectParam === 'string' &&
+        redirectParam.startsWith('/') &&
+        !redirectParam.startsWith('//') &&
+        isPathAllowedForRole(redirectParam, user)
+      ) {
         navigate(redirectParam, { replace: true });
         return;
       }
