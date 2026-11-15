@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WorkflowStateMachine } from './WorkflowStateMachine';
+import { getMarkDueInputIssue } from './MarkDueInputGuard';
 
 test('explicitly prohibited due creation is detected and never treated as ADD_DUE', () => {
   const prohibitedRequests = [
@@ -59,4 +60,37 @@ test('missing USN remains an information-missing state rather than a fabricated 
   assert.equal(result.intent, 'MARK_DUE');
   assert.equal(result.usn, null);
   assert.equal(result.amount, 800);
+});
+
+
+test('MARK_DUE input guard rejects missing, invalid, and generic inputs before staging', () => {
+  const invalidAmounts: Array<number | null> = [null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY];
+  for (const amount of invalidAmounts) {
+    assert.equal(
+      getMarkDueInputIssue(amount, 'Specific damaged item', 'Library'),
+      'INVALID_AMOUNT',
+      `Expected invalid amount to be rejected: ${String(amount)}`
+    );
+  }
+
+  const genericReasons = [
+    '',
+    '   ',
+    'Central Library book overdue / fine',
+    'Apparatus / Lab Equipment Damage',
+    'Library clearance adjustment'
+  ];
+  for (const reason of genericReasons) {
+    assert.equal(
+      getMarkDueInputIssue(500, reason, 'Library'),
+      'MISSING_REASON',
+      `Expected generic or missing reason to be rejected: ${reason}`
+    );
+  }
+
+  assert.equal(getMarkDueInputIssue(500, 'Damaged microscope lens', 'Library'), null);
+});
+
+test('MARK_DUE input guard accepts only a positive finite amount and a specific reason', () => {
+  assert.equal(getMarkDueInputIssue(500, 'Damaged microscope lens', 'Library'), null);
 });
