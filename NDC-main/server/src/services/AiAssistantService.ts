@@ -16,6 +16,7 @@ import { ContextResolutionService } from './ai/ContextResolutionService';
 import { WorkflowStateMachine, WorkflowState, AssistantWorkflowIntent } from './ai/WorkflowStateMachine';
 import { DepartmentValidationService } from './ai/DepartmentValidationService';
 import { TokenSecurityService } from './ai/TokenSecurityService';
+import { getMarkDueInputIssue } from './ai/MarkDueInputGuard';
 
 export interface AssistantChatRequest {
   user: {
@@ -1377,31 +1378,23 @@ export class AiAssistantService {
     }
 
     // ADD_DUE must never be staged with a missing/invalid amount or an inferred generic reason.
-    if (action === 'MARK_DUE' && (amount === null || !Number.isFinite(amount) || amount <= 0)) {
-      return {
-        reply: 'Please provide a valid positive amount for this due before I prepare it.',
-        actionRequired: null,
-        suggestions: []
-      };
-    }
-
     const suppliedReason = (reason || '').trim();
-    const genericReasons = new Set([
-      'Central Library book overdue / fine',
-      'Apparatus / Lab Equipment Damage',
-      'Glassware / Chemistry Equipment Damage',
-      'Sports Equipment Due',
-      'Hostel Dues',
-      'Tuition / Institutional Fee Due',
-      'Clearance Adjustment Due',
-      `${department.name} clearance adjustment`
-    ]);
-    if (action === 'MARK_DUE' && (!suppliedReason || genericReasons.has(suppliedReason))) {
-      return {
-        reply: 'Please specify the reason for this due (for example, the item or equipment involved) before I prepare it.',
-        actionRequired: null,
-        suggestions: []
-      };
+    if (action === 'MARK_DUE') {
+      const inputIssue = getMarkDueInputIssue(amount, suppliedReason, department.name);
+      if (inputIssue === 'INVALID_AMOUNT') {
+        return {
+          reply: 'Please provide a valid positive amount for this due before I prepare it.',
+          actionRequired: null,
+          suggestions: []
+        };
+      }
+      if (inputIssue === 'MISSING_REASON') {
+        return {
+          reply: 'Please specify the reason for this due (for example, the item or equipment involved) before I prepare it.',
+          actionRequired: null,
+          suggestions: []
+        };
+      }
     }
 
     const finalAmount = amount && amount > 0 ? amount : 0;
