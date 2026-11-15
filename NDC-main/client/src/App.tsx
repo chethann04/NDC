@@ -16,6 +16,18 @@ import {
   DashboardCanonicalRoute
 } from './components/routing/CanonicalDispatchers';
 
+const TeachingDepartmentRoute: React.FC = () => {
+  const { user } = useAuthStore();
+
+  if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  if (user?.role === 'HOD' || user?.role === 'DEPARTMENT_OFFICER') {
+    return <TeachingDepartmentView />;
+  }
+  return <UnauthorizedPage userRole={user?.role} userName={user?.name} requiredRole="Academic Department Staff" />;
+};
+
 const PageLoadingFallback = () => (
   <div className="flex items-center justify-center p-12 min-h-[40vh]">
     <div className="flex flex-col items-center gap-3">
@@ -265,14 +277,7 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/teaching-departments"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD', 'DEPARTMENT_OFFICER']}>
-                <TeachingDepartmentView />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/teaching-departments" element={<TeachingDepartmentRoute />} />
 
           {/* Admin Routes */}
           <Route
