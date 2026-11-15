@@ -28,6 +28,14 @@ export class TeachingDepartmentController {
       throw new Error('You can only view your assigned academic department.');
     }
 
+    const department = await prisma.clearanceDepartment.findUnique({
+      where: { id: req.user.departmentId },
+      select: { isAcademicBranch: true, isActive: true }
+    });
+    if (!department || !department.isActive || !department.isAcademicBranch) {
+      throw new Error('Your account is not assigned to an active academic department.');
+    }
+
     return req.user.departmentId;
   }
 
@@ -363,7 +371,7 @@ export class TeachingDepartmentController {
       }
 
       // Backend Security Enforcement: Check academic department match
-      if (req.user.role === UserRole.HOD && student.departmentId !== deptId) {
+      if (student.departmentId !== deptId) {
         res.status(403).json({ success: false, message: 'Forbidden: You can only access students from your academic department.' });
         return;
       }
@@ -416,7 +424,7 @@ export class TeachingDepartmentController {
         return;
       }
 
-      if (req.user.role === UserRole.HOD && student.departmentId !== deptId) {
+      if (student.departmentId !== deptId) {
         res.status(403).json({ success: false, message: 'Forbidden: Access restricted to your academic department.' });
         return;
       }
