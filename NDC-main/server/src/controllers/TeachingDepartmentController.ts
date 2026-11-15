@@ -11,35 +11,24 @@ import { withId, withIds } from '../utils/formatters';
 
 export class TeachingDepartmentController {
   /**
-   * Helper to resolve the user's academic department ID.
+   * Resolve only the authenticated officer's assigned academic department.
+   * Never infer an administrator's department from a linked/default department
+   * or silently fall back to the first academic branch.
    */
   private static async getEffectiveAcademicDepartmentId(req: AuthRequest): Promise<string | null> {
-    if (req.query.departmentId) {
-      if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
-        return String(req.query.departmentId);
-      }
-      if (req.user.departmentId === String(req.query.departmentId)) {
-        return String(req.query.departmentId);
-      }
+    if (req.user.role !== UserRole.HOD && req.user.role !== UserRole.DEPARTMENT_OFFICER) {
+      throw new Error('This endpoint is available only to academic department staff.');
     }
 
-    if (req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) {
-      if (!req.user.departmentId) {
-        throw new Error('No academic department assigned to your user account.');
-      }
-      return req.user.departmentId;
+    if (!req.user.departmentId) {
+      throw new Error('No academic department assigned to your user account.');
     }
 
-    // Super Admin / Admin fallback: query departmentId or first academic department
-    if (req.user.departmentId) {
-      return req.user.departmentId;
+    if (req.query.departmentId && String(req.query.departmentId) !== req.user.departmentId) {
+      throw new Error('You can only view your assigned academic department.');
     }
 
-    const firstAcademicDept = await prisma.clearanceDepartment.findFirst({
-      where: { isAcademicBranch: true, isActive: true },
-      orderBy: { displayOrder: 'asc' }
-    });
-    return firstAcademicDept ? firstAcademicDept.id : null;
+    return req.user.departmentId;
   }
 
   /**
