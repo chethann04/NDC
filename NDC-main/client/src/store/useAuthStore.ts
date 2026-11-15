@@ -38,6 +38,21 @@ export const getAuthorizedDashboardPath = (user: User | null): string => {
   return '/admin/dashboard';
 };
 
+/**
+ * Prevent a stale deep link from overriding the institution-wide landing page
+ * for administrators. Other roles retain their requested in-app destination.
+ */
+export const getPostLoginPath = (user: User | null, requestedPath?: string | null): string => {
+  const dashboardPath = getAuthorizedDashboardPath(user);
+  if (!user || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+    return dashboardPath;
+  }
+  if (requestedPath && requestedPath.startsWith('/') && !requestedPath.startsWith('//')) {
+    return requestedPath;
+  }
+  return dashboardPath;
+};
+
 interface AuthState {
   user: User | null;
   token: string | null;
