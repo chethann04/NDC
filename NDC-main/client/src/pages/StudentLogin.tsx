@@ -46,6 +46,7 @@ export const StudentLogin: React.FC = () => {
       ) {
         targetDestination = redirectParam;
       }
+      // TODO: Can revert to navigate() once 401 token guard and PortalContext account switch race are manually verified
       window.location.replace(targetDestination);
     }
   }, [isAuthenticated, user, navigate, searchParams, location.state]);
@@ -111,6 +112,7 @@ export const StudentLogin: React.FC = () => {
         targetDestination = redirectParam;
       }
 
+      // TODO: Can revert to navigate() once 401 token guard and PortalContext account switch race are manually verified
       window.location.replace(targetDestination);
     } catch (err: any) {
       setError(err);

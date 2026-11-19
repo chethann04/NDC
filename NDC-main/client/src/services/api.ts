@@ -31,8 +31,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-let isHandling401 = false;
-
 // Response Interceptor for global authentication handling
 api.interceptors.response.use(
   (response) => response,
@@ -45,15 +43,20 @@ api.interceptors.response.use(
       // STUDENT-LOGIN / AUTH API: any call to auth endpoints is handled by the page
       const isAuthEndpoint = error.config?.url?.includes('/auth/');
 
-      if (!isAuthPage && !isAuthEndpoint && !isHandling401) {
-        // Genuine session expiry — clear token and redirect cleanly once without cascading race loops
-        isHandling401 = true;
-        localStorage.removeItem('ndc_token');
-        localStorage.removeItem('ndc_user');
-        setTimeout(() => {
+      if (!isAuthPage && !isAuthEndpoint) {
+        const headers = error.config?.headers as any;
+        const authHeader = (headers?.get?.('Authorization') ?? headers?.['Authorization'] ?? headers?.get?.('authorization') ?? headers?.['authorization']) as string | undefined;
+        const sentToken = typeof authHeader === 'string'
+          ? (authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim())
+          : '';
+        const currentToken = localStorage.getItem('ndc_token');
+
+        // Only clear localStorage and redirect if the failed request used the current token (genuine session expiry)
+        if (currentToken && sentToken && sentToken === currentToken) {
+          localStorage.removeItem('ndc_token');
+          localStorage.removeItem('ndc_user');
           window.location.replace('/login');
-          isHandling401 = false;
-        }, 100);
+        }
       }
     }
     return Promise.reject(error);
