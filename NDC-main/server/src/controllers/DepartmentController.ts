@@ -6,6 +6,7 @@ import { withId, withIds } from '../utils/formatters';
 import { departmentCache } from '../utils/departmentCache';
 import { NdcWorkflowService } from '../services/NdcWorkflowService';
 import { invalidateStudentStatusCache, invalidateOfficerStatsCache } from './NdcController';
+import { ReportController } from './ReportController';
 import { UserRole } from '../constants/roles';
 import { hashPassword } from '../utils/passwordUtils';
 
@@ -20,6 +21,7 @@ export class DepartmentController {
     departmentCache.invalidate();
     invalidateStudentStatusCache();
     invalidateOfficerStatsCache();
+    ReportController.invalidateCache();
   }
 
   public static async getAllDepartments(req: Request, res: Response): Promise<void> {
@@ -342,6 +344,22 @@ export class DepartmentController {
       // Automatically provision companion entities (Department Lab, HOD, Faculty/Officer, and Clearances)
       const provisionDetails = await DepartmentController.provisionDepartmentDefaults(department, req);
 
+      // If newly created department is an academic branch, automatically associate any existing matching students
+      if (department.isAcademicBranch) {
+        await prisma.student.updateMany({
+          where: {
+            OR: [
+              { usn: { contains: department.code, mode: 'insensitive' } },
+              { departmentName: { equals: department.name, mode: 'insensitive' } }
+            ]
+          },
+          data: {
+            departmentId: department.id,
+            departmentName: department.name
+          }
+        });
+      }
+
       await AuditService.log(
         req,
         'DEPARTMENT_CREATED',
@@ -470,6 +488,22 @@ export class DepartmentController {
 
       await AuditService.log(req, 'DEPARTMENT_UPDATED', 'ClearanceDepartment', `Updated department [${updated.code}] - ${updated.name}.`, updated.id, department, updated);
       DepartmentController.invalidateCache();
+
+      // If branch changed to academic, automatically associate any matching students
+      if (branchChanged && updated.isAcademicBranch) {
+        await prisma.student.updateMany({
+          where: {
+            OR: [
+              { usn: { contains: updated.code, mode: 'insensitive' } },
+              { departmentName: { equals: updated.name, mode: 'insensitive' } }
+            ]
+          },
+          data: {
+            departmentId: updated.id,
+            departmentName: updated.name
+          }
+        });
+      }
 
       // Immediately sync all student clearance records if rules changed
       if (requiresClearanceChanged || isActiveChanged || branchChanged) {

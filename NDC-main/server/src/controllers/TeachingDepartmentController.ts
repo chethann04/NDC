@@ -82,28 +82,62 @@ export class TeachingDepartmentController {
       let allAcademicBranches: any[] = [];
       if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
         allAcademicBranches = await prisma.clearanceDepartment.findMany({
-          where: { isAcademicBranch: true, isActive: true },
-          select: { id: true, code: true, name: true, hodName: true, hodDesignation: true },
-          orderBy: { displayOrder: 'asc' }
+          where: { isActive: true },
+          select: { id: true, code: true, name: true, hodName: true, hodDesignation: true, isAcademicBranch: true },
+          orderBy: [{ isAcademicBranch: 'desc' }, { displayOrder: 'asc' }]
         });
       }
 
-      const departmentStudents = await prisma.student.findMany({
-        where: { departmentId: deptId },
-        select: { id: true, usn: true, batch: true }
-      });
-      const studentIds = departmentStudents.map((s) => s.id);
-      const totalStudents = studentIds.length;
+      let studentIds: string[] = [];
+      let departmentStudents: any[] = [];
+      let batchBreakdown: any[] = [];
 
-      const batchCounts = await prisma.student.groupBy({
-        by: ['batch'],
-        where: { departmentId: deptId },
-        _count: { id: true }
-      });
-      const batchBreakdown = batchCounts
-        .filter((b) => b.batch)
-        .map((b) => ({ batch: b.batch, count: b._count.id }))
-        .sort((a, b) => (b.batch || '').localeCompare(a.batch || ''));
+      if (department.isAcademicBranch) {
+        departmentStudents = await prisma.student.findMany({
+          where: { departmentId: deptId },
+          select: { id: true, usn: true, batch: true }
+        });
+        studentIds = departmentStudents.map((s) => s.id);
+
+        const batchCounts = await prisma.student.groupBy({
+          by: ['batch'],
+          where: { departmentId: deptId },
+          _count: { id: true }
+        });
+        batchBreakdown = batchCounts
+          .filter((b) => b.batch)
+          .map((b) => ({ batch: b.batch, count: b._count.id }))
+          .sort((a, b) => (b.batch || '').localeCompare(a.batch || ''));
+      } else {
+        // Central Desk / Administrative / Laboratory Clearance Section (e.g. T&P, Central Library, etc.)
+        const deptClearances = await prisma.ndcClearance.findMany({
+          where: { departmentId: deptId },
+          select: {
+            studentId: true,
+            status: true,
+            dueAmount: true,
+            student: { select: { id: true, usn: true, batch: true } }
+          }
+        });
+        const seen = new Set<string>();
+        for (const c of deptClearances) {
+          if (c.student && !seen.has(c.studentId)) {
+            seen.add(c.studentId);
+            departmentStudents.push(c.student);
+            studentIds.push(c.studentId);
+          }
+        }
+        const batchMap = new Map<string, number>();
+        for (const s of departmentStudents) {
+          const b = s.batch || '2022-2026';
+          batchMap.set(b, (batchMap.get(b) || 0) + 1);
+        }
+        batchBreakdown = Array.from(batchMap.entries())
+          .map(([batch, count]) => ({ batch, count }))
+          .sort((a, b) => b.batch.localeCompare(a.batch));
+      }
+
+      const totalStudents = studentIds.length;
 
       if (totalStudents === 0) {
         res.status(200).json({
@@ -129,41 +163,71 @@ export class TeachingDepartmentController {
         return;
       }
 
-      const requests = await prisma.ndcRequest.findMany({
-        where: { studentId: { in: studentIds } }
-      });
-
       let approved = 0;
       let pending = 0;
       let due = 0;
+      let totalDueAmount = 0;
+      let certificatesAvailable = 0;
 
-      for (const r of requests) {
-        if (r.status === 'APPROVED') {
-          approved++;
-        } else if (r.status === 'BLOCKED') {
-          due++;
-        } else {
-          pending++;
+      if (department.isAcademicBranch) {
+        const requests = await prisma.ndcRequest.findMany({
+          where: { studentId: { in: studentIds } }
+        });
+
+        for (const r of requests) {
+          if (r.status === 'APPROVED') {
+            approved++;
+          } else if (r.status === 'BLOCKED') {
+            due++;
+          } else {
+            pending++;
+          }
         }
+
+        const duesAggregate = await prisma.ndcClearance.aggregate({
+          where: {
+            studentId: { in: studentIds },
+            status: 'DUE'
+          },
+          _sum: {
+            dueAmount: true
+          }
+        });
+        totalDueAmount = duesAggregate._sum.dueAmount || 0;
+
+        certificatesAvailable = await prisma.ndcCertificate.count({
+          where: {
+            studentId: { in: studentIds },
+            status: CertificateStatus.VALID as any
+          }
+        });
+      } else {
+        // Clearance section metrics for this specific clearance desk
+        const deskClearanceStats = await prisma.ndcClearance.groupBy({
+          by: ['status'],
+          where: { departmentId: deptId },
+          _count: { _all: true },
+          _sum: { dueAmount: true }
+        });
+
+        for (const stat of deskClearanceStats) {
+          if (stat.status === 'CLEARED' || stat.status === 'NOT_APPLICABLE') {
+            approved += stat._count._all;
+          } else if (stat.status === 'DUE') {
+            due += stat._count._all;
+            totalDueAmount += stat._sum.dueAmount || 0;
+          } else {
+            pending += stat._count._all;
+          }
+        }
+
+        certificatesAvailable = await prisma.ndcRequest.count({
+          where: {
+            studentId: { in: studentIds },
+            status: 'APPROVED'
+          }
+        });
       }
-
-      const duesAggregate = await prisma.ndcClearance.aggregate({
-        where: {
-          studentId: { in: studentIds },
-          status: 'DUE'
-        },
-        _sum: {
-          dueAmount: true
-        }
-      });
-      const totalDueAmount = duesAggregate._sum.dueAmount || 0;
-
-      const certificatesAvailable = await prisma.ndcCertificate.count({
-        where: {
-          studentId: { in: studentIds },
-          status: CertificateStatus.VALID as any
-        }
-      });
 
       res.status(200).json({
         success: true,
@@ -201,8 +265,24 @@ export class TeachingDepartmentController {
         return;
       }
 
+      const department = await prisma.clearanceDepartment.findUnique({
+        where: { id: deptId }
+      });
+      if (!department) {
+        res.status(404).json({ success: false, message: 'Department record not found.' });
+        return;
+      }
+
       const { search, status, batch, dueDepartment, page = '1', limit = '20' } = req.query;
-      const studentWhere: any = { departmentId: deptId };
+      const studentWhere: any = {};
+
+      if (department.isAcademicBranch) {
+        studentWhere.departmentId = deptId;
+      } else {
+        studentWhere.ndcClearances = {
+          some: { departmentId: deptId }
+        };
+      }
 
       if (batch) {
         studentWhere.batch = String(batch);
@@ -261,28 +341,54 @@ export class TeachingDepartmentController {
         const reqItem = requestMap.get(student.id);
         const reqClearances = reqItem ? clearancesByReqMap.get(reqItem.id) || [] : [];
 
-        const totalTasks = reqClearances.length;
-        const clearedTasks = reqClearances.filter((c) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE').length;
-        const dueTasks = reqClearances.filter((c) => c.status === 'DUE');
-
         let ndcStatus = 'PENDING';
-        if (reqItem) {
-          if (reqItem.status === 'APPROVED') ndcStatus = 'APPROVED';
-          else if (dueTasks.length > 0 || reqItem.status === 'BLOCKED') ndcStatus = 'DUE';
-          else ndcStatus = 'PENDING';
+        let totalDueAmount = 0;
+        let dueDeptNames = '';
+        let dueTasks: any[] = [];
+        let effectiveTotalTasks = 1;
+        let effectiveClearedTasks = 0;
+
+        if (department.isAcademicBranch) {
+          const totalTasks = reqClearances.length;
+          const clearedTasks = reqClearances.filter((c) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE').length;
+          dueTasks = reqClearances.filter((c) => c.status === 'DUE');
+
+          if (reqItem) {
+            if (reqItem.status === 'APPROVED') ndcStatus = 'APPROVED';
+            else if (dueTasks.length > 0 || reqItem.status === 'BLOCKED') ndcStatus = 'DUE';
+            else ndcStatus = 'PENDING';
+          }
+
+          totalDueAmount = dueTasks.reduce((sum, c) => sum + (c.dueAmount || 0), 0);
+          dueDeptNames = Array.from(new Set(dueTasks.map((c) => c.department?.name || 'Department'))).join(', ');
+          const isApproved = ndcStatus === 'APPROVED';
+          effectiveTotalTasks = reqClearances.length > 0 ? reqClearances.length : 6;
+          effectiveClearedTasks = isApproved
+            ? effectiveTotalTasks
+            : reqClearances.filter((c) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE').length;
+        } else {
+          // Central desk / non-academic clearance section
+          const deskClearance = reqClearances.find((c) => c.departmentId === deptId);
+          if (deskClearance) {
+            if (deskClearance.status === 'CLEARED' || deskClearance.status === 'NOT_APPLICABLE') {
+              ndcStatus = 'APPROVED';
+              effectiveClearedTasks = 1;
+            } else if (deskClearance.status === 'DUE') {
+              ndcStatus = 'DUE';
+              totalDueAmount = deskClearance.dueAmount || 0;
+              dueDeptNames = department.name;
+              dueTasks = [deskClearance];
+            } else {
+              ndcStatus = 'PENDING';
+            }
+          } else {
+            ndcStatus = 'PENDING';
+          }
+          effectiveTotalTasks = 1;
         }
 
-        const totalDueAmount = dueTasks.reduce((sum, c) => sum + (c.dueAmount || 0), 0);
-        const dueDeptNames = Array.from(new Set(dueTasks.map((c) => c.department?.name || 'Department'))).join(', ');
-        const primaryDueReason = dueTasks.length > 0 ? dueTasks[0].dueDetails || dueTasks[0].remarks || 'Outstanding Dues' : '';
-
         const certNo = reqItem?.certificate?.certificateNumber || (ndcStatus === 'APPROVED' ? 'Generated' : '-');
-
         const isApproved = ndcStatus === 'APPROVED';
-        const effectiveTotalTasks = reqClearances.length > 0 ? reqClearances.length : 6;
-        const effectiveClearedTasks = isApproved
-          ? effectiveTotalTasks
-          : reqClearances.filter((c) => c.status === 'CLEARED' || c.status === 'NOT_APPLICABLE').length;
 
         return {
           slNo: index + 1,
@@ -370,10 +476,30 @@ export class TeachingDepartmentController {
         return;
       }
 
+<<<<<<< HEAD
       // Backend Security Enforcement: Check academic department match
       if (student.departmentId !== deptId) {
         res.status(403).json({ success: false, message: 'Forbidden: You can only access students from your academic department.' });
         return;
+=======
+      // Backend Security Enforcement: Check department access match for HOD and DEPARTMENT_OFFICER
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && deptId) {
+        const callerDept = await prisma.clearanceDepartment.findUnique({ where: { id: deptId } });
+        if (callerDept?.isAcademicBranch) {
+          if (student.departmentId !== deptId) {
+            res.status(403).json({ success: false, message: 'Forbidden: You can only access students from your academic department.' });
+            return;
+          }
+        } else {
+          const hasClearance = await prisma.ndcClearance.findFirst({
+            where: { departmentId: deptId, studentId: student.id }
+          });
+          if (!hasClearance) {
+            res.status(403).json({ success: false, message: 'Forbidden: You can only access students assigned to your clearance desk.' });
+            return;
+          }
+        }
+>>>>>>> 7f937a31 (fix(departments): display student records and metrics for newly created departments across all dashboards)
       }
 
       const ndcRequest = await prisma.ndcRequest.findFirst({
@@ -424,9 +550,28 @@ export class TeachingDepartmentController {
         return;
       }
 
+<<<<<<< HEAD
       if (student.departmentId !== deptId) {
         res.status(403).json({ success: false, message: 'Forbidden: Access restricted to your academic department.' });
         return;
+=======
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && deptId) {
+        const callerDept = await prisma.clearanceDepartment.findUnique({ where: { id: deptId } });
+        if (callerDept?.isAcademicBranch) {
+          if (student.departmentId !== deptId) {
+            res.status(403).json({ success: false, message: 'Forbidden: Access restricted to your academic department.' });
+            return;
+          }
+        } else {
+          const hasClearance = await prisma.ndcClearance.findFirst({
+            where: { departmentId: deptId, studentId: student.id }
+          });
+          if (!hasClearance) {
+            res.status(403).json({ success: false, message: 'Forbidden: Access restricted to your clearance desk.' });
+            return;
+          }
+        }
+>>>>>>> 7f937a31 (fix(departments): display student records and metrics for newly created departments across all dashboards)
       }
 
       const ndcRequest = await prisma.ndcRequest.findFirst({ where: { studentId: student.id } });
@@ -514,13 +659,29 @@ export class TeachingDepartmentController {
         return;
       }
 
-      // Academic Department Verification
-      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && student.departmentId !== deptId) {
-        res.status(403).json({
-          success: false,
-          message: 'Forbidden: You can only download certificates for students in your academic department.'
-        });
-        return;
+      // Department Verification
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && deptId) {
+        const callerDept = await prisma.clearanceDepartment.findUnique({ where: { id: deptId } });
+        if (callerDept?.isAcademicBranch) {
+          if (student.departmentId !== deptId) {
+            res.status(403).json({
+              success: false,
+              message: 'Forbidden: You can only download certificates for students in your academic department.'
+            });
+            return;
+          }
+        } else {
+          const hasClearance = await prisma.ndcClearance.findFirst({
+            where: { departmentId: deptId, studentId: student.id }
+          });
+          if (!hasClearance) {
+            res.status(403).json({
+              success: false,
+              message: 'Forbidden: You can only download certificates for students assigned to your clearance desk.'
+            });
+            return;
+          }
+        }
       }
 
       const filename = `NDC_${certificate.certificateNumber.replace(/[\/\\:]/g, '_')}.pdf`;
