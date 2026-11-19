@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { aiService } from '../services/aiService';
 
@@ -79,9 +79,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeDepartmentCode, setActiveDepartmentCodeState] = useState<string>('');
+  const requestIdRef = useRef<number>(0);
 
   const refreshContext = useCallback(
     async (overrideDeptCode?: string) => {
+      const currentRequestId = ++requestIdRef.current;
+
       if (!token || !user || user.role === 'STUDENT') {
         setContext(null);
         setStats(null);
@@ -93,18 +96,37 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setError(null);
 
       try {
-        const targetCode = overrideDeptCode || activeDepartmentCode || undefined;
+        let targetCode: string | undefined;
+        if (overrideDeptCode !== undefined) {
+          targetCode = overrideDeptCode === '' ? undefined : overrideDeptCode;
+        } else {
+          targetCode = activeDepartmentCode || undefined;
+        }
+
         const res = await aiService.getAiContext(targetCode);
+
+        // Ignore response if a newer request was dispatched
+        if (currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
         if (res && res.context) {
           setContext(res.context);
           setStats(res.stats || null);
           setActiveDepartmentCodeState(res.context.department.code);
         }
       } catch (err: any) {
+        // Ignore error if a newer request was dispatched
+        if (currentRequestId !== requestIdRef.current) {
+          return;
+        }
+
         console.error('[PortalContext] Failed to load role-aware AI context:', err);
         setError(err.response?.data?.message || err.message || 'Failed to load context');
       } finally {
-        setLoading(false);
+        if (currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [token, user, activeDepartmentCode]
@@ -112,17 +134,18 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Re-fetch context when user authentication changes or user account switches
   useEffect(() => {
+    // Immediately clear previous account's context and stats so stale data is never shown
+    setContext(null);
+    setStats(null);
+    setActiveDepartmentCodeState('');
+
     if (!token || !user || user.role === 'STUDENT') {
-      setContext(null);
-      setStats(null);
-      setActiveDepartmentCodeState('');
       setLoading(false);
       return;
     }
 
-    // Reset active department code when switching accounts so old department scope is not retained
-    setActiveDepartmentCodeState('');
-    refreshContext();
+    // Call with explicit '' to indicate no department override, rather than falling back to old activeDepartmentCode
+    refreshContext('');
   }, [token, user?.id, user?.role]);
 
   const handleSetActiveDepartmentCode = (code: string) => {
