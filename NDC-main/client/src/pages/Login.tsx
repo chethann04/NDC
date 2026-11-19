@@ -22,6 +22,7 @@ export const Login: React.FC = () => {
     if (isAuthenticated && user) {
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
       const targetDestination = getPostLoginPath(user, redirectParam);
+      // TODO: Can revert to navigate() once 401 token guard and PortalContext account switch race are manually verified
       window.location.replace(targetDestination);
     }
   }, [isAuthenticated, user, navigate, searchParams, location.state]);
@@ -39,6 +40,7 @@ export const Login: React.FC = () => {
 
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
       const targetDestination = getPostLoginPath(user, redirectParam);
+      // TODO: Can revert to navigate() once 401 token guard and PortalContext account switch race are manually verified
       window.location.replace(targetDestination);
     } catch (err: any) {
       setError(err);
