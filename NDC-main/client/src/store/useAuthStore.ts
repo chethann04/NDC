@@ -43,64 +43,18 @@ export const getAuthorizedDashboardPath = (user: User | null): string => {
 };
 
 /**
- * Validates whether a requested destination path is permissible for the given user role.
- * If invalid, disallowed, or cross-scope, returns false.
+ * Prevent a stale deep link from overriding the institution-wide landing page
+ * for administrators. Other roles retain their requested in-app destination.
  */
-export const isPathAllowedForRole = (path: string, user: User | null): boolean => {
-  if (!user || !path) return false;
-  const normalized = path.split('?')[0].split('#')[0];
-
-  // Disallow login/auth paths as redirect targets
-  if (normalized === '/login' || normalized === '/student-login' || normalized === '/login/student') {
-    return false;
+export const getPostLoginPath = (user: User | null, requestedPath?: string | null): string => {
+  const dashboardPath = getAuthorizedDashboardPath(user);
+  if (!user || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+    return dashboardPath;
   }
-
-  // Canonical paths allowed for all authenticated users
-  if (['/', '/dashboard', '/students', '/departments', '/clearance', '/clearances', '/account/settings', '/verify'].includes(normalized)) {
-    return true;
+  if (requestedPath && requestedPath.startsWith('/') && !requestedPath.startsWith('//')) {
+    return requestedPath;
   }
-
-  const role = user.role;
-
-  if (role === 'SUPER_ADMIN') {
-    // Super Admin can access all administrative and staff routes
-    return true;
-  }
-
-  if (role === 'ADMIN') {
-    // Admin must NOT be redirected into department officer lab desks or academic-only views via stale redirect parameters
-    if (
-      normalized.startsWith('/teaching-departments') ||
-      normalized === '/officer/department-lab' ||
-      normalized === '/officer/physics-lab' ||
-      normalized === '/officer/chemistry-lab' ||
-      normalized === '/officer/central-library' ||
-      normalized.startsWith('/student/')
-    ) {
-      return false;
-    }
-    return normalized.startsWith('/admin/') || normalized.startsWith('/officer/') || normalized === '/admin';
-  }
-
-  if (role === 'HOD') {
-    if (normalized.startsWith('/admin/') || normalized.startsWith('/student/')) {
-      return false;
-    }
-    return normalized.startsWith('/teaching-departments') || normalized.startsWith('/officer/');
-  }
-
-  if (role === 'DEPARTMENT_OFFICER') {
-    if (normalized.startsWith('/admin/') || normalized.startsWith('/student/') || normalized.startsWith('/teaching-departments')) {
-      return false;
-    }
-    return normalized.startsWith('/officer/');
-  }
-
-  if (role === 'STUDENT') {
-    return normalized.startsWith('/student/');
-  }
-
-  return false;
+  return dashboardPath;
 };
 
 interface AuthState {
