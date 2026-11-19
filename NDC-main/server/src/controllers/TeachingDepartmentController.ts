@@ -18,7 +18,15 @@ export class TeachingDepartmentController {
   private static async getEffectiveAcademicDepartmentId(req: AuthRequest): Promise<string | null> {
     if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
       if (req.query.departmentId) {
-        return String(req.query.departmentId);
+        const queryDeptId = String(req.query.departmentId);
+        const department = await prisma.clearanceDepartment.findUnique({
+          where: { id: queryDeptId },
+          select: { id: true, isAcademicBranch: true, isActive: true }
+        });
+        if (!department || !department.isActive || !department.isAcademicBranch) {
+          throw new Error('Requested department is not an active academic department.');
+        }
+        return department.id;
       }
       return null;
     }
@@ -39,8 +47,8 @@ export class TeachingDepartmentController {
       where: { id: req.user.departmentId },
       select: { isAcademicBranch: true, isActive: true }
     });
-    if (!department || !department.isActive) {
-      throw new Error('Your account is not assigned to an active department.');
+    if (!department || !department.isActive || !department.isAcademicBranch) {
+      throw new Error('Your account is not assigned to an active academic department.');
     }
 
     return req.user.departmentId;
