@@ -16,6 +16,13 @@ export class TeachingDepartmentController {
    * or silently fall back to the first academic branch.
    */
   private static async getEffectiveAcademicDepartmentId(req: AuthRequest): Promise<string | null> {
+    if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
+      if (req.query.departmentId) {
+        return String(req.query.departmentId);
+      }
+      return null;
+    }
+
     if (req.user.role !== UserRole.HOD && req.user.role !== UserRole.DEPARTMENT_OFFICER) {
       throw new Error('This endpoint is available only to academic department staff.');
     }
@@ -32,8 +39,8 @@ export class TeachingDepartmentController {
       where: { id: req.user.departmentId },
       select: { isAcademicBranch: true, isActive: true }
     });
-    if (!department || !department.isActive || !department.isAcademicBranch) {
-      throw new Error('Your account is not assigned to an active academic department.');
+    if (!department || !department.isActive) {
+      throw new Error('Your account is not assigned to an active department.');
     }
 
     return req.user.departmentId;

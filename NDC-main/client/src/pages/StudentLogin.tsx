@@ -36,6 +36,7 @@ export const StudentLogin: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
+      let targetDestination = '/student/dashboard';
       if (
         redirectParam &&
         typeof redirectParam === 'string' &&
@@ -43,10 +44,9 @@ export const StudentLogin: React.FC = () => {
         !redirectParam.startsWith('//') &&
         isPathAllowedForRole(redirectParam, user)
       ) {
-        navigate(redirectParam, { replace: true });
-      } else {
-        navigate('/student/dashboard', { replace: true });
+        targetDestination = redirectParam;
       }
+      window.location.replace(targetDestination);
     }
   }, [isAuthenticated, user, navigate, searchParams, location.state]);
 
@@ -100,6 +100,7 @@ export const StudentLogin: React.FC = () => {
       setAuth(user, token || accessToken);
 
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
+      let targetDestination = '/student/dashboard';
       if (
         redirectParam &&
         typeof redirectParam === 'string' &&
@@ -107,11 +108,10 @@ export const StudentLogin: React.FC = () => {
         !redirectParam.startsWith('//') &&
         isPathAllowedForRole(redirectParam, user)
       ) {
-        navigate(redirectParam, { replace: true });
-        return;
+        targetDestination = redirectParam;
       }
 
-      navigate('/student/dashboard', { replace: true });
+      window.location.replace(targetDestination);
     } catch (err: any) {
       setError(err);
     } finally {

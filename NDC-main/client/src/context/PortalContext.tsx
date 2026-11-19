@@ -82,7 +82,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const refreshContext = useCallback(
     async (overrideDeptCode?: string) => {
-      if (!token || !user) {
+      if (!token || !user || user.role === 'STUDENT') {
         setContext(null);
         setStats(null);
         setLoading(false);
@@ -112,7 +112,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Re-fetch context when user authentication changes or user account switches
   useEffect(() => {
-    if (!token || !user) {
+    if (!token || !user || user.role === 'STUDENT') {
       setContext(null);
       setStats(null);
       setActiveDepartmentCodeState('');

@@ -21,7 +21,8 @@ export const Login: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
-      navigate(getPostLoginPath(user, redirectParam), { replace: true });
+      const targetDestination = getPostLoginPath(user, redirectParam);
+      window.location.replace(targetDestination);
     }
   }, [isAuthenticated, user, navigate, searchParams, location.state]);
 
@@ -37,7 +38,8 @@ export const Login: React.FC = () => {
       setAuth(user, token);
 
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
-      navigate(getPostLoginPath(user, redirectParam), { replace: true });
+      const targetDestination = getPostLoginPath(user, redirectParam);
+      window.location.replace(targetDestination);
     } catch (err: any) {
       setError(err);
     } finally {
