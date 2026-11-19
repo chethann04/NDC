@@ -10,7 +10,8 @@
     "seed": "ts-node src/utils/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "test:safety": "node --test -r ts-node/register src/services/ai/WorkflowStateMachine.safety.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

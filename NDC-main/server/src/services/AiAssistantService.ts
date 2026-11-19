@@ -16,6 +16,7 @@ import { ContextResolutionService } from './ai/ContextResolutionService';
 import { WorkflowStateMachine, WorkflowState, AssistantWorkflowIntent } from './ai/WorkflowStateMachine';
 import { DepartmentValidationService } from './ai/DepartmentValidationService';
 import { TokenSecurityService } from './ai/TokenSecurityService';
+import { getMarkDueInputIssue } from './ai/MarkDueInputGuard';
 
 export interface AssistantChatRequest {
   user: {
@@ -1376,8 +1377,28 @@ export class AiAssistantService {
       };
     }
 
+    // ADD_DUE must never be staged with a missing/invalid amount or an inferred generic reason.
+    const suppliedReason = (reason || '').trim();
+    if (action === 'MARK_DUE') {
+      const inputIssue = getMarkDueInputIssue(amount, suppliedReason, department.name);
+      if (inputIssue === 'INVALID_AMOUNT') {
+        return {
+          reply: 'Please provide a valid positive amount for this due before I prepare it.',
+          actionRequired: null,
+          suggestions: []
+        };
+      }
+      if (inputIssue === 'MISSING_REASON') {
+        return {
+          reply: 'Please specify the reason for this due (for example, the item or equipment involved) before I prepare it.',
+          actionRequired: null,
+          suggestions: []
+        };
+      }
+    }
+
     const finalAmount = amount && amount > 0 ? amount : 0;
-    const cleanReason = (reason || '').trim() || (department.code === 'LIB' ? 'Central Library book overdue / fine' : `${department.name} clearance adjustment`);
+    const cleanReason = suppliedReason || (department.code === 'LIB' ? 'Central Library book overdue / fine' : `${department.name} clearance adjustment`);
 
     // 2. Perform Comprehensive Real Pre-Flight Multi-Layer Validation
     const validation = await DepartmentValidationService.validateDueAction({
