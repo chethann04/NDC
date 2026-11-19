@@ -71,6 +71,22 @@ export const resolveDepartmentFromUsn = (usn: string): UsnDepartmentResolution =
  * Resolves USN department and finds or creates the corresponding ClearanceDepartment record in Supabase/Prisma.
  */
 export const getOrCreateDepartmentByUsn = async (usn: string): Promise<UsnDepartmentResolution> => {
+  const normalized = normalizeUsnString(usn);
+  const match = normalized.match(/\d{2}([A-Z]{2,4})(\d*)$/);
+  const candidateCode = match && match[1] ? (match[1] === 'AIML' ? 'AI' : match[1]) : null;
+
+  if (candidateCode) {
+    const existingDept = await departmentCache.getDepartmentByCodeOrName(candidateCode);
+    if (existingDept) {
+      return {
+        success: true,
+        code: existingDept.code,
+        name: existingDept.name,
+        departmentId: existingDept.id
+      };
+    }
+  }
+
   const resolution = resolveDepartmentFromUsn(usn);
   if (!resolution.success || !resolution.code || !resolution.name) {
     return resolution;

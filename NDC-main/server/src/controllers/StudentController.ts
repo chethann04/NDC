@@ -12,6 +12,7 @@ import { AuthRequest } from '../middleware/auth';
 import { withId, withIds } from '../utils/formatters';
 import { hashPassword } from '../utils/passwordUtils';
 import { getOrCreateDepartmentByUsn, normalizeUsnString } from '../utils/usnDepartmentResolver';
+import { departmentCache } from '../utils/departmentCache';
 import emailService from '../services/EmailService';
 import { extractOriginFromReq } from '../utils/urlHelper';
 
@@ -31,14 +32,26 @@ export class StudentController {
         ];
       }
 
-      if (departmentId) where.departmentId = String(departmentId);
+      if (departmentId) {
+        const targetDept = await departmentCache.getDepartmentById(String(departmentId));
+        if (targetDept && !targetDept.isAcademicBranch) {
+          where.ndcClearances = { some: { departmentId: targetDept.id } };
+        } else {
+          where.departmentId = String(departmentId);
+        }
+      }
       if (batch) where.batch = String(batch);
       if (academicYear) where.academicYear = String(academicYear);
 
       // Backend RBAC Scoping Enforcement
       if (req.user) {
         if (req.user.role === UserRole.HOD && req.user.departmentId) {
-          where.departmentId = req.user.departmentId;
+          const hodDept = await departmentCache.getDepartmentById(req.user.departmentId);
+          if (hodDept && !hodDept.isAcademicBranch) {
+            where.ndcClearances = { some: { departmentId: req.user.departmentId } };
+          } else {
+            where.departmentId = req.user.departmentId;
+          }
         } else if (req.user.role === UserRole.STUDENT && req.user.associatedStudentId) {
           where.id = req.user.associatedStudentId;
         }
@@ -109,7 +122,7 @@ export class StudentController {
 
   public static async createStudent(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { usn, fullName, email, phone, section, batch, academicYear, semester, year, admissionYear, graduationYear, dateOfBirth, dob, remarks } = req.body;
+      const { usn, fullName, email, phone, section, batch, academicYear, semester, year, admissionYear, graduationYear, dateOfBirth, dob, remarks, departmentId } = req.body;
 
       const trimmedRemarks = (remarks || '').toString().trim();
       if (!trimmedRemarks) {
@@ -124,11 +137,22 @@ export class StudentController {
       }
       const normalizedEmail = (email || '').toLowerCase().trim();
 
-      // 1. Parallelize USN lookup, User email lookup, and Department resolution (0ms from cache)
+      // 1. Parallelize USN lookup, User email lookup, and Department resolution
+      let targetDeptId: string | null = null;
+      let targetDeptName: string | null = null;
+
+      if (departmentId) {
+        const explicitDept = await departmentCache.getDepartmentById(String(departmentId));
+        if (explicitDept) {
+          targetDeptId = explicitDept.id;
+          targetDeptName = explicitDept.name;
+        }
+      }
+
       const [existingUsn, existingUser, deptResolution] = await Promise.all([
         prisma.student.findUnique({ where: { usn: normalizedUsn }, select: { id: true } }),
         normalizedEmail ? prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } }) : null,
-        getOrCreateDepartmentByUsn(normalizedUsn)
+        targetDeptId ? Promise.resolve(null) : getOrCreateDepartmentByUsn(normalizedUsn)
       ]);
 
       if (existingUsn) {
@@ -136,13 +160,17 @@ export class StudentController {
         return;
       }
 
-      if (!deptResolution.success || !deptResolution.departmentId) {
-        res.status(400).json({
-          success: false,
-          status: 'UNKNOWN_DEPARTMENT',
-          message: deptResolution.error || 'Unable to determine department from USN.'
-        });
-        return;
+      if (!targetDeptId) {
+        if (!deptResolution || !deptResolution.success || !deptResolution.departmentId) {
+          res.status(400).json({
+            success: false,
+            status: 'UNKNOWN_DEPARTMENT',
+            message: deptResolution?.error || 'Unable to determine department from USN.'
+          });
+          return;
+        }
+        targetDeptId = deptResolution.departmentId;
+        targetDeptName = deptResolution.name || null;
       }
 
       const studentId = `STU-${normalizedUsn}`;
@@ -160,8 +188,8 @@ export class StudentController {
             fullName,
             email: normalizedEmail,
             phone: phone || '',
-            departmentId: deptResolution.departmentId!,
-            departmentName: deptResolution.name || undefined,
+            departmentId: targetDeptId!,
+            departmentName: targetDeptName || undefined,
             section: section ? section.toUpperCase() : 'A',
             batch: batch || '2022-2026',
             academicYear: academicYear || '2025-2026',
@@ -188,7 +216,7 @@ export class StudentController {
         }
 
         // Initialize NDC Request and departmental clearance tasks with bulk createMany
-        await NdcWorkflowService.initializeNewStudentNdc(newStudent.id, deptResolution.departmentId!, tx, trimmedRemarks);
+        await NdcWorkflowService.initializeNewStudentNdc(newStudent.id, targetDeptId!, tx, trimmedRemarks);
 
         return newStudent;
       });
@@ -211,7 +239,7 @@ export class StudentController {
           toEmail: student.email,
           studentName: student.fullName,
           usn: student.usn,
-          departmentName: (student.departmentName || deptResolution.name) ?? undefined,
+          departmentName: (student.departmentName || targetDeptName) ?? undefined,
           batch: student.batch,
           clientUrl
         }).catch((emailErr) => console.warn('[StudentController]: Failed to send welcome email:', emailErr));
