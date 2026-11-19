@@ -7,6 +7,7 @@ import { withId } from '../utils/formatters';
 import { hashPassword, comparePassword } from '../utils/passwordUtils';
 import emailService from '../services/EmailService';
 import { extractOriginFromReq } from '../utils/urlHelper';
+import { UserRole } from '../constants/roles';
 
 export class AuthController {
   public static async login(req: Request, res: Response): Promise<void> {
@@ -91,6 +92,14 @@ export class AuthController {
       (req as any).user = user;
       AuditService.log(req, 'USER_LOGIN', 'User', `User [${user.email}] logged in successfully.`, user.id).catch(() => {});
 
+      const isAdminRole = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+      const effectiveDepartmentId = isAdminRole
+        ? null
+        : (user.departmentId || user.associatedOfficer?.departmentMappings?.[0]?.departmentId || null);
+      const effectiveDepartment = isAdminRole
+        ? null
+        : (user.department ? withId(user.department) : (user.associatedOfficer?.departmentMappings?.[0]?.department ? withId(user.associatedOfficer?.departmentMappings?.[0]?.department) : null));
+
       res.status(200).json({
         success: true,
         message: 'Login successful.',
@@ -107,8 +116,8 @@ export class AuthController {
           mustChangePassword: user.role === 'STUDENT' ? false : !!user.mustChangePassword,
           associatedStudentId: user.associatedStudentId,
           associatedOfficerId: user.associatedOfficerId,
-          departmentId: user.departmentId || user.associatedOfficer?.departmentMappings?.[0]?.departmentId || null,
-          department: user.department ? withId(user.department) : (user.associatedOfficer?.departmentMappings?.[0]?.department ? withId(user.associatedOfficer?.departmentMappings?.[0]?.department) : null),
+          departmentId: effectiveDepartmentId,
+          department: effectiveDepartment,
           studentProfile: withId(studentProfile),
           officerProfile: withId(officerProfile)
         }
@@ -524,11 +533,13 @@ export class AuthController {
       }
 
       const { passwordHash, ...userWithoutPassword } = user;
+      const isAdminRole = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
 
       res.status(200).json({
         success: true,
         user: {
           ...withId(userWithoutPassword),
+          departmentId: isAdminRole ? null : userWithoutPassword.departmentId,
           mustChangePassword: user.role === 'STUDENT' ? false : !!user.mustChangePassword,
           studentProfile: withId(studentProfile),
           officerProfile: withId(officerProfile)

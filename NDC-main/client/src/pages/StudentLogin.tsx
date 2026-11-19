@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, isPathAllowedForRole } from '../store/useAuthStore';
 import api from '../services/api';
 import {
   GraduationCap,
@@ -36,7 +36,13 @@ export const StudentLogin: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
-      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+      if (
+        redirectParam &&
+        typeof redirectParam === 'string' &&
+        redirectParam.startsWith('/') &&
+        !redirectParam.startsWith('//') &&
+        isPathAllowedForRole(redirectParam, user)
+      ) {
         navigate(redirectParam, { replace: true });
       } else {
         navigate('/student/dashboard', { replace: true });
@@ -94,7 +100,13 @@ export const StudentLogin: React.FC = () => {
       setAuth(user, token || accessToken);
 
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;
-      if (redirectParam && typeof redirectParam === 'string' && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+      if (
+        redirectParam &&
+        typeof redirectParam === 'string' &&
+        redirectParam.startsWith('/') &&
+        !redirectParam.startsWith('//') &&
+        isPathAllowedForRole(redirectParam, user)
+      ) {
         navigate(redirectParam, { replace: true });
         return;
       }

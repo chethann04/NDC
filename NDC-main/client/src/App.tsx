@@ -113,145 +113,145 @@ export const App: React.FC = () => {
   return (
     <PortalProvider>
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Suspense fallback={<PageLoadingFallback />}>
-        <Routes>
-          {/* Auth Layout */}
-          <Route element={<AuthLayout />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/student-login" element={<StudentLogin />} />
-            <Route path="/login/student" element={<Navigate to="/student-login" replace />} />
-            <Route path="/verify" element={<PublicVerify />} />
-          </Route>
+        <Suspense fallback={<PageLoadingFallback />}>
+          <Routes>
+            {/* Auth Layout */}
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/student-login" element={<StudentLogin />} />
+              <Route path="/login/student" element={<Navigate to="/student-login" replace />} />
+              <Route path="/verify" element={<PublicVerify />} />
+            </Route>
 
-        {/* Protected Dashboard Routes */}
-        <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+            {/* Protected Dashboard Routes */}
+            <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
 
-          {/* Top-Level Canonical & Independent Routes */}
-          <Route path="/" element={<DashboardCanonicalRoute />} />
-          <Route path="/dashboard" element={<DashboardCanonicalRoute />} />
-          <Route path="/students" element={<StudentsCanonicalRoute />} />
-          <Route path="/departments" element={<DepartmentsCanonicalRoute />} />
-          <Route path="/admin" element={<AdminCanonicalRoute />} />
-          <Route path="/officers" element={<OfficersCanonicalRoute />} />
-          <Route path="/clearance" element={<ClearanceCanonicalRoute />} />
-          <Route path="/clearances" element={<ClearanceCanonicalRoute />} />
+              {/* Top-Level Canonical & Independent Routes */}
+              <Route path="/" element={<DashboardCanonicalRoute />} />
+              <Route path="/dashboard" element={<DashboardCanonicalRoute />} />
+              <Route path="/students" element={<StudentsCanonicalRoute />} />
+              <Route path="/departments" element={<DepartmentsCanonicalRoute />} />
+              <Route path="/admin" element={<AdminCanonicalRoute />} />
+              <Route path="/officers" element={<OfficersCanonicalRoute />} />
+              <Route path="/clearance" element={<ClearanceCanonicalRoute />} />
+              <Route path="/clearances" element={<ClearanceCanonicalRoute />} />
 
-          {/* Student Routes */}
-          <Route
-            path="/student/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['STUDENT']}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/student/apply" element={<Navigate to="/student/dashboard" replace />} />
-          <Route path="/student/no-due" element={<Navigate to="/student/dashboard" replace />} />
-          <Route
-            path="/student/certificates"
-            element={
-              <ProtectedRoute allowedRoles={['STUDENT']}>
-                <StudentCertificates />
-              </ProtectedRoute>
-            }
-          />
+              {/* Student Routes */}
+              <Route
+                path="/student/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['STUDENT']}>
+                    <StudentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/student/apply" element={<Navigate to="/student/dashboard" replace />} />
+              <Route path="/student/no-due" element={<Navigate to="/student/dashboard" replace />} />
+              <Route
+                path="/student/certificates"
+                element={
+                  <ProtectedRoute allowedRoles={['STUDENT']}>
+                    <StudentCertificates />
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* Officer & HOD Routes */}
-          <Route
-            path="/officer/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD']}>
-                <OfficerDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/clearances"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER']}>
-                <OfficerClearanceQueue />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/physics-lab"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
-                <PhysicsLabClearance />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/chemistry-lab"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
-                <ChemistryLabClearance />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/central-library"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
-                <CentralLibraryClearance />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/department-lab"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
-                <DepartmentLabClearance />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/history"
-            element={
-              <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD']}>
-                <OfficerHistory />
-              </ProtectedRoute>
-            }
-          />
+              {/* Officer & HOD Routes */}
+              <Route
+                path="/officer/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD']}>
+                    <OfficerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/clearances"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER']}>
+                    <OfficerClearanceQueue />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/physics-lab"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                    <PhysicsLabClearance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/chemistry-lab"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                    <ChemistryLabClearance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/central-library"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                    <CentralLibraryClearance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/department-lab"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD', 'SUPER_ADMIN']}>
+                    <DepartmentLabClearance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/history"
+                element={
+                  <ProtectedRoute allowedRoles={['DEPARTMENT_OFFICER', 'HOD']}>
+                    <OfficerHistory />
+                  </ProtectedRoute>
+                }
+              />
 
-          {/* AI Intelligence & Automation Dedicated Routes */}
-          <Route
-            path="/officer/ai-assistant"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
-                <AiAssistantPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/officer/ai-assistant/:deptCode"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
-                <AiAssistantPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/departments/:deptCode/assistant"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
-                <AiAssistantPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/ai/assistant" element={<Navigate to="/officer/ai-assistant" replace />} />
-          <Route path="/ai" element={<Navigate to="/officer/ai-assistant" replace />} />
+              {/* AI Intelligence & Automation Dedicated Routes */}
+              <Route
+                path="/officer/ai-assistant"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                    <AiAssistantPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/officer/ai-assistant/:deptCode"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                    <AiAssistantPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/departments/:deptCode/assistant"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                    <AiAssistantPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/ai/assistant" element={<Navigate to="/officer/ai-assistant" replace />} />
+              <Route path="/ai" element={<Navigate to="/officer/ai-assistant" replace />} />
 
-          <Route
-            path="/officer/logbook-scanner"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
-                <LogbookScannerPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/ai/logbook-scanner" element={<Navigate to="/officer/logbook-scanner" replace />} />
-          <Route path="/ai/scanner" element={<Navigate to="/officer/logbook-scanner" replace />} />
+              <Route
+                path="/officer/logbook-scanner"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER', 'HOD']}>
+                    <LogbookScannerPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/ai/logbook-scanner" element={<Navigate to="/officer/logbook-scanner" replace />} />
+              <Route path="/ai/scanner" element={<Navigate to="/officer/logbook-scanner" replace />} />
 
           <Route
             path="/officer/students"
@@ -279,114 +279,114 @@ export const App: React.FC = () => {
           />
           <Route path="/teaching-departments" element={<TeachingDepartmentRoute />} />
 
-          {/* Admin Routes */}
-          <Route
-            path="/admin/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/students"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
-                <StudentManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/import"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
-                <BulkImport />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/departments"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
-                <DepartmentManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/officers"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
-                <OfficerManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/ndc"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD']}>
-                <NdcMonitor />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/certificates"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD']}>
-                <CertificateManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/reports"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD']}>
-                <ReportsAnalytics />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/audit-logs"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
-                <AuditLogs />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/settings"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/section-logins"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                <SectionLoginManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/account/settings"
-            element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD', 'DEPARTMENT_OFFICER']}>
-                <AccountSettings />
-              </ProtectedRoute>
-            }
-          />
-        </Route>
+              {/* Admin Routes */}
+              <Route
+                path="/admin/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/students"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
+                    <StudentManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/import"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
+                    <BulkImport />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/departments"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+                    <DepartmentManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/officers"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}>
+                    <OfficerManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/ndc"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD']}>
+                    <NdcMonitor />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/certificates"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD']}>
+                    <CertificateManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/reports"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD']}>
+                    <ReportsAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit-logs"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_OFFICER']}>
+                    <AuditLogs />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/settings"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/section-logins"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <SectionLoginManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/account/settings"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOD', 'DEPARTMENT_OFFICER']}>
+                    <AccountSettings />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
 
-        {/* Dedicated Unauthorized Page */}
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            {/* Dedicated Unauthorized Page */}
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-        {/* Catch-all Fallback: 404 Not Found (Preserves URL, never redirects to Students or Login) */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-      <ErrorModal />
-      </Suspense>
-    </Router>
+            {/* Catch-all Fallback: 404 Not Found (Preserves URL, never redirects to Students or Login) */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+          <ErrorModal />
+        </Suspense>
+      </Router>
     </PortalProvider>
   );
 };

@@ -515,7 +515,7 @@ export class TeachingDepartmentController {
       }
 
       // Academic Department Verification
-      if (req.user.role === UserRole.HOD && student.departmentId !== deptId) {
+      if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && student.departmentId !== deptId) {
         res.status(403).json({
           success: false,
           message: 'Forbidden: You can only download certificates for students in your academic department.'

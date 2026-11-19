@@ -110,15 +110,18 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [token, user, activeDepartmentCode]
   );
 
-  // Re-fetch context when user authentication changes or active department changes
+  // Re-fetch context when user authentication changes or user account switches
   useEffect(() => {
     if (!token || !user) {
       setContext(null);
       setStats(null);
+      setActiveDepartmentCodeState('');
       setLoading(false);
       return;
     }
 
+    // Reset active department code when switching accounts so old department scope is not retained
+    setActiveDepartmentCodeState('');
     refreshContext();
   }, [token, user?.id, user?.role]);
 

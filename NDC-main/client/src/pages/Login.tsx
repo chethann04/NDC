@@ -17,7 +17,7 @@ export const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
 
-  // If already authenticated, redirect to destination or dashboard
+  // If already authenticated, redirect to validated destination or dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
       const redirectParam = searchParams.get('redirect') || (location.state as any)?.from;

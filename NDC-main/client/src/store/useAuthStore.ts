@@ -4,6 +4,10 @@ import { clientCache } from '../utils/clientCache';
 
 export const getAuthorizedDashboardPath = (user: User | null): string => {
   if (!user) return '/login';
+  // Super Admin & Admin MUST ALWAYS resolve to the institution-wide Admin Dashboard
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+    return '/admin/dashboard';
+  }
   if (user.role === 'STUDENT') return '/student/dashboard';
   if (user.role === 'HOD') return '/teaching-departments';
   if (user.role === 'DEPARTMENT_OFFICER') {
@@ -92,6 +96,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: (user: User, token: string) => {
     localStorage.setItem('ndc_token', token);
     localStorage.setItem('ndc_user', JSON.stringify(user));
+    // Clear in-memory client cache across all namespaces to prevent cross-account stale department data
     clientCache.invalidate();
     set({ user, token, isAuthenticated: true, isLoading: false });
   },
@@ -99,6 +104,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('ndc_token');
     localStorage.removeItem('ndc_user');
+    // Invalidate client cache on logout
     clientCache.invalidate();
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
