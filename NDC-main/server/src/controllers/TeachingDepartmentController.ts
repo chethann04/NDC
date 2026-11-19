@@ -476,12 +476,6 @@ export class TeachingDepartmentController {
         return;
       }
 
-<<<<<<< HEAD
-      // Backend Security Enforcement: Check academic department match
-      if (student.departmentId !== deptId) {
-        res.status(403).json({ success: false, message: 'Forbidden: You can only access students from your academic department.' });
-        return;
-=======
       // Backend Security Enforcement: Check department access match for HOD and DEPARTMENT_OFFICER
       if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && deptId) {
         const callerDept = await prisma.clearanceDepartment.findUnique({ where: { id: deptId } });
@@ -499,7 +493,6 @@ export class TeachingDepartmentController {
             return;
           }
         }
->>>>>>> 7f937a31 (fix(departments): display student records and metrics for newly created departments across all dashboards)
       }
 
       const ndcRequest = await prisma.ndcRequest.findFirst({
@@ -550,11 +543,6 @@ export class TeachingDepartmentController {
         return;
       }
 
-<<<<<<< HEAD
-      if (student.departmentId !== deptId) {
-        res.status(403).json({ success: false, message: 'Forbidden: Access restricted to your academic department.' });
-        return;
-=======
       if ((req.user.role === UserRole.HOD || req.user.role === UserRole.DEPARTMENT_OFFICER) && deptId) {
         const callerDept = await prisma.clearanceDepartment.findUnique({ where: { id: deptId } });
         if (callerDept?.isAcademicBranch) {
@@ -571,7 +559,6 @@ export class TeachingDepartmentController {
             return;
           }
         }
->>>>>>> 7f937a31 (fix(departments): display student records and metrics for newly created departments across all dashboards)
       }
 
       const ndcRequest = await prisma.ndcRequest.findFirst({ where: { studentId: student.id } });
