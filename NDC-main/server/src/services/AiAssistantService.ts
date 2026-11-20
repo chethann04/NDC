@@ -314,7 +314,7 @@ export class AiAssistantService {
     }
 
     if (detectedIntent === 'DEPARTMENT_REPORT') {
-      return this.handleDepartmentReport(department, stats);
+      return this.handleDepartmentReport(department, stats, lastMessage);
     }
 
     if (
@@ -455,7 +455,7 @@ export class AiAssistantService {
       }
 
       if (modelIntent === 'DEPARTMENT_REPORT' || modelIntent === 'LIST_RECORDS') {
-        return this.handleDepartmentReport(department, stats);
+        return this.handleDepartmentReport(department, stats, lastMessage);
       }
 
       if (modelIntent === 'OUT_OF_SCOPE') {
@@ -1762,9 +1762,9 @@ export class AiAssistantService {
   }
 
   /**
-   * Handle Generating Department Records / Statistics Summary Report
+   * Handle Generating Department Records / Statistics Summary Report or Concise Metric Answers
    */
-  private static async handleDepartmentReport(department: any, stats: any): Promise<AssistantChatResponse> {
+  private static async handleDepartmentReport(department: any, stats: any, userQuery?: string): Promise<AssistantChatResponse> {
     const totalCount = stats.total || 0;
     const clearedCount = stats.cleared || 0;
     const pendingCount = stats.pending || 0;
@@ -1773,6 +1773,67 @@ export class AiAssistantService {
     const pendingPercent = totalCount > 0 ? ((pendingCount / totalCount) * 100).toFixed(1) : '0.0';
     const duePercent = totalCount > 0 ? ((dueCount / totalCount) * 100).toFixed(1) : '0.0';
 
+    const lowerQuery = (userQuery || '').toLowerCase().trim();
+    const isDetailedReportRequest =
+      /\b(department\s+report|clearance\s+report|report|table|breakdown|overview|full\s+report|show\s+clearance\s+statistics|clearance\s+statistics)\b/i.test(lowerQuery) ||
+      !lowerQuery;
+
+    // Check for specific single-metric queries
+    const isClearedQuery =
+      /\b(cleared|completed\s+no\s*due|completed\s+clearance|no\s*due)\b/i.test(lowerQuery) &&
+      !/\b(pending|with\s+dues?|outstanding)\b/i.test(lowerQuery);
+
+    const isPendingQuery =
+      /\b(pending|unreviewed|in[ _-]?progress)\b/i.test(lowerQuery) &&
+      !/\b(cleared|completed\s+no\s*due)\b/i.test(lowerQuery);
+
+    const isDuesQuery =
+      /\b(with\s+dues?|have\s+dues?|flagged|dues?\s+pending|outstanding\s+dues?)\b/i.test(lowerQuery) &&
+      !/\b(cleared|completed\s+no\s*due)\b/i.test(lowerQuery);
+
+    const isTotalQuery =
+      /\b(total\s+number\s+of\s+students?|total\s+students?|how\s+many\s+students(?:\s+are\s+there)?(?:\s+in\s+total)?|number\s+of\s+students)\b/i.test(lowerQuery) &&
+      !isClearedQuery && !isPendingQuery && !isDuesQuery;
+
+    const scopePrefix = department.code === 'ADM' ? 'Across the institution' : `In **${department.name}**`;
+
+    // 1. Simple, concise, natural responses for specific metric inquiries
+    if (!isDetailedReportRequest && (isClearedQuery || isPendingQuery || isDuesQuery || isTotalQuery)) {
+      let metricSummary = '';
+      if (isClearedQuery) {
+        metricSummary = `${scopePrefix}, **${clearedCount}** out of **${totalCount}** students have their clearance approved as No Due (${clearedPercent}%).\n\n` +
+          `- **Cleared (No Due)**: **${clearedCount}** (${clearedPercent}%)\n` +
+          `- **Pending Verification**: **${pendingCount}** (${pendingPercent}%)\n` +
+          `- **Flagged With Dues**: **${dueCount}** (${duePercent}%)`;
+      } else if (isPendingQuery) {
+        metricSummary = `${scopePrefix}, **${pendingCount}** out of **${totalCount}** students are currently pending clearance verification (${pendingPercent}%).\n\n` +
+          `- **Pending Verification**: **${pendingCount}** (${pendingPercent}%)\n` +
+          `- **Cleared (No Due)**: **${clearedCount}** (${clearedPercent}%)\n` +
+          `- **Flagged With Dues**: **${dueCount}** (${duePercent}%)`;
+      } else if (isDuesQuery) {
+        metricSummary = `${scopePrefix}, **${dueCount}** out of **${totalCount}** students currently have outstanding dues (${duePercent}%).\n\n` +
+          `- **Flagged With Dues**: **${dueCount}** (${duePercent}%)\n` +
+          `- **Cleared (No Due)**: **${clearedCount}** (${clearedPercent}%)\n` +
+          `- **Pending Verification**: **${pendingCount}** (${pendingPercent}%)`;
+      } else if (isTotalQuery) {
+        metricSummary = `${scopePrefix}, there are currently **${totalCount}** registered students for clearance.\n\n` +
+          `- **Cleared (No Due)**: **${clearedCount}** (${clearedPercent}%)\n` +
+          `- **Pending Verification**: **${pendingCount}** (${pendingPercent}%)\n` +
+          `- **Flagged With Dues**: **${dueCount}** (${duePercent}%)`;
+      }
+
+      return {
+        reply: `${metricSummary}\n\n*Figures reflect real-time database state for ${department.name}.*`,
+        actionRequired: null,
+        suggestions: [
+          `Show clearance statistics`,
+          `Show pending dues in ${department.name}`,
+          `Lookup student 4MC24IS022`
+        ]
+      };
+    }
+
+    // 2. Full detailed Markdown table report for explicit report requests
     const topDues = department.code === 'ADM'
       ? (await prisma.ndcClearance.findMany({
           where: { status: DepartmentClearanceStatus.DUE as any },
@@ -1829,8 +1890,8 @@ export class AiAssistantService {
   }
 
   // Backward compatibility alias
-  private static async handleListRecords(department: any, stats: any): Promise<AssistantChatResponse> {
-    return this.handleDepartmentReport(department, stats);
+  private static async handleListRecords(department: any, stats: any, userQuery?: string): Promise<AssistantChatResponse> {
+    return this.handleDepartmentReport(department, stats, userQuery);
   }
 
   /**
@@ -1909,7 +1970,12 @@ export class AiAssistantService {
       return { intent: 'EDIT_STAGED_ACTION' };
     }
 
-    // 3. Contradiction detection: both CLEAR/NO_DUE and ADD_DUE/FINE present in same message
+    // 3. Statistical inquiry check before mutation checks
+    if (WorkflowStateMachine.isStatisticalInquiry(text)) {
+      return { intent: 'DEPARTMENT_REPORT' };
+    }
+
+    // 4. Contradiction detection: both CLEAR/NO_DUE and ADD_DUE/FINE present in same message
     const isClearingCharge =
       /\b(remove|waive|drop|cancel|clear)\s+(?:that\s+|the\s+)?(?:charge|due|fine)\b/i.test(lower) ||
       /\breturned\s+(?:the\s+)?apparatus\b/i.test(lower);

@@ -284,7 +284,20 @@ export class WorkflowStateMachine {
       };
     }
 
-    // F. Direct CLEAR_DUE command in current turn
+    // F. Statistical / Aggregate Inquiries (Recognized BEFORE generic CLEAR_DUE or ADD_DUE detection)
+    if (this.isStatisticalInquiry(lastMessage)) {
+      return {
+        state: WorkflowState.INTENT_IDENTIFIED,
+        intent: 'DEPARTMENT_REPORT',
+        usn: null,
+        amount: null,
+        reason: null,
+        isContinuation: false,
+        previousPendingField
+      };
+    }
+
+    // G. Direct CLEAR_DUE command in current turn
     if (this.hasClearDueSignal(lastMessage)) {
       return {
         state: contextUsn ? WorkflowState.RECORD_RETRIEVED : WorkflowState.REQUIRED_INFORMATION_MISSING,
@@ -297,7 +310,7 @@ export class WorkflowStateMachine {
       };
     }
 
-    // G. Direct ADD_DUE command in current turn
+    // H. Direct ADD_DUE command in current turn
     if (this.hasAddDueSignal(lastMessage)) {
       return {
         state: contextUsn && currentAmount !== null ? WorkflowState.RECORD_RETRIEVED : WorkflowState.REQUIRED_INFORMATION_MISSING,
@@ -371,7 +384,54 @@ export class WorkflowStateMachine {
   // INTENT SIGNALS
   // ─────────────────────────────────────────────────────────────
 
+  /**
+   * Identifies whether a user message is an aggregate statistical or report inquiry
+   * rather than an operational mutation or individual student lookup.
+   */
+  public static isStatisticalInquiry(text: string): boolean {
+    if (!text || typeof text !== 'string') return false;
+    const lower = text.toLowerCase().trim();
+
+    // If an individual student USN is present, this is student-specific, NOT an aggregate desk inquiry
+    if (this.USN_REGEX.test(text)) {
+      return false;
+    }
+
+    // 1. Quantifier inquiries asking for counts, numbers, totals, or percentages of students/dues/clearances
+    // e.g. "how many students due is cleared?", "how many students are cleared?", "how many students have pending dues?",
+    // "how many have completed no due?", "what is the total number of students?", "what percentage are cleared?"
+    const hasCountingPhrase =
+      /\b(?:how\s+many|count\s+of|total\s+number\s+of|number\s+of|total\s+count(?:\s+of)?|what\s+is\s+the\s+total|what\s+is\s+the\s+count|what\s+(?:percentage|rate)|percentage\s+of)\b/i.test(lower) ||
+      /\btotal\s+(?:number\s+of\s+)?students?\b/i.test(lower) ||
+      /\bhow\s+many\b/i.test(lower);
+
+    const hasClearanceDomainTarget =
+      /\b(?:students?|dues?|clearances?|cleared|pending|blocked|approved|no[ _-]?dues?|completed|records?)\b/i.test(lower);
+
+    if (hasCountingPhrase && hasClearanceDomainTarget) {
+      return true;
+    }
+
+    // 2. Standalone total queries: e.g. "total number of students?", "total students?", "total count?"
+    if (/\b(?:total\s+(?:number\s+of\s+)?students?|total\s+count(?:\s+of\s+students?)?|total\s+clearances?)\b/i.test(lower)) {
+      return true;
+    }
+
+    // 3. Explicit statistical report / summary requests: e.g. "show clearance statistics", "department report", "clearance summary"
+    if (
+      /\b(?:department\s+report|clearance\s+report|clearance\s+statistics|department\s+statistics|clearance\s+stats|department\s+stats|clearance\s+summary|department\s+summary|clearance\s+overview|summary\s+of\s+clearances?|status\s+summary|clearance\s+rate)\b/i.test(lower) ||
+      /\b(?:statistics|stats|summary|overview)\b/i.test(lower)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   public static hasClearDueSignal(text: string): boolean {
+    // Statistical inquiries must never be treated as CLEAR_DUE mutation signals
+    if (this.isStatisticalInquiry(text)) return false;
+
     const lower = text.toLowerCase();
     const isClearingCharge =
       /\b(remove|waive|drop|cancel|clear)\s+(?:that\s+|the\s+)?(?:charge|due|fine)\b/i.test(lower) ||
@@ -403,6 +463,9 @@ export class WorkflowStateMachine {
 
   public static hasAddDueSignal(text: string): boolean {
     if (this.hasExplicitAddDueProhibition(text)) return false;
+    // Statistical inquiries must never be treated as ADD_DUE mutation signals
+    if (this.isStatisticalInquiry(text)) return false;
+
     const lower = text.toLowerCase();
     const isClearingCharge =
       /\b(remove|waive|drop|cancel|clear)\s+(?:that\s+|the\s+)?(?:charge|due|fine)\b/i.test(lower) ||
