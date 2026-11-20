@@ -32,8 +32,9 @@ const CACHE_KEY_STATS = 'officer_dashboard_stats';
 
 export const OfficerDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const [kpiStats, setKpiStats] = useState<any>(() => clientCache.get(CACHE_KEY_STATS) || null);
-  const [loading, setLoading] = useState<boolean>(() => !clientCache.get(CACHE_KEY_STATS));
+  const statsCacheKey = `${CACHE_KEY_STATS}:${user?.id || user?.email || 'anonymous'}`;
+  const [kpiStats, setKpiStats] = useState<any>(() => clientCache.get(statsCacheKey) || null);
+  const [loading, setLoading] = useState<boolean>(() => !clientCache.get(statsCacheKey));
 
   // Resolve Department Info
   const deptObj = user?.departmentId as any;
@@ -112,12 +113,21 @@ export const OfficerDashboard: React.FC = () => {
 
 
   useEffect(() => {
-    // SWR pattern: if we have cached stats, show immediately and refresh in background
+    // Show cached data immediately, then keep live dashboard metrics synchronized.
     fetchDepartmentData(!kpiStats);
-    if (kpiStats) {
-      fetchDepartmentData(false);
-    }
-  }, []);
+    const syncWhenVisible = () => {
+      if (document.visibilityState === 'visible') fetchDepartmentData(false);
+    };
+    const interval = window.setInterval(syncWhenVisible, 15000);
+    window.addEventListener('focus', syncWhenVisible);
+    document.addEventListener('visibilitychange', syncWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', syncWhenVisible);
+      document.removeEventListener('visibilitychange', syncWhenVisible);
+    };
+  }, [user?.id]);
 
   const fetchDepartmentData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -127,7 +137,7 @@ export const OfficerDashboard: React.FC = () => {
       const newStats = statsRes.data?.data || null;
 
       setKpiStats(newStats);
-      clientCache.set(CACHE_KEY_STATS, newStats);
+      clientCache.set(statsCacheKey, newStats);
     } catch (err) {
       console.error('Error fetching department data:', err);
     } finally {
@@ -139,15 +149,21 @@ export const OfficerDashboard: React.FC = () => {
     return <div className="p-8 text-center text-slate-500 font-semibold">Loading {departmentName} overview...</div>;
   }
 
-  // Current Academic Year (2026) Metrics — from fast server-side groupBy
+  // Current queue metrics and academic-year comparison are derived from live server aggregates.
   const totalQueue = kpiStats?.TOTAL ?? 0;
   const pendingCount = kpiStats?.PENDING ?? 0;
   const dueCount = kpiStats?.DUE ?? 0;
   const clearedCount = (kpiStats?.CLEARED ?? 0) + (kpiStats?.NOT_APPLICABLE ?? 0);
-  const rawCompletion = totalQueue > 0 ? (clearedCount / totalQueue) * 100 : 0;
+  const yearComparison = kpiStats?.yearComparison;
+  const currentYearStats = yearComparison?.current;
+  const previousYearStats = yearComparison?.previous;
+  const rawCompletion = currentYearStats?.completionRate ?? (totalQueue > 0 ? (clearedCount / totalQueue) * 100 : 0);
   const completionPercentage = rawCompletion > 0 && rawCompletion < 1
     ? rawCompletion.toFixed(1)
     : Math.min(100, Math.max(0, Math.round(rawCompletion)));
+  const completionRateChange = currentYearStats && previousYearStats
+    ? currentYearStats.completionRate - previousYearStats.completionRate
+    : null;
 
   // Use fast server-aggregated Academic Branch breakdown
   const branchBreakdown = (kpiStats?.byDepartment || []).map((dept: any) => {
@@ -167,17 +183,6 @@ export const OfficerDashboard: React.FC = () => {
       pctDisplay
     };
   });
-
-  // Historical Comparison Stats (2025 vs 2026 Current)
-  const previousYearStats = {
-    year: '2024–2025 Academic Year',
-    totalProcessed: 520,
-    completionRate: 98,
-    duesResolvedAmount: '₹45,200',
-    avgTurnaroundTime: '1.2 Days',
-    finalClearedCount: 510,
-    revokedCertificates: 0
-  };
 
   // Scope of Clearance Descriptions
   const getDepartmentScope = (code: string) => {
@@ -386,7 +391,7 @@ export const OfficerDashboard: React.FC = () => {
       )}
 
 
-      {/* Respective Department Current Year (2026) Stat Row */}
+      {/* Department clearance stats */}
       <div className="stat-row">
         <div className="stat-card">
           <div className="stat-top">
@@ -395,7 +400,7 @@ export const OfficerDashboard: React.FC = () => {
             </div>
           </div>
           <div className="display-lg text-slate-900 font-extrabold">{totalQueue}</div>
-          <div className="caption-text mt-1 text-slate-500 font-medium">Total Assigned Queue (2026)</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">Total Assigned Queue</div>
         </div>
 
         <div className="stat-card">
@@ -435,7 +440,9 @@ export const OfficerDashboard: React.FC = () => {
             </div>
           </div>
           <div className="display-lg text-blue-700 font-extrabold">{completionPercentage}%</div>
-          <div className="caption-text mt-1 text-slate-500 font-medium">Completion Rate</div>
+          <div className="caption-text mt-1 text-slate-500 font-medium">
+            {currentYearStats ? `${currentYearStats.academicYear} Cohort Completion` : 'Completion Rate'}
+          </div>
         </div>
       </div>
 
@@ -547,47 +554,49 @@ export const OfficerDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Historical Year Comparison Card (2025 vs 2026) */}
+        {/* Live Academic-Year Comparison */}
         <div className="space-y-6">
           <div className="card card-pad space-y-4 bg-gradient-to-br from-white to-slate-50">
             <div className="flex items-center gap-2 text-slate-900">
               <History className="w-5 h-5 text-blue-600" />
               <h2 className="h2-title">Previous Year Comparison</h2>
             </div>
-            <p className="caption-text">Historical benchmark metrics for {departmentName}</p>
+            <p className="caption-text">Live clearance progress for {departmentName}, grouped by graduating cohort.</p>
 
-            <div className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">Previous Session ({previousYearStats.year})</span>
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
-                  {previousYearStats.completionRate}% Final Rate
-                </span>
-              </div>
-              <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                {previousYearStats.finalClearedCount} / {previousYearStats.totalProcessed}
-              </div>
-              <div className="text-[11px] text-slate-500 font-medium">Students cleared in previous batch</div>
-            </div>
+            {currentYearStats && previousYearStats ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {[{ label: 'Current', stats: currentYearStats }, { label: 'Previous', stats: previousYearStats }].map(({ label, stats }) => (
+                    <div key={label} className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl space-y-2">
+                      <div className="text-[11px] font-bold text-slate-700">{label} ({stats.academicYear})</div>
+                      <div className="text-xl font-extrabold text-slate-900 font-mono">{stats.cleared} / {stats.total}</div>
+                      <div className="text-[11px] text-slate-500 font-medium">{stats.completionRate}% completion</div>
+                      <div className="h-1.5 bg-white rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${stats.completionRate}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl">
-                <span className="text-slate-600 font-medium">Previous Year Dues Resolved</span>
-                <span className="font-mono font-bold text-slate-900">{previousYearStats.duesResolvedAmount}</span>
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl">
+                    <span className="text-slate-600 font-medium">Current cohort pending / due</span>
+                    <span className="font-mono font-bold text-slate-900">{currentYearStats.pending} / {currentYearStats.due}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl">
+                    <span className="text-slate-600 font-medium">Completion vs previous year</span>
+                    <span className={`font-mono font-bold flex items-center gap-1 ${completionRateChange !== null && completionRateChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {completionRateChange !== null ? `${completionRateChange > 0 ? '+' : ''}${completionRateChange.toFixed(1)} percentage points` : '—'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">Updated {yearComparison.computedAt ? new Date(yearComparison.computedAt).toLocaleTimeString() : 'just now'}</p>
+              </>
+            ) : (
+              <div className="p-4 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl">
+                Year-over-year comparison is not available yet. It will populate as cohort clearance records are available.
               </div>
-
-              <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl">
-                <span className="text-slate-600 font-medium">Avg Resolution Turnaround</span>
-                <span className="font-mono font-bold text-slate-900">{previousYearStats.avgTurnaroundTime}</span>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl">
-                <span className="text-slate-600 font-medium">Current vs Last Year Rate</span>
-                <span className="font-mono font-bold text-emerald-600 flex items-center gap-1">
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                  On Track
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Respective Department Info & Scope Card */}

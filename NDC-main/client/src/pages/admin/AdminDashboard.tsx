@@ -105,6 +105,18 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchStats(!stats);
+    const syncWhenVisible = () => {
+      if (document.visibilityState === 'visible') fetchStats(false);
+    };
+    const interval = window.setInterval(syncWhenVisible, 15000);
+    window.addEventListener('focus', syncWhenVisible);
+    document.addEventListener('visibilitychange', syncWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', syncWhenVisible);
+      document.removeEventListener('visibilitychange', syncWhenVisible);
+    };
   }, []);
 
   const fetchStats = async (showLoading = true) => {
@@ -139,7 +151,10 @@ export const AdminDashboard: React.FC = () => {
     );
   }
 
-  const { students, requests, departmentStats } = stats || {};
+  const { students, requests, departmentStats, yearComparison } = stats || {};
+  const rateChange = yearComparison?.current && yearComparison?.previous
+    ? yearComparison.current.completionRate - yearComparison.previous.completionRate
+    : null;
 
   return (
     <div className="space-y-6">
@@ -198,6 +213,39 @@ export const AdminDashboard: React.FC = () => {
           color="rose"
         />
       </div>
+
+      {/* Live academic-year cohort comparison */}
+      <section className="bg-white/90 rounded-2xl p-6 border border-slate-200/80 shadow-soft-sm space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-slate-900 tracking-tight">Previous Year Comparison</h2>
+          <p className="text-xs font-medium text-slate-500 mt-1">Institution-wide clearance completion by graduating cohort.</p>
+        </div>
+        {yearComparison?.current && yearComparison?.previous ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[{ label: 'Current', stats: yearComparison.current }, { label: 'Previous', stats: yearComparison.previous }].map(({ label, stats: cohort }: any) => (
+                <div key={label} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="text-xs font-bold text-slate-700">{label} ({cohort.academicYear})</div>
+                  <div className="flex items-end justify-between gap-3">
+                    <span className="text-xl font-extrabold font-mono text-slate-900">{cohort.cleared} / {cohort.total}</span>
+                    <span className="text-sm font-bold text-emerald-700">{cohort.completionRate}%</span>
+                  </div>
+                  <div className="h-2 bg-white rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${cohort.completionRate}%` }} />
+                  </div>
+                  <p className="text-[11px] text-slate-500">Pending: {cohort.pending} · Due: {cohort.due}</p>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs font-semibold text-slate-600">
+              Change from previous cohort: <span className={rateChange !== null && rateChange >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                {rateChange !== null ? `${rateChange > 0 ? '+' : ''}${rateChange.toFixed(1)} percentage points` : '—'}
+              </span>
+              <span className="text-slate-400 font-normal"> · Updated {yearComparison.computedAt ? new Date(yearComparison.computedAt).toLocaleTimeString() : 'just now'}</span>
+            </div>
+          </>
+        ) : <p className="text-xs text-slate-500">Comparison data is not available yet.</p>}
+      </section>
 
       {/* Two Column Section: Department Bars & Live Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

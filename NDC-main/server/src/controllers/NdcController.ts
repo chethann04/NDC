@@ -1134,6 +1134,25 @@ export class NdcController {
         };
       }
 
+      // Comparison cohorts are keyed to the configured academic year and student graduation year.
+      const academicYearSetting = await prisma.setting.findFirst({
+        select: { academicYear: true }
+      });
+      const configuredYear = String(academicYearSetting?.academicYear || '').match(/(\d{4})\s*[-–/]\s*(\d{4})/);
+      const currentGraduationYear = configuredYear
+        ? Number(configuredYear[2])
+        : new Date().getFullYear();
+      const currentAcademicYear = configuredYear
+        ? `${configuredYear[1]}–${configuredYear[2]}`
+        : `${currentGraduationYear - 1}–${currentGraduationYear}`;
+      const clearanceWhereForGraduationYear = (graduationYear: number) => ({
+        ...where,
+        student: {
+          ...(where.student || {}),
+          graduationYear
+        }
+      });
+
       // Calculate department breakdown for this clearance section via fast SQL aggregate
       const deskWhere = { ...where };
       delete deskWhere.student;
@@ -1157,7 +1176,7 @@ export class NdcController {
       }
 
       // Execute all 3 queries concurrently in 1 round-trip
-      const [groups, departmentLabs, deptAggRows] = await Promise.all([
+      const [groups, departmentLabs, deptAggRows, currentYearGroups, previousYearGroups] = await Promise.all([
         prisma.ndcClearance.groupBy({
           by: ['status'],
           where,
@@ -1180,7 +1199,17 @@ export class NdcController {
           LEFT JOIN "clearance_departments" d ON s."departmentId" = d."id"
           WHERE ${deptFilterSql} AND ${labFilterSql}
           GROUP BY s."departmentId", d."name", d."code", c."status"
-        `
+        `,
+        prisma.ndcClearance.groupBy({
+          by: ['status'],
+          where: clearanceWhereForGraduationYear(currentGraduationYear),
+          _count: { _all: true }
+        }),
+        prisma.ndcClearance.groupBy({
+          by: ['status'],
+          where: clearanceWhereForGraduationYear(currentGraduationYear - 1),
+          _count: { _all: true }
+        })
       ]);
 
       const statsMap: Record<string, number> = {
@@ -1224,13 +1253,33 @@ export class NdcController {
       });
 
       const byDepartment = Object.values(deptMap).sort((a, b) => a.departmentName.localeCompare(b.departmentName));
+      const summarizeYear = (yearGroups: typeof currentYearGroups, academicYear: string) => {
+        const counts = new Map(yearGroups.map((group) => [group.status, group._count._all]));
+        const yearTotal = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
+        const yearCleared = (counts.get('CLEARED' as any) || 0) + (counts.get('NOT_APPLICABLE' as any) || 0);
+        return {
+          academicYear,
+          total: yearTotal,
+          cleared: yearCleared,
+          pending: counts.get('PENDING' as any) || 0,
+          due: counts.get('DUE' as any) || 0,
+          completionRate: yearTotal ? Math.round((yearCleared / yearTotal) * 1000) / 10 : 0
+        };
+      };
+
+      const yearComparison = {
+        current: summarizeYear(currentYearGroups, currentAcademicYear),
+        previous: summarizeYear(previousYearGroups, `${currentGraduationYear - 2}–${currentGraduationYear - 1}`),
+        computedAt: new Date().toISOString()
+      };
 
       const responsePayload = {
         success: true,
         data: {
           ...statsMap,
           byDepartment,
-          departmentLabs: withIds(departmentLabs)
+          departmentLabs: withIds(departmentLabs),
+          yearComparison
         }
       };
 

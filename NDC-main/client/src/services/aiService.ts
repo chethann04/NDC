@@ -86,6 +86,13 @@ export interface AssistantResponse {
   suggestions?: string[];
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
 export interface ConversationLogItem {
   id: string;
   userId: string;
@@ -389,11 +396,13 @@ export const aiService = {
    */
   async chatWithAssistant(
     messages: AssistantMessage[],
-    departmentCode?: string
+    departmentCode?: string,
+    conversationId?: string
   ): Promise<AssistantResponse> {
     const res = await api.post('/ai/assistant/chat', {
       messages,
-      ...(departmentCode ? { departmentCode } : {})
+      ...(departmentCode ? { departmentCode } : {}),
+      ...(conversationId ? { conversationId } : {})
     });
     return res.data?.data;
   },
@@ -430,9 +439,16 @@ export const aiService = {
   /**
    * Retrieve stored conversation history for the officer's or admin's department
    */
-  async getConversationHistory(departmentCode?: string, limit = 50): Promise<ConversationLogItem[]> {
+  async getConversationHistory(departmentCode?: string, limit = 50, conversationId?: string): Promise<ConversationLogItem[]> {
     const res = await api.get('/ai/assistant/history', {
-      params: { ...(departmentCode ? { departmentCode } : {}), limit }
+      params: { ...(departmentCode ? { departmentCode } : {}), ...(conversationId ? { conversationId } : {}), limit }
+    });
+    return res.data?.data || [];
+  },
+
+  async getConversationList(departmentCode?: string): Promise<ConversationSummary[]> {
+    const res = await api.get('/ai/assistant/history', {
+      params: { ...(departmentCode ? { departmentCode } : {}), list: true }
     });
     return res.data?.data || [];
   },

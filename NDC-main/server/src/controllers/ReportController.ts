@@ -38,7 +38,8 @@ export class ReportController {
         departments,
         clearanceGroup,
         labClearanceGroup,
-        recentActivity
+        recentActivity,
+        academicYearSetting
       ] = await Promise.all([
         prisma.student.count(),
         prisma.student.count({ where: { isActive: true } }),
@@ -76,8 +77,44 @@ export class ReportController {
             description: true,
             timestamp: true
           }
+        }),
+        prisma.setting.findFirst({ select: { academicYear: true } })
+      ]);
+
+      const configuredYear = String(academicYearSetting?.academicYear || '').match(/(\d{4})\s*[-–/]\s*(\d{4})/);
+      const currentGraduationYear = configuredYear ? Number(configuredYear[2]) : new Date().getFullYear();
+      const yearWhere = (graduationYear: number) => ({ student: { graduationYear } });
+      const [currentCohortGroups, previousCohortGroups] = await Promise.all([
+        prisma.ndcClearance.groupBy({
+          by: ['status'],
+          where: yearWhere(currentGraduationYear),
+          _count: { _all: true }
+        }),
+        prisma.ndcClearance.groupBy({
+          by: ['status'],
+          where: yearWhere(currentGraduationYear - 1),
+          _count: { _all: true }
         })
       ]);
+
+      const summarizeCohort = (groups: typeof currentCohortGroups, academicYear: string) => {
+        const counts = new Map(groups.map((group) => [group.status, group._count._all]));
+        const total = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
+        const cleared = (counts.get('CLEARED' as any) || 0) + (counts.get('NOT_APPLICABLE' as any) || 0);
+        return {
+          academicYear,
+          total,
+          cleared,
+          pending: counts.get('PENDING' as any) || 0,
+          due: counts.get('DUE' as any) || 0,
+          completionRate: total ? Math.round((cleared / total) * 1000) / 10 : 0
+        };
+      };
+      const yearComparison = {
+        current: summarizeCohort(currentCohortGroups, configuredYear ? `${configuredYear[1]}–${configuredYear[2]}` : `${currentGraduationYear - 1}–${currentGraduationYear}`),
+        previous: summarizeCohort(previousCohortGroups, `${currentGraduationYear - 2}–${currentGraduationYear - 1}`),
+        computedAt: new Date().toISOString()
+      };
 
       // Map request status counts and calculate total without extra count() query
       const reqStatusMap = new Map(requestGroup.map((g) => [g.status, g._count._all]));
@@ -143,7 +180,8 @@ export class ReportController {
         students: { total: totalStudents, active: activeStudents },
         requests: { total: totalRequests, pending: pendingRequests, inProgress: inProgressRequests, blocked: blockedRequests, approved: approvedRequests },
         certificates: { total: totalCertificates, valid: validCertificates, revoked: revokedCertificates },
-        departmentStats
+        departmentStats,
+        yearComparison
       };
 
       ReportController.cachedStats = stats;

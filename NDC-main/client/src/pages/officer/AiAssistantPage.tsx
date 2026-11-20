@@ -82,6 +82,10 @@ export const AiAssistantPage: React.FC = () => {
   };
 
   const storageKey = `ndc_ai_chat_${user?.id || 'officer'}_${deptCode}`;
+  const activeConversationKey = `${storageKey}_active`;
+  const [conversationId, setConversationId] = useState(() => localStorage.getItem(activeConversationKey) || 'legacy');
+  const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: string; messageCount: number }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
     try {
@@ -134,7 +138,11 @@ export const AiAssistantPage: React.FC = () => {
     const fetchHistory = async () => {
       try {
         setLoadingHistory(true);
-        const historyLogs = await aiService.getConversationHistory(deptCode, 50);
+        const [historyLogs, savedConversations] = await Promise.all([
+          aiService.getConversationHistory(deptCode, 100, conversationId),
+          aiService.getConversationList(deptCode)
+        ]);
+        setConversations(savedConversations);
         if (Array.isArray(historyLogs) && historyLogs.length > 0) {
           const formatted: MessageItem[] = historyLogs.map((log) => ({
             role: log.role as 'user' | 'model',
@@ -158,7 +166,26 @@ export const AiAssistantPage: React.FC = () => {
       }
     };
     fetchHistory();
-  }, [deptCode, user?.id]);
+  }, [deptCode, user?.id, conversationId]);
+
+  useEffect(() => {
+    localStorage.setItem(activeConversationKey, conversationId);
+  }, [activeConversationKey, conversationId]);
+
+  const handleNewChat = () => {
+    const nextId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setConversationId(nextId);
+    setMessages([{ role: 'model', content: getGreeting() }]);
+    setShowHistory(false);
+    setInput('');
+  };
+
+  const handleOpenChat = (id: string) => {
+    setConversationId(id);
+    setShowHistory(false);
+  };
 
   const handleClearHistory = async () => {
     if (!window.confirm(`Clear active conversation history for ${deptName}?`)) return;
@@ -194,7 +221,8 @@ export const AiAssistantPage: React.FC = () => {
     try {
       const response = await aiService.chatWithAssistant(
         newMessages.map((m) => ({ role: m.role, content: m.content })),
-        deptCode
+        deptCode,
+        conversationId
       );
 
       const updatedWithReply: MessageItem[] = [
@@ -209,6 +237,7 @@ export const AiAssistantPage: React.FC = () => {
 
       setMessages(updatedWithReply);
       localStorage.setItem(storageKey, JSON.stringify(updatedWithReply));
+      aiService.getConversationList(deptCode).then(setConversations).catch(() => undefined);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to contact AI assistant.');
       const updatedWithError: MessageItem[] = [
@@ -453,15 +482,17 @@ export const AiAssistantPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={handleClearHistory}
+            onClick={handleNewChat}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-            title="Start New Chat & Clear Current History"
+            title="Start a separate conversation"
           >
-            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
             <span>New Chat</span>
           </button>
-
-          <Link
+          <button type="button" onClick={() => setShowHistory((open) => !open)} className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold">
+            {showHistory ? 'Hide Chats' : `Chats (${conversations.length})`}
+          </button>
+<Link
             to={clearanceQueueUrl}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
           >
@@ -507,6 +538,14 @@ export const AiAssistantPage: React.FC = () => {
               </button>
             </div>
           )}
+
+          {showHistory && <div className="max-h-44 overflow-y-auto border-b bg-white p-2 space-y-1">
+            {conversations.map((chat) => <button key={chat.id} onClick={() => handleOpenChat(chat.id)} className={`w-full text-left rounded-lg px-3 py-2 text-xs hover:bg-indigo-50 ${conversationId === chat.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'}`}>
+              <span className="block truncate font-semibold">{chat.title || 'New conversation'}</span>
+              <span className="text-slate-400">{chat.messageCount} messages · {new Date(chat.updatedAt).toLocaleDateString()}</span>
+            </button>)}
+            {conversations.length === 0 && <p className="p-2 text-xs text-slate-500">No saved chats yet. Messages will be saved automatically.</p>}
+          </div>}
 
           {/* Messages Stream */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/40">

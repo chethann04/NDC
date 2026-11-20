@@ -75,7 +75,7 @@ export class AiAssistantController {
         return;
       }
 
-      const { messages, departmentCode } = req.body;
+      const { messages, departmentCode, conversationId } = req.body;
 
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({
@@ -109,7 +109,8 @@ export class AiAssistantController {
               userId,
               departmentCode: deptCode,
               role: 'user',
-              content: latestUserMsg.content
+              content: latestUserMsg.content,
+              metadata: conversationId ? { conversationId } : undefined
             }
           });
         } catch (logErr) {
@@ -141,7 +142,8 @@ export class AiAssistantController {
               content: result.reply,
               actionRequired: result.actionRequired ? (result.actionRequired as any) : null,
               metadata: {
-                suggestions: result.suggestions
+                suggestions: result.suggestions,
+                ...(conversationId ? { conversationId } : {})
               }
             }
           });
@@ -187,17 +189,43 @@ export class AiAssistantController {
         requestedDept
       );
       const departmentCode = resolvedCtx.department.code;
-      const limit = Math.min(parseInt((req.query.limit as string) || '50', 10), 100);
+      const limit = req.query.list === 'true' ? 1000 : Math.min(parseInt((req.query.limit as string) || '50', 10), 100);
       const userId = user.id || user._id;
 
-      const logs = await (prisma as any).aiConversationLog.findMany({
+      const conversationId = typeof req.query.conversationId === 'string' ? req.query.conversationId : undefined;
+      const storedLogs = await (prisma as any).aiConversationLog.findMany({
         where: {
           userId,
           departmentCode
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         take: limit
       });
+
+      storedLogs.reverse();
+      let activeConversationId = 'legacy';
+      const taggedLogs = storedLogs.map((log: any) => {
+        if (log.role === 'user') activeConversationId = (log.metadata as any)?.conversationId || 'legacy';
+        return { ...log, metadata: { ...((log.metadata as any) || {}), conversationId: activeConversationId } };
+      });
+      const logs = conversationId
+        ? taggedLogs.filter((log: any) => log.metadata.conversationId === conversationId)
+        : taggedLogs;
+
+      if (req.query.list === 'true') {
+        const groups = new Map<string, any>();
+        for (const log of logs) {
+          const id = (log.metadata as any)?.conversationId || 'legacy';
+          const group = groups.get(id) || { id, title: '', updatedAt: log.createdAt, messageCount: 0 };
+          if (!group.title && log.role === 'user') group.title = log.content.slice(0, 80);
+          group.updatedAt = log.createdAt;
+          group.messageCount += 1;
+          groups.set(id, group);
+        }
+        res.status(200).json({ success: true, data: [...groups.values()].sort((a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()) });
+        return;
+      }
 
       // Synchronize actionRequired status with actual confirmation tokens from database
       const tokenStrings = logs

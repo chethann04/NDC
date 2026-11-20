@@ -71,6 +71,10 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
   };
 
   const storageKey = `ndc_ai_chat_${user?.id || 'officer'}_${departmentCode}`;
+  const activeConversationKey = `${storageKey}_active`;
+  const [conversationId, setConversationId] = useState(() => localStorage.getItem(activeConversationKey) || 'legacy');
+  const [conversations, setConversations] = useState<{ id: string; title: string; updatedAt: string; messageCount: number }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [messages, setMessages] = useState<MessageItem[]>(() => {
     try {
@@ -113,7 +117,11 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     const fetchHistory = async () => {
       try {
         setLoadingHistory(true);
-        const historyLogs = await aiService.getConversationHistory(departmentCode, 50);
+        const [historyLogs, savedConversations] = await Promise.all([
+          aiService.getConversationHistory(departmentCode, 100, conversationId),
+          aiService.getConversationList(departmentCode)
+        ]);
+        setConversations(savedConversations);
         if (Array.isArray(historyLogs) && historyLogs.length > 0) {
           const formatted: MessageItem[] = historyLogs.map((log) => ({
             role: log.role as 'user' | 'model',
@@ -138,23 +146,29 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     };
 
     fetchHistory();
-  }, [isOpen, departmentCode]);
+  }, [isOpen, departmentCode, conversationId]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages.length]);
 
-  const handleClearHistory = async () => {
-    if (!window.confirm(`Clear active conversation history for ${departmentName}?`)) return;
-    try {
-      await aiService.clearConversationHistory(departmentCode);
-    } catch (err) {
-      console.warn('Error clearing backend history:', err);
-    }
-    localStorage.removeItem(storageKey);
+  useEffect(() => {
+    localStorage.setItem(activeConversationKey, conversationId);
+  }, [activeConversationKey, conversationId]);
+
+  const handleNewChat = () => {
+    const nextId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setConversationId(nextId);
     setMessages([{ role: 'model', content: getGreeting() }]);
-    setConfirmSuccess('Conversation history reset.');
-    setTimeout(() => setConfirmSuccess(null), 3000);
+    setShowHistory(false);
+    setInput('');
+  };
+
+  const handleOpenChat = (id: string) => {
+    setConversationId(id);
+    setShowHistory(false);
   };
 
   if (!isOpen) return null;
@@ -180,7 +194,8 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
     try {
       const response = await aiService.chatWithAssistant(
         newMessages.map((m) => ({ role: m.role, content: m.content })),
-        departmentCode
+        departmentCode,
+        conversationId
       );
 
       const updatedWithReply: MessageItem[] = [
@@ -195,6 +210,7 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
 
       setMessages(updatedWithReply);
       localStorage.setItem(storageKey, JSON.stringify(updatedWithReply));
+    aiService.getConversationList(departmentCode).then(setConversations).catch(() => undefined);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to contact AI assistant.');
       const updatedWithError: MessageItem[] = [
@@ -426,12 +442,15 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleClearHistory}
+              onClick={handleNewChat}
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1 text-xs"
-              title="Start New Chat & Clear History"
+              title="Start a separate conversation"
             >
-              <Trash2 className="w-4 h-4 text-rose-300" />
+              <Sparkles className="w-4 h-4 text-indigo-200" />
               <span className="hidden sm:inline text-[11px] text-indigo-100 font-medium">New Chat</span>
+            </button>
+            <button type="button" onClick={() => setShowHistory((open) => !open)} className="px-2 py-1 text-[11px] text-white/80 hover:bg-white/10 rounded">
+              Chats ({conversations.length})
             </button>
             <button
               onClick={onClose}
@@ -442,6 +461,14 @@ export const PhysicsAiAssistantModal: React.FC<PhysicsAiAssistantModalProps> = (
             </button>
           </div>
         </div>
+
+        {showHistory && <div className="max-h-40 overflow-y-auto bg-white border-b p-2 space-y-1">
+          {conversations.map((chat) => <button key={chat.id} onClick={() => handleOpenChat(chat.id)} className={`block w-full text-left rounded px-2 py-1.5 text-xs hover:bg-indigo-50 ${conversationId === chat.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'}`}>
+            <span className="block truncate font-semibold">{chat.title || 'New conversation'}</span>
+            <span className="text-slate-400">{chat.messageCount} messages · {new Date(chat.updatedAt).toLocaleDateString()}</span>
+          </button>)}
+          {conversations.length === 0 && <p className="p-2 text-xs text-slate-500">No saved chats yet.</p>}
+        </div>}
 
         {/* Messages Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
