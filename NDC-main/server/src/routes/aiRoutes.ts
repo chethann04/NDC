@@ -3,6 +3,7 @@ import { authenticateToken } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/rbac';
 import { UserRole } from '../constants/roles';
 import { uploadDocument } from '../middleware/upload';
+import { aiChatLimiter } from '../middleware/rateLimiter';
 import { AiAssistantController } from '../controllers/AiAssistantController';
 import { LogbookScannerController } from '../controllers/LogbookScannerController';
 
@@ -21,7 +22,7 @@ router.use(authorizeRoles(
 // PHYSICS / DEPARTMENT AI ASSISTANT ROUTES
 // ─────────────────────────────────────────────────────────────
 router.get('/assistant/context', AiAssistantController.getContext);
-router.post('/assistant/chat', AiAssistantController.chat);
+router.post('/assistant/chat', aiChatLimiter, AiAssistantController.chat);
 router.post('/assistant/confirm', AiAssistantController.confirmAction);
 router.post('/assistant/cancel', AiAssistantController.cancelAction);
 router.post('/assistant/edit', AiAssistantController.editAction);

@@ -64,3 +64,17 @@ export const verifyLimiter = rateLimit({
     message: 'Too many verification requests. Please wait 15 minutes before trying again.'
   }
 });
+
+// Limiter for AI assistant chat requests to protect against resource exhaustion & model API flooding
+export const aiChatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60, // 60 requests per 15 minutes per IP
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    status: 'RATE_LIMITED',
+    message: 'AI assistant rate limit reached. Please wait a few minutes before sending more requests.'
+  }
+});
+

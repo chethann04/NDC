@@ -161,7 +161,7 @@ export class AiAssistantController {
       const isForbidden = err.message?.includes('Forbidden') || err.message?.includes('Unauthorized') || err.message?.includes('not permitted');
       res.status(isForbidden ? 403 : 500).json({
         success: false,
-        message: err.message || 'Internal server error while processing AI assistant query.'
+        message: isForbidden ? err.message : 'Unable to process your request at this time. Please try again later.'
       });
     }
   }
