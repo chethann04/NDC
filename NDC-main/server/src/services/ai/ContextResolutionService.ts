@@ -470,7 +470,8 @@ export class ContextResolutionService {
       ];
     }
 
-    const systemPrompt = agentConfig?.assistantInstructions || `You are the specialized AI Assistant for ${dept.name} (${dept.code}) at Malnad College of Engineering (MCE).`;
+    const baseInstructions = agentConfig?.assistantInstructions || `You are the specialized AI Assistant for ${dept.name} (${dept.code}) at Malnad College of Engineering (MCE).`;
+    const systemPrompt = `${baseInstructions}\n\nSTRICT SCOPE: You are exclusively the No Due Certificate (NDC) assistant for ${dept.name} at MCE. Your sole purpose is managing student clearances, looking up records, and recording or clearing departmental dues. Politely refuse any queries or tasks outside this scope.`;
     const supportedOperations = agentConfig?.supportedOperations || ['LOOKUP_STUDENT', 'CHECK_STATUS', 'LIST_DUES'];
 
     return {
