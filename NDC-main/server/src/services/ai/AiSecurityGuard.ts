@@ -232,10 +232,13 @@ export class AiSecurityGuard {
       });
     }
 
-    // 2. Email Redaction
+    // 2. Email Redaction (Allow official institutional contact emails, redact personal emails)
     const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
     if (emailRegex.test(sanitized)) {
-      sanitized = sanitized.replace(emailRegex, () => {
+      sanitized = sanitized.replace(emailRegex, (match) => {
+        if (match.toLowerCase().endsWith('@mce.ac.in')) {
+          return match;
+        }
         piiFound = true;
         if (!categories.includes('EMAIL')) categories.push('EMAIL');
         return '[EMAIL REDACTED]';

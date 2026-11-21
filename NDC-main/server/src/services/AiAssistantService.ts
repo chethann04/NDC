@@ -361,21 +361,6 @@ export class AiAssistantService {
       );
     }
 
-    if (detectedIntent === 'VIEW_PENDING_DUES') {
-      return this.handleViewPendingDues(department);
-    }
-
-    if (detectedIntent === 'DEPARTMENT_REPORT') {
-      return this.handleDepartmentReport(department, stats, lastMessage);
-    }
-
-    if (
-      (detectedIntent === 'STUDENT_LOOKUP' || (detectedIntent as any) === 'READ_LAB_CLEARANCE') &&
-      contextUsn
-    ) {
-      return this.handleStudentLookup(studentContext, contextUsn, department);
-    }
-
     // 11. Conversational & Complex Operational Model Invocation with Safe Grounded Fallback
     const systemPrompt = this.buildSystemPrompt({
       userName: user.name,
@@ -471,7 +456,23 @@ export class AiAssistantService {
         }
       }
 
+      const hasValidModelReply =
+        typeof parsed.reply === 'string' &&
+        parsed.reply.trim().length > 0 &&
+        !parsed.reply.includes('Understood. Processing');
+
       if (modelIntent === 'ADD_DUE') {
+        if (WorkflowStateMachine.isStatisticalInquiry(lastMessage) || detectedIntent === 'DEPARTMENT_REPORT') {
+          if (hasValidModelReply) {
+            return {
+              reply: parsed.reply,
+              actionRequired: null,
+              suggestions: this.generateSuggestions(stats, studentContext, department.name, department.code)
+            };
+          }
+          return this.handleDepartmentReport(department, stats, lastMessage);
+        }
+
         return this.handleOperationalMutation(
           'MARK_DUE',
           modelUsn,
@@ -485,6 +486,17 @@ export class AiAssistantService {
       }
 
       if (modelIntent === 'CLEAR_LAB' || modelIntent === 'CLEAR_DUE') {
+        if (WorkflowStateMachine.isStatisticalInquiry(lastMessage) || detectedIntent === 'DEPARTMENT_REPORT') {
+          if (hasValidModelReply) {
+            return {
+              reply: parsed.reply,
+              actionRequired: null,
+              suggestions: this.generateSuggestions(stats, studentContext, department.name, department.code)
+            };
+          }
+          return this.handleDepartmentReport(department, stats, lastMessage);
+        }
+
         return this.handleOperationalMutation(
           'CLEAR_DUE',
           modelUsn,
@@ -499,14 +511,38 @@ export class AiAssistantService {
 
       if ((modelIntent === 'READ_LAB_CLEARANCE' || modelIntent === 'SEARCH_STUDENT' || modelIntent === 'STUDENT_LOOKUP') && modelUsn) {
         const resolvedStudentCtx = studentContext || (await this.getStudentDetailContext(modelUsn, department.id));
+        if (hasValidModelReply) {
+          return {
+            reply: parsed.reply,
+            actionRequired: null,
+            suggestions: this.generateSuggestions(stats, resolvedStudentCtx, department.name, department.code)
+          };
+        }
         return this.handleStudentLookup(resolvedStudentCtx, modelUsn, department);
       }
 
       if (modelIntent === 'LIST_PENDING_DUES' || modelIntent === 'VIEW_PENDING_DUES') {
+        if (hasValidModelReply) {
+          return {
+            reply: parsed.reply,
+            actionRequired: null,
+            suggestions: this.generateSuggestions(stats, studentContext, department.name, department.code)
+          };
+        }
+        if (WorkflowStateMachine.isStatisticalInquiry(lastMessage) || detectedIntent === 'DEPARTMENT_REPORT') {
+          return this.handleDepartmentReport(department, stats, lastMessage);
+        }
         return this.handleViewPendingDues(department);
       }
 
       if (modelIntent === 'DEPARTMENT_REPORT' || modelIntent === 'LIST_RECORDS') {
+        if (hasValidModelReply) {
+          return {
+            reply: parsed.reply,
+            actionRequired: null,
+            suggestions: this.generateSuggestions(stats, studentContext, department.name, department.code)
+          };
+        }
         return this.handleDepartmentReport(department, stats, lastMessage);
       }
 
@@ -528,7 +564,7 @@ export class AiAssistantService {
         };
       }
 
-      if (typeof parsed.reply === 'string' && parsed.reply.trim().length > 0) {
+      if (hasValidModelReply) {
         return {
           reply: parsed.reply,
           actionRequired: null,
@@ -537,7 +573,19 @@ export class AiAssistantService {
       }
     }
 
-    // 12. Grounded Fallback Response when LLM is unconfigured or returns unparsable output
+    // 12. Grounded Fallback Response when LLM is unconfigured, rate-limited, or returns unparsable output
+    if (detectedIntent === 'DEPARTMENT_REPORT') {
+      return this.handleDepartmentReport(department, stats, lastMessage);
+    }
+    if (detectedIntent === 'VIEW_PENDING_DUES') {
+      return this.handleViewPendingDues(department);
+    }
+    if (
+      (detectedIntent === 'STUDENT_LOOKUP' || (detectedIntent as any) === 'READ_LAB_CLEARANCE') &&
+      contextUsn
+    ) {
+      return this.handleStudentLookup(studentContext, contextUsn, department);
+    }
     return this.buildGroundedGeneralReply(department, stats, studentContext, lastMessage);
   }
 
@@ -2542,6 +2590,15 @@ export class AiAssistantService {
       ? `\nDEPARTMENT APPARATUS / RULES / KNOWLEDGE BASE:\n${JSON.stringify(config.knowledgeSources, null, 2)}\n`
       : '';
 
+    const totalCount = ctx.stats?.total || 0;
+    const clearedCount = ctx.stats?.cleared || 0;
+    const pendingCount = ctx.stats?.pending || 0;
+    const dueCount = ctx.stats?.due || 0;
+    const clearedPercent = totalCount > 0 ? ((clearedCount / totalCount) * 100).toFixed(1) : '0.0';
+    const pendingPercent = totalCount > 0 ? ((pendingCount / totalCount) * 100).toFixed(1) : '0.0';
+    const duePercent = totalCount > 0 ? ((dueCount / totalCount) * 100).toFixed(1) : '0.0';
+    const scopePrefix = ctx.departmentCode === 'ADM' ? 'Across the institution' : `In **${ctx.departmentName}**`;
+
     return `### NDC AI ASSISTANT: MASTER SYSTEM PROMPT & ACTION-ORIENTED OPERATION
 
 EXACT APPLICATION IDENTITY & SCOPE (WHAT THIS APPLICATION IS FOR):
@@ -2610,10 +2667,12 @@ CORE IDENTITY & COMMUNICATION PRINCIPLES:
 ${domainInstructions}${knowledge}
 
 REAL-TIME DATABASE CONTEXT:
-- Total Student Records in Desk: ${ctx.stats.total}
-- Currently Pending Clearances: ${ctx.stats.pending}
-- Currently Flagged With Dues: ${ctx.stats.due}
-- Successfully Cleared: ${ctx.stats.cleared}
+- Operational Scope: ${scopePrefix}
+- Total Student Records in Desk: ${totalCount}
+- Cleared (No Due): ${clearedCount} (${clearedPercent}%)
+- Pending Verification: ${pendingCount} (${pendingPercent}%)
+- Flagged With Dues: ${dueCount} (${duePercent}%)
+- Overall Clearance Rate: ${clearedPercent}%
 
 CURRENT OUTSTANDING DUES IN ${ctx.departmentCode}:
 ${
@@ -2647,7 +2706,37 @@ ${
 }
 
 OPERATIONAL GUIDELINES:
-1. Identify the user's operational intent from the message and conversation context:
+1. Operational Scope:
+   - Always begin your clearance and statistical responses directly with "${scopePrefix}".
+2. Core Grounded Reasoning Guidelines:
+   - Always synthesize and ground your answers in the live database records provided above. Never invent or hallucinate student counts, USNs, or due amounts.
+   - For statistical inquiries and metric questions (e.g. "how many students due is cleared?", "how many students are cleared?", "how many students have pending dues?", "what is the total number of students?"):
+     - Always begin your response directly with "${scopePrefix}".
+     - State the specific requested metric naturally and conversationally, and always include the official clearance breakdown:
+       - **Cleared (No Due)**: **${clearedCount}** (${clearedPercent}%)
+       - **Pending Verification**: **${pendingCount}** (${pendingPercent}%)
+       - **Flagged With Dues**: **${dueCount}** (${duePercent}%)
+       - **Total registered students for clearance**: **${totalCount}**
+   - For report or breakdown requests (e.g. "show clearance statistics", "department report", "clearance breakdown"):
+     - Title your response "### Clearance Report: ${scopePrefix}"
+     - Provide a clean Markdown table with columns:
+| Metric | Count | Share |
+| :--- | :--- | :--- |
+| Cleared (No Due) | ${clearedCount} | ${clearedPercent}% |
+| Pending Verification | ${pendingCount} | ${pendingPercent}% |
+| Flagged With Dues | ${dueCount} | ${duePercent}% |
+| **Total Registered** | **${totalCount}** | **100.0%** |
+     - Add concise analytical commentary on clearance progress and bottlenecks.
+   - For student inquiries:
+     - If student context is available, explain their clearance status, branch, recorded dues and reasons clearly.
+     - If a user asks why a student is not cleared, explain based on their pending status or recorded dues.
+   - For pending dues lists:
+     - If top dues are present, list the students with their USN, name, branch, amount, and details.
+     - If no dues are present, state clearly that there are no recorded dues.
+   - For comparative or rate questions:
+     - Compare the figures mathematically and explain what they mean.
+
+3. Identify the user's operational intent from the message and conversation context:
    - "CANCEL_ACTION": Officer wants to cancel or abort a staged action ("cancel that", "cancel the due", "never mind").
    - "EDIT_ACTION": Officer wants to modify a pending staged action ("change it to ₹450", "reason is a broken lens, not a thermometer").
    - "ADD_DUE": Officer wants to record or add an outstanding fee/due/fine for a student.
@@ -2660,7 +2749,8 @@ OPERATIONAL GUIDELINES:
    - "CLARIFICATION_NEEDED": Ambiguous command with materially different outcomes or missing critical parameters.
    - "OUT_OF_SCOPE": User request is outside the MCE No Due Certificate clearance domain (e.g. coding, math/science questions, creative writing, general knowledge, news, jokes, personal topics). Politely refuse in the "reply" field.
    - "CONVERSATIONAL": General greeting, brief conversational acknowledgement, or clearance query.
-2. Formulate your output strictly as valid JSON matching this schema:
+
+4. Formulate your output strictly as valid JSON matching this schema:
 {
   "intent": "CANCEL_ACTION" | "EDIT_ACTION" | "ADD_DUE" | "CLEAR_LAB" | "READ_LAB_CLEARANCE" | "SEARCH_STUDENT" | "LIST_PENDING_DUES" | "DEPARTMENT_REPORT" | "CONTRADICTORY" | "CLARIFICATION_NEEDED" | "OUT_OF_SCOPE" | "CONVERSATIONAL",
   "usn": "Student USN if mentioned or in context, else null",

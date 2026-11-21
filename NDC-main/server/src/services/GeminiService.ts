@@ -1,3 +1,5 @@
+import { WorkflowStateMachine } from './ai/WorkflowStateMachine';
+
 export interface GeminiMessage {
   role: 'user' | 'model' | 'system';
   content: string;
@@ -422,6 +424,8 @@ export class GeminiService {
       contradictionDetected = true;
       contradictionReason = 'User requested both clearance approval (No Due) and due creation in the same query.';
       clarificationQuestion = `You requested both clearance approval ("No Due") and due creation (${amount ? `₹${amount}` : 'due'}) for student ${usn || 'specified'}. Please clarify which action you intend to take.`;
+    } else if (WorkflowStateMachine.isStatisticalInquiry(lastUserMsg) || /\b(how\s+many|total\s+(?:number\s+of\s+)?students?)\b/i.test(lower)) {
+      intent = 'DEPARTMENT_REPORT';
     } else if (/\bwho\s+(?:hasn't|has\s+not|has)\s+cleared\b/i.test(lower) || /\bwho\s+has\s+dues?\b/i.test(lower) || (!usn && /\b(pending|outstanding)\s+dues?\b/i.test(lower))) {
       intent = 'LIST_PENDING_DUES';
     } else if (/\bshow\s+(?:me\s+)?(?:the\s+)?pending\s+details\s+again\b/i.test(lower) || /\bshow\s+details\s+again\b/i.test(lower)) {

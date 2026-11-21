@@ -23,6 +23,8 @@ async function runStatisticsInquiryRegressionTests() {
     }
   }
 
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   let physicsOfficerUser: any = null;
 
   try {
@@ -123,6 +125,7 @@ async function runStatisticsInquiryRegressionTests() {
       assert(hasClear === false, 'hasClearDueSignal returns false (not intercepted as CLEAR_DUE)');
       assert(stateResult.intent === 'DEPARTMENT_REPORT', 'StateMachine routes intent to DEPARTMENT_REPORT');
 
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...officerContext,
         messages: [{ role: 'user', content: q }]
@@ -130,7 +133,11 @@ async function runStatisticsInquiryRegressionTests() {
 
       assert(!res.actionRequired, 'No operational mutation actionRequired returned');
       assert(!res.reply.toLowerCase().includes("please provide the student's usn"), 'Does NOT ask for a student USN');
-      assert(res.reply.includes('Cleared (No Due)'), 'Response contains cleared statistics');
+      assert(
+        res.reply.includes('Cleared (No Due)') ||
+          (res.reply.includes('No Due') && res.reply.toLowerCase().includes('cleared')),
+        'Response contains cleared statistics'
+      );
       console.log(`   Sample response snippet:\n   ${res.reply.split('\n')[0]}`);
     }
 
@@ -146,6 +153,7 @@ async function runStatisticsInquiryRegressionTests() {
       assert(isStat === true, 'isStatisticalInquiry returns true for "how many students are cleared?"');
       assert(hasClear === false, 'hasClearDueSignal returns false');
 
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...officerContext,
         messages: [{ role: 'user', content: q }]
@@ -170,6 +178,7 @@ async function runStatisticsInquiryRegressionTests() {
       assert(hasAdd === false, 'hasAddDueSignal returns false (not intercepted as ADD_DUE)');
       assert(hasClear === false, 'hasClearDueSignal returns false');
 
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...officerContext,
         messages: [{ role: 'user', content: q }]
@@ -190,6 +199,7 @@ async function runStatisticsInquiryRegressionTests() {
 
       assert(isStat === true, 'isStatisticalInquiry returns true for "what is the total number of students?"');
 
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...officerContext,
         messages: [{ role: 'user', content: q }]
@@ -212,6 +222,7 @@ async function runStatisticsInquiryRegressionTests() {
       assert(isStat === true, 'isStatisticalInquiry returns true for "show clearance statistics"');
       assert(stateResult.intent === 'DEPARTMENT_REPORT', 'StateMachine routes to DEPARTMENT_REPORT');
 
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...officerContext,
         messages: [{ role: 'user', content: q }]
@@ -326,6 +337,7 @@ async function runStatisticsInquiryRegressionTests() {
     console.log('\n▶ TEST 9: Statistics query from admin -> institution-scoped results');
     {
       const q = 'how many students due is cleared?';
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...adminContext,
         messages: [{ role: 'user', content: q }]
@@ -343,6 +355,7 @@ async function runStatisticsInquiryRegressionTests() {
     console.log('\n▶ TEST 10: Statistics query from department officer -> department-scoped results');
     {
       const q = 'how many students due is cleared?';
+      await sleep(800);
       const res = await AiAssistantService.processMessage({
         ...officerContext,
         messages: [{ role: 'user', content: q }]
